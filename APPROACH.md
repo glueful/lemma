@@ -34,7 +34,7 @@ Domain:
 
 ## Technical Foundation
 
-Lemma should be built as a Glueful application/product, not as a separate framework.
+Lemma should be built as a Glueful application/product, not as a separate framework — and it starts from `glueful/api-skeleton`, the same quick-start path the framework website documents for new users. This is deliberate dogfooding: building a real product through the advertised onboarding surfaces the actual developer experience (scaffolding, capabilities switchboard, extension enablement, migrations). DX friction discovered along the way gets filed against the skeleton/framework and fixed there, not silently worked around in Lemma.
 
 Glueful core already covers most of the infrastructure layer Lemma needs:
 
@@ -54,7 +54,7 @@ Glueful core already covers most of the infrastructure layer Lemma needs:
 Lemma should provide:
 
 - content model builder;
-- entries and revisions;
+- entries with version history (published revisions);
 - publishing workflow;
 - preview and rendering behavior;
 - headless delivery APIs;
@@ -108,9 +108,9 @@ Storage provider packs are convenience and packaging improvements, not a reason 
 Useful existing extensions:
 
 - `glueful/users` - identity/auth and user store.
-- `glueful/entrada` - identity/auth product surface.
+- `glueful/entrada` - built: OAuth/OIDC social sign-in (Google, Facebook, GitHub, Apple with JWKS-verified ID tokens; web redirect + native mobile flows, `state` CSRF protection, verified-email-gated account linking, auto-registration into the users store). Lemma fit: optional "sign in with ..." on the admin login — purely additive, since entrada flows terminate in the same `glueful/users` JWT session the admin SPA already uses; the token-storage posture below is unchanged. Enterprise IdP SSO (Okta/Entra via generic OIDC) is not covered by its current provider list — a future entrada capability to track if Lemma targets enterprise editorial teams.
 - `glueful/aegis` - permissions/security product surface.
-- `glueful/tenancy` - future multi-tenant CMS and agency/customer installs.
+- `glueful/tenancy` - built: shared-database, row-level multi-tenancy (`tenant_uuid` columns auto-scoped via a `BelongsToTenant` ORM trait + raw-SQL interceptor backstop, tenant propagation into jobs/CLI/scheduler; requires framework ^1.53.0 seams). For future multi-tenant CMS and agency/customer installs — Lemma v1 deliberately does **not** carry tenant columns; see V1_DESIGN.md §10 for the bounded retrofit path and why this differs from the locale decision.
 - `glueful/media` - rich media processing.
 - `glueful/cdn` - CDN and edge cache purge.
 - `glueful/meilisearch` - search indexing.
@@ -138,12 +138,12 @@ These are already covered well enough in framework core and should not be treate
 
 These would benefit many Glueful apps, including Lemma, but they should be filtered by boundary and demand. First-party extensions should be primitives that integrate with core seams, not full product surfaces that compete with dedicated tools.
 
-Near-term first-party primitives:
+Near-term first-party primitives — **all four are already built** (the open question per package is release/pinning status, not existence):
 
-- Storage provider packs: S3, GCS, Azure, SFTP later; R2, MinIO, Spaces, and Wasabi are S3-compatible presets, not separate packs.
-- Feature flags: rollout checks, audience targeting, environment flags, and a null/default provider.
-- Localization/i18n: locales, translation catalogs, fallback rules, regional formatting, and a base layer that Lemma content localization can build on.
-- Import/export engine: generic CSV, JSON, NDJSON, ZIP/bundle jobs, validation reports, batching, queue integration, and export packaging.
+- Storage provider packs: built — `glueful/storage-s3` (incl. R2, MinIO, Spaces, Wasabi as S3-compatible targets), `glueful/storage-gcs`, `glueful/storage-azure`, each registering a driver factory on the core storage seam. SFTP later.
+- Feature flags: built — `glueful/flags` ships flag definitions, targeting rules, deterministic percentage rollouts, management API/CLI, audit rows, and lifecycle events behind a checker contract. Explicitly a rollout switchboard, not access control or billing.
+- Localization/i18n: built — `glueful/i18n` ships a locale registry with single-parent fallback chains, a request locale resolver, persisted translation catalogs, pluralization, missing-key tracking, and a management API/CLI. Lemma content localization consumes its contracts (see V1_DESIGN.md §3) rather than rebuilding any of it.
+- Import/export engine: built — `glueful/import-export` ships job/batch/error/report persistence, queue-backed deterministic batches, dry-run/commit modes, engine-owned retry, streaming CSV/JSON/NDJSON/ZIP-bundle readers and writers, lifecycle events, and HTTP/CLI job management. Lemma owns only the adapters (see V1_DESIGN.md §9 and ADAPTER_NOTES.md).
 
 Demand-gated primitives:
 
@@ -166,7 +166,7 @@ Boundary notes:
 These should be Lemma core or Lemma-owned modules/extensions:
 
 - content models and fields;
-- entries and revisions;
+- entries and version history (published revisions);
 - draft/publish workflow;
 - review/approval workflow;
 - preview system;
@@ -178,47 +178,74 @@ These should be Lemma core or Lemma-owned modules/extensions:
 - SEO metadata, redirects, sitemap;
 - publishing pipeline integrating core webhooks, scheduler, CDN, search, and queues;
 - content migrations/importers for WordPress, Markdown/MDX, and CSV;
-- localization for content, possibly built on a future Glueful i18n extension;
+- localization for content, built on the `glueful/i18n` extension's base layer (locales, catalogs, fallback rules);
 - forms;
 - navigation/menu builder;
 - ecommerce content integration;
 - personalization/segmentation later.
 
-## Core Improvements Before Storage Packs
+## Admin Interface
 
-The storage discussion produced one immediate fix and one larger design direction.
+Lemma should ship with a first-party admin/editor UI so the product is usable out of the box. The default admin should cover content modeling, entries, version history, publishing, preview, media references, permissions, and the common editorial workflows expected from a CMS.
 
-Already fixed in Glueful core:
+The admin UI should still be treated as a replaceable client of Lemma's admin/editor API. The core product contract is the content domain plus stable APIs; the bundled UI is the default experience, not a hard dependency. Teams that need a custom editorial surface should be able to disable or bypass the default admin and build against the same API.
 
-- `FileUploader` now records the actual effective upload disk in `blobs.storage_type`, so explicit per-request storage drivers are not overwritten by `uploads.disk`.
+Recommended admin stack:
 
-Future core storage registry work:
+- Vue 3 with Vite;
+- Nuxt UI's Vue/Vite integration, not Nuxt as the application framework;
+- Vue Router for admin navigation;
+- Pinia or composables for admin state;
+- a typed API client generated from Lemma's OpenAPI/admin API contract where practical.
 
-- introduce `StorageDriverFactoryInterface`;
-- introduce `StorageDriverRegistryInterface`;
-- register storage factories through a `storage.driver_factory` tagged iterator;
-- keep factory capabilities explicit and optional;
-- use `NativeSignedUrlProviderInterface` for provider-native temporary URLs;
-- use `StorageHealthCheckInterface` for diagnostics;
-- default `supports_atomic_move` to `true`;
-- let object-store drivers opt out of atomic moves;
-- preserve `StorageManager` constructor compatibility with a nullable/default registry.
+The admin source should live as a frontend app inside the Lemma development repository, for example under `admin/`, but it should not be part of the normal runtime/download artifact that users install to run Lemma. Production/runtime packages should contain only the compiled admin assets, published to a public asset location such as `public/admin` or another framework-managed admin asset directory.
 
-Storage provider packs should build on that seam. They are useful for Glueful and Lemma, but Lemma itself should continue to consume the core blob/storage abstraction.
+Packaging rule (concrete):
+
+- the **source repo** contains `admin/` (SPA source), built by contributors and CI;
+- the **release artifact** contains `public/admin/` (compiled assets) and nothing else of the frontend: `admin/`, `node_modules/`, and frontend build tooling (`package.json`, lockfiles, Vite config) are excluded from the distributed package — enforced via `.gitattributes` `export-ignore` (Composer dist installs) and the release build script, not by convention;
+- CI builds the admin and commits/attaches the compiled `public/admin/` output as part of cutting a release, so a runtime install never needs Node;
+- Glueful/Lemma serves `/admin` and `/admin/*` from the built asset output;
+- API calls go through Lemma's admin/editor API;
+- custom admin clients can disable or replace the bundled asset mount without changing the backend content engine.
+
+## Core Storage Seam (Shipped)
+
+The storage registry work this section originally proposed has landed in Glueful core:
+
+- `FileUploader` records the actual effective upload disk in `blobs.storage_type`, so explicit per-request storage drivers are not overwritten by `uploads.disk`;
+- `StorageDriverFactoryInterface`, `StorageDriverRegistryInterface`, `NativeSignedUrlProviderInterface`, and `StorageHealthCheckInterface` exist under `src/Storage/Contracts/` and are consumed by core (e.g. `UploadController`).
+
+Storage provider packs (`glueful/storage-s3`, `storage-gcs`, `storage-azure`) build on that seam. They are useful for Glueful and Lemma, but Lemma itself should continue to consume the core blob/storage abstraction.
+
+## Delivery, Auth, And Positioning Notes
+
+- **Delivery API auth:** Glueful core's `api_keys` system (scopes, IP allowlists, expiration, rotation grace, `gf_live_*`/`gf_test_*` environment prefixes) is the delivery-token mechanism. Lemma should not build its own token store; it defines content scopes on top (e.g. `read:content`) and applies rate limiting to public delivery endpoints.
+- **GraphQL:** deliberate position — Lemma ships REST with Glueful's GraphQL-style field selection (`?fields=entry(title,author(name))`) and expansion instead of a GraphQL endpoint. This answers the sparse-fieldset/nested-fetch need without a second query engine. Revisit only on real demand.
+- **Content portability:** "canonical source" implies content can leave. A full export (content models + entries + asset manifest) ships v1-adjacent as a CLI command and produces a re-importable bundle. This is a trust requirement and doubles as the content-level backup story.
+- **Admin auth:** the bundled admin SPA authenticates against the same auth as the admin API (JWT bearer via `glueful/users`). Token storage posture, stated explicitly: the **access token lives in memory only** (never `localStorage`/`sessionStorage` — an XSS must not be able to exfiltrate a reusable credential), short-lived; the **refresh token lives in an `httpOnly` `SameSite=Strict` cookie path-scoped to the refresh endpoint**. That cookie reintroduces exactly one narrow CSRF surface (the refresh call itself), accepted because refresh-token rotation with reuse detection bounds it and the alternative (refresh token readable by JS) is strictly worse. All other admin API calls are pure bearer — no cookie, no CSRF surface. The typed API client carries the bearer token and handles the refresh dance. Social sign-in via `glueful/entrada` (when enabled) is just another way to establish the same session — the provider buttons on the login screen are driven by which entrada providers are configured, and the token posture is identical from that point on.
+- **License/distribution:** open question — open-source core vs source-available vs commercial tiers is undecided. The entitlements boundary note above assumes commercial capabilities will exist. This decision shapes the repo split, the runtime-package rule, and the upgrade story; it should be made before the first public release, not before development starts.
 
 ## Initial Product Shape
 
-The first usable Lemma version should focus on:
+The first usable Lemma version is **headless-first**: prove the content model, editorial workflow, and delivery API before building rendered delivery. Rendered pages require a template/theme layer that Glueful core deliberately does not have (it is an API framework), so "rendered" is its own phase with its own design — v1 keeps only the preview system, which serves drafts to a frontend rather than rendering them itself.
+
+V1 focus:
 
 1. content types and fields;
 2. entries with draft/published state;
-3. revisions;
+3. version history (immutable versions written at publish — see V1_DESIGN.md §2);
 4. media attachment through Glueful blobs;
-5. headless read APIs;
-6. basic rendered pages;
+5. headless read APIs (with field selection, filtering, pagination);
+6. preview system (draft access for frontends via short-lived tokens);
 7. PostgreSQL migrations;
-8. user roles and permissions;
+8. user roles and permissions (coarse roles in v1);
 9. admin/editor UI;
-10. OpenAPI docs.
+10. OpenAPI docs;
+11. content export bundle (portability).
+
+Rendered pages, the block/page builder, approval workflows, localization UI, forms, navigation, and SEO modules are post-v1 (the schema still carries the locale dimension from day one — see the design doc).
 
 It should integrate with core webhooks, scheduler, OpenAPI, storage, queues, CDN, and search from the start where useful. Avoid overbuilding early: the product should prove the content model, editorial workflow, and delivery model first.
+
+Technical decisions for v1 (field storage, published read path, locale dimension, caching/invalidation contract, event taxonomy) are made in [V1_DESIGN.md](V1_DESIGN.md).

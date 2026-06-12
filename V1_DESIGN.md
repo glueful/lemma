@@ -1,0 +1,468 @@
+# Lemma V1 Technical Design
+
+This document makes the architecture decisions that [APPROACH.md](APPROACH.md)
+deliberately left open. These are the decisions that are expensive to reverse
+once content exists in real installs: how dynamic fields are stored, what the
+published read path is, where the locale dimension lives, and what the
+publishing pipeline guarantees. Everything else in v1 can be refactored;
+these four mostly cannot.
+
+Status: **draft — for review before the first migration is written.**
+
+---
+
+## 1. Field storage: single entries spine + JSONB values
+
+**Decision:** content-type field *values* live in a JSONB column on
+version rows. There is no table-per-content-type and no EAV.
+
+**Rejected alternatives:**
+
+- *Table-per-content-type* (Craft/Drupal generated tables): runtime DDL on
+  model changes is operationally dangerous (locks, migration ordering,
+  multi-tenant explosion later) and makes model evolution a schema migration
+  instead of a data operation.
+- *EAV*: query complexity and row explosion for no benefit PostgreSQL's JSONB
+  doesn't already provide with better ergonomics.
+
+**Rationale:** JSONB keeps model changes as pure data operations, revisions as
+cheap full snapshots, and PostgreSQL provides GIN/expression indexing for the
+filterable subset. The schema stays relational for everything durable
+(identity, state, routing, references, publication) per APPROACH.md — JSONB is
+*only* the field-value payload.
+
+### Core tables
+
+```
+content_types
+  uuid, slug (unique), name, description
+  schema JSONB              -- field definitions: name, type, validation,
+                            -- localized?, filterable?, required?, ...
+  schema_version INT        -- bumped on every schema change
+  created_at, updated_at
+
+entries                     -- locale-neutral identity spine
+  uuid, content_type_uuid FK
+  status                    -- 'active' | 'archived' | 'deleted' (soft)
+  created_by, created_at, updated_at
+
+entry_drafts                -- single mutable working copy (see §2)
+  entry_uuid FK, locale
+  fields JSONB
+  schema_version INT
+  lock_version INT          -- optimistic concurrency; stale writes get 409
+  updated_by, updated_at
+  PRIMARY KEY (entry_uuid, locale)
+
+entry_versions              -- immutable, append-only; written at publish
+  uuid, entry_uuid FK
+  locale                    -- locale code; the default locale in v1
+  version INT               -- monotonic per (entry, locale)
+  fields JSONB              -- full snapshot of field values
+  schema_version INT        -- content_types.schema_version at write time
+  created_by, created_at
+  UNIQUE (entry_uuid, locale, version)
+
+entry_publications          -- the published read path (see §2)
+  entry_uuid FK, locale
+  version_uuid FK -> entry_versions
+  published_at, published_by
+  PRIMARY KEY (entry_uuid, locale)
+
+entry_routes
+  entry_uuid FK, content_type_uuid FK, locale, slug
+  UNIQUE (content_type_uuid, locale, slug)
+  -- content_type_uuid is denormalized (derivable via entries) precisely so
+  -- the uniqueness constraint and route lookups never join entries
+
+entry_references            -- normalized reference index (see §4)
+  source_entry_uuid, source_field, target_entry_uuid
+  UNIQUE (source_entry_uuid, source_field, target_entry_uuid)
+```
+
+### Querying dynamic fields
+
+The delivery API filters/sorts only on fields the model marks `filterable`.
+A filterable field **must declare a filter type** — `string`, `number`,
+`boolean`, `datetime`, or `enum` — in its schema definition. The filter type
+is what makes the rest deterministic: it fixes the index expression cast
+(`(fields ->> 'price')::numeric`), the permitted filter operators (`gt`/`lt`
+for number/datetime, equality/`in` for string/enum/boolean), and the query
+validation that rejects anything else. Without it, index generation and
+operator validation are guesswork.
+
+For each filterable field, Lemma creates the corresponding PostgreSQL
+expression index on `entry_versions` — created by a queued job when the model
+changes (`CREATE INDEX CONCURRENTLY`), never inline in a request. Unindexed
+fields are not filterable through the public API; this is a product rule, not
+a temporary limitation, because it is the only way to keep delivery latency
+predictable.
+
+**Framework note:** the Glueful query builder currently exposes
+`whereJsonContains()` only. Richer JSONB predicates (`->>` comparisons, `@>`
+containment with paths, typed casts) go through `whereRaw()` *with bindings*
+in v1. If these call sites multiply, propose a `whereJsonPath()` family in the
+framework rather than accumulating raw SQL — track as a framework work item,
+not a Lemma blocker.
+
+### Schema evolution
+
+Field values are validated against `content_types.schema` on write. Old
+versions keep the `schema_version` they were written under and are **not**
+rewritten on schema change; the delivery layer tolerates missing/extra keys
+(additive changes are free). Destructive changes (rename/retype/delete a
+field) require an explicit model migration step in the admin that enqueues a
+backfill job over current published versions only — history stays as written.
+
+---
+
+## 2. Drafts, versions, and the published read path
+
+**Decision:** three distinct lifecycles, each in its own table.
+
+- **Draft** = one mutable working copy per (entry, locale) in `entry_drafts`.
+  Editing and autosave write *this row only*, guarded by optimistic
+  concurrency (`lock_version`; a stale write returns 409 so concurrent
+  editors stomp on nothing silently). Discard draft = delete the row —
+  published state is untouched. Autosave never creates versions, so history
+  doesn't explode at keystroke granularity.
+- **Version** = immutable, append-only `entry_versions` row, written **at
+  publish** (the draft's fields are validated and snapshotted). History is
+  therefore a list of meaningful publish points, not editing noise.
+- **Publication** = the pin: publish upserts `entry_publications` (one row per
+  entry+locale) pointing at the exact version, inside one transaction with
+  the version write.
+
+The delivery API reads **only** through
+`entry_publications JOIN entry_versions` — there is no status column to filter
+on and therefore no "forgot the WHERE clause" class of draft leakage. Drafts
+aren't even in a table the delivery repository touches.
+
+- Unpublish = delete the `entry_publications` row.
+- Rollback = re-pin an older version row.
+- Scheduled publish/unpublish = core scheduler job that performs the same
+  pin/unpin at `publish_at` — no special states.
+
+**Product language rule:** because versions are written at publish, the UI
+and docs call this **"version history"** (or "published revisions") — never
+"revisions" unqualified or anything implying every save is captured. Editors
+coming from per-save-revision CMSes would otherwise expect autosaves in the
+history. If named draft snapshots ("save a checkpoint without publishing")
+are ever wanted, that is a separate explicit feature appending to
+`entry_versions` without pinning — an additive change, not the default save
+path.
+
+This is one indexed join on the hot path. If profiling ever shows the join
+matters, the escape hatch is denormalizing `fields` onto `entry_publications`
+at publish time — a pure optimization with the same semantics, deferred until
+measured.
+
+Draft reads (admin + preview) go through a separate repository over
+`entry_drafts`; the public delivery repository physically cannot see them.
+
+---
+
+## 3. Locale dimension: in the schema now, single-locale in the product
+
+**Decision:** `locale` is a column on `entry_drafts`, `entry_versions`,
+`entry_publications`, and `entry_routes` from the first migration. The v1 *product* operates with a
+single default locale; there is no locale UI, no fallback resolution, no
+per-locale permissions.
+
+**Rationale:** retrofitting a locale dimension onto live content tables is the
+single most painful CMS migration there is. Carrying the column costs one
+config default; adding localization later becomes feature work instead of a
+schema rewrite.
+
+**Lemma does not build locale infrastructure — `glueful/i18n` already has it.**
+The extension ships a locale registry (`LocaleManagerInterface`) with
+single-parent fallback chains (loop-protected), a request locale resolver
+(`LocaleResolverInterface`: explicit → `?locale=`/`X-Locale` → user claims →
+tenant → app locale), catalogs, pluralization, and a locale management
+API/CLI. The division of labor:
+
+- **v1 (i18n optional, per APPROACH.md's "don't require every extension"
+  rule):** Lemma's default content locale comes from config
+  (`i18n.default_locale` when the extension is installed, an app-level
+  default otherwise). The locale value written to content rows is a plain
+  code; nothing resolves or falls back.
+- **Localization phase (i18n becomes a dependency of the feature):** locale
+  validity, the available-locales list, fallback-chain resolution for content
+  reads ("no `de-CH` version published → serve `de`"), and request locale
+  detection all bind to the i18n extension's contracts. Lemma owns only what
+  is genuinely content-domain: per-locale publishing state, per-locale
+  routes, localized-field copying, and the translation-status UI.
+
+Field-level localization (`localized: true` in the field schema) is already
+representable: non-localized fields are simply copied into each locale's
+version rows when localization arrives. The field schema flag exists in v1 but
+is inert.
+
+---
+
+## 4. References: JSONB values + normalized index, resolved at delivery
+
+**Decision:** reference fields store target **entry UUIDs** (never version
+UUIDs) inside `fields` JSONB, and Lemma maintains the `entry_references` table
+as a write-time projection (rebuilt on every draft save inside the same
+transaction, snapshotted through publish).
+
+- References point at *entries*; the delivery API resolves them to the
+  target's **published** version at read time. A referenced entry that is
+  unpublished resolves to null/omitted — never to a draft.
+- `entry_references` exists for the queries JSONB is bad at: reverse lookups
+  ("what links here"), orphan detection, delete-protection warnings, and
+  cascade decisions in the admin.
+- Expansion in the delivery API uses the framework's field-selection expander
+  seam with batch loading (one query per referenced type per request), not
+  per-entry lazy fetches.
+- Circular references are allowed in data, bounded at delivery by the
+  field-selection depth limit.
+
+Deleting an entry that others reference is allowed but surfaced in the admin
+(via `entry_references`) before confirming; broken references resolve to
+omitted at delivery.
+
+---
+
+## 5. Publishing pipeline contract: events, cache, invalidation
+
+Everything downstream of publish hangs off one transaction and its
+`afterCommit` hook:
+
+```
+publish(entry, locale):
+  db transaction:
+    validate draft against content_types.schema
+    append entry_versions snapshot from the draft
+    upsert entry_publications pin
+    write audit row
+  afterCommit:
+    dispatch domain events (BaseEvent)
+    invalidate cache tags
+    enqueue: webhook deliveries, CDN purge (if glueful/cdn),
+             search index update (if glueful/meilisearch)
+```
+
+**`afterCommit` is verified real, with one stated limitation.** Glueful's
+`Connection::afterCommit()` (backed by `TransactionManager`) executes the
+callback immediately when outside a transaction, promotes callbacks to the
+parent level in nested transactions so they fire only on the *outermost*
+commit, and discards them on rollback. What it cannot survive is the process
+dying between commit and callback execution: the side effects above are
+in-process. Consequence for v1: every downstream effect must be **re-drivable
+and idempotent** (cache tags can be re-invalidated, search can be reindexed,
+CDN re-purged — and a `lemma:resync` command exists to do so), and a missed
+webhook is acknowledged as possible. If webhook delivery guarantees ever
+become a product requirement, the upgrade path is a transactional outbox
+table written inside the publish transaction and drained by a worker — a
+contained change to this section, not a redesign.
+
+### Event taxonomy (v1, frozen as API contract)
+
+| Event | Fired when |
+| --- | --- |
+| `entry.created` | entry identity created (first draft) |
+| `entry.updated` | draft saved (autosave-debounced; not one event per keystroke) |
+| `entry.published` | version pinned (includes re-publish/rollback) |
+| `entry.unpublished` | publication row removed |
+| `entry.deleted` | entry soft-deleted |
+| `model.created` / `model.updated` / `model.deleted` | content type changes |
+| `asset.attached` / `asset.detached` | blob reference added/removed from an entry |
+
+Webhook subscriptions use core `Api\Webhooks` (subscription, signing, retries,
+delivery tracking) with these event names — Lemma does not build webhook
+infrastructure, it defines the taxonomy and payloads (entry UUID, type, locale,
+version, actor, timestamp; never full field payloads by default — receivers
+fetch via the delivery API with their own key).
+
+### Cache tags
+
+- `lemma:entry:{uuid}` — invalidated on publish/unpublish/delete of that entry.
+- `lemma:type:{slug}` — invalidated on any publish within the type (covers
+  list endpoints) and on model changes.
+
+Delivery responses carry `ETag` (hash of version UUID + selection) and
+`Cache-Control` per content-type setting. CDN purge mirrors the same two-tag
+granularity.
+
+---
+
+## 6. Delivery API (public, read-only)
+
+```
+GET /v1/content/{type}                 -- list published entries
+GET /v1/content/{type}/{slug-or-uuid}  -- single published entry
+```
+
+- **Auth:** core `api_keys` (`gf_live_*`/`gf_test_*`) with a `read:content`
+  scope; per-type scopes (`read:content:{type}`) when a real consumer needs
+  them. Public/anonymous access is a per-content-type opt-in.
+- **Field selection & expansion:** the framework's `?fields=` / `?expand=`
+  (REST and GraphQL-style syntaxes) with `#[Fields]` whitelists per route.
+  This is the product's answer to GraphQL — stated, deliberate.
+- **Filtering/sorting:** `?filter[field]=` / `?sort=` restricted to the
+  model's `filterable` fields (§1); cursor pagination (stable under
+  publish churn), page/perPage also supported for convenience.
+- **Rate limiting:** framework rate limiter on all delivery routes, keyed by
+  API key (falling back to client IP for public types).
+- **Preview:** `GET /v1/preview/{token}` — short-lived signed token (HMAC,
+  `APP_KEY`, TTL ~ minutes, bound to entry+locale) minted by the admin API.
+  Grants read of that entry's current draft (or a specific pinned version for
+  historical preview). No "preview mode" flag on the public API — preview is
+  a different, narrow door.
+
+Admin/editor API lives under `/v1/admin/...` (full CRUD on models, entries,
+versions, publications, routes), bearer-auth via `glueful/users`, and is the
+contract the bundled admin SPA is built against. Both APIs are in the OpenAPI
+doc from day one; the delivery API is the stability-promised surface.
+
+---
+
+## 7. Permissions (v1: coarse, honest about it)
+
+Three hierarchical roles via `glueful/aegis`, named and seeded by Lemma:
+
+- **admin** — content models, API keys, users, everything;
+- **editor** — entries CRUD + publish across all types;
+- **viewer** — read-only admin access.
+
+Permission names are namespaced (`lemma.models.manage`, `lemma.entries.write`,
+`lemma.entries.publish`, ...). Per-content-type restriction later uses
+Aegis's **native resource-level filters** — checks take a resource argument
+(`can($user, 'lemma.entries.write', 'content-type:{slug}')`) — not
+type-encoded permission names, so the v1 permission list never has to be
+renamed. Aegis's direct user grants and temporal (expiring) permissions come
+for free with this choice. Per-locale and workflow-state permissions arrive
+with their features, not before. V1 does not pretend to have fine-grained
+editorial permissions; it just checks the namespaced permission with no
+resource argument.
+
+---
+
+## 8. Media
+
+As per APPROACH.md: field values store blob UUIDs; `lemma.media_disk` selects
+the Glueful storage disk; `glueful/media` provides transforms when installed
+(absent it, originals only — same degradation contract as the framework).
+`asset.attached`/`asset.detached` events come from the reference projection
+(§4) treating asset fields like entry references, giving "where is this asset
+used" for free.
+
+---
+
+## 9. Export / portability (v1-adjacent, before any public release)
+
+**Lemma does not build export machinery — `glueful/import-export` is the
+engine.** It already ships job/batch/error/report persistence, queue-backed
+deterministic batches, dry-run vs commit modes, engine-owned retry, streaming
+NDJSON and ZIP-bundle readers/writers (ZIP-slip protected), lifecycle events,
+and HTTP + CLI job management. Lemma implements the adapters
+(`ExporterInterface` / `ImporterInterface`, registered by service tag), per
+the boundary in [ADAPTER_NOTES.md](ADAPTER_NOTES.md): the engine runs the job;
+Lemma defines what the records mean.
+
+The v1 adapters produce/consume a versioned ZIP bundle: content types, entries
+with full version history (or published-only as an adapter option), routes,
+publications, and an asset manifest (blob metadata + fetch paths). Import
+upserts by UUID and uses the engine's dry-run mode for validation previews.
+This is the portability promise behind "canonical source", the content-level
+backup story, and — not incidentally — the test fixture format.
+
+The WordPress, Markdown/MDX, and CSV importers (post-v1, ADAPTER_NOTES.md)
+are additional adapters on the same engine; the bundle adapters built here
+establish the pattern they follow.
+
+---
+
+## 10. Database & testing posture
+
+- **PostgreSQL is required for v1.** The JSONB decisions (§1) are
+  Postgres-semantics; supporting MySQL/SQLite would mean designing for the
+  intersection and losing the reason Postgres was chosen. Revisit only with
+  real demand, as a port, not a v1 constraint.
+- **CI runs against real PostgreSQL.** The framework's SQLite test harness
+  does not exercise JSONB operators or expression indexes; Lemma's integration
+  suite needs a Postgres service from the first pipeline. Unit tests that
+  don't touch JSONB can keep SQLite for speed.
+
+### Multi-tenancy: deliberately not in the v1 schema
+
+`glueful/tenancy` (built; row-level shared-database tenancy) scopes
+tenant-owned tables through a `tenant_uuid` column, a `BelongsToTenant` ORM
+trait, and a raw-SQL interceptor backstop. Lemma v1 does **not** carry
+`tenant_uuid` columns, and this is the opposite call from the locale decision
+(§3) for a structural reason:
+
+- **Locale is identity-defining** — it multiplies rows (versions,
+  publications, routes exist *per locale*), so retrofitting it would redefine
+  primary keys and row identity. It must be in migration one.
+- **Tenant is a pure partition dimension** — the retrofit is bounded and
+  additive: add `tenant_uuid`, backfill every row with a default tenant,
+  set NOT NULL, extend the unique constraints
+  (e.g. `entry_routes` becomes `UNIQUE (tenant_uuid, content_type_uuid,
+  locale, slug)`), add the `BelongsToTenant` trait to Lemma models. No row
+  identity changes, no data rewrite.
+
+Carrying the column now would also be actively awkward: with the extension
+absent it references nothing, and a *nullable* `tenant_uuid` inside unique
+constraints does not enforce uniqueness on PostgreSQL (NULLs compare
+distinct), so single-tenant installs would need a sentinel tenant value — a
+permanent wart for a future feature.
+
+Design rules that keep the retrofit cheap (cost nothing today):
+
+- all cross-table joins/identifiers are UUIDs (already true), so cache tags
+  (`lemma:entry:{uuid}`) and references stay globally unique under tenancy;
+- repositories never assume table-wide uniqueness of slugs beyond the
+  constraint itself — uniqueness checks go through the constraint, not
+  application-level "does this slug exist" scans;
+- background jobs already carry context (the tenancy extension propagates
+  tenant into queue/scheduler/CLI when installed).
+
+---
+
+## 11. Build order
+
+Lemma is scaffolded from **`glueful/api-skeleton`** — the documented
+quick-start — as deliberate dogfooding of the new-project experience
+(see APPROACH.md, Technical Foundation). Any onboarding friction found while
+building Lemma is filed against the skeleton/framework, not worked around.
+
+1. **Framework release first, then a tagged api-skeleton** — Lemma pins a
+   released `glueful/framework`, and `composer create-project` needs a tagged
+   skeleton that itself pins that release (the skeleton's current state is
+   untagged on dev; the tenancy extension is waiting on the same framework
+   release — do not start a second product on `dev`).
+2. Scaffold the Lemma app from the skeleton (users/aegis enabled via the
+   capabilities switchboard, PostgreSQL configured); then migrations +
+   models/repositories for §1's tables; validation of field values against
+   `content_types.schema` (framework DTO/Validator).
+3. Admin API: content types CRUD, entries/versions, publish/unpublish
+   (§2 semantics), routes.
+4. Delivery API: list/single + field selection + filterable-field indexes +
+   API-key scopes + rate limits + ETag/cache tags.
+5. Publishing pipeline: events, webhooks taxonomy, cache invalidation;
+   CDN/search enqueues behind capability checks.
+6. Preview tokens.
+7. Admin SPA (Vue 3 + Vite + Nuxt UI) against the admin API; typed client
+   from the OpenAPI doc.
+8. Export/import bundle adapters on the `glueful/import-export` engine.
+9. Hardening pass: permissions seeding, rate-limit defaults, OpenAPI polish,
+   Postgres CI matrix.
+
+Each step is shippable to a demo; nothing depends on a later step to be
+correct.
+
+---
+
+## Open questions (decide before the step that needs them, not now)
+
+- Expression-index lifecycle on shared/managed Postgres where
+  `CREATE INDEX CONCURRENTLY` may be restricted (step 4).
+- Version retention policy — unlimited history vs configurable pruning
+  (step 8; export makes pruning safe).
+- Whether `entry_routes` carries redirect rows in v1 or redirects wait for the
+  SEO module (step 3; leaning wait).
+- License/distribution (APPROACH.md open question) — must be answered before
+  any public release (step 9 boundary).

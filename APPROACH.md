@@ -117,7 +117,7 @@ Useful existing extensions:
 - `glueful/queue-ops` - queue supervision and worker operations.
 - `glueful/email-notification` - email delivery.
 - `glueful/notiva` - notifications.
-- `glueful/conversa` - conversations/messaging if needed.
+- `glueful/conversa` - SMS & WhatsApp notification channels (Twilio, Meta WhatsApp Cloud drivers, message log, delivery tracking) — relevant if Lemma ever sends editorial/workflow notifications over SMS/WhatsApp, not a conversations/messaging product.
 - `glueful/payvia`, `glueful/commerce`, `glueful/subscriptions` - ecommerce, paid membership, plans, gated content, and commerce-related workflows.
 - `glueful/archive` - archive/lifecycle use cases.
 - `glueful/runiva` - operational/background execution use cases.

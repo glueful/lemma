@@ -1,0 +1,32 @@
+# --- Composer ---
+/vendor/
+# The skeleton is a create-project template; installs resolve fresh dependencies.
+/composer.lock
+/composer.phar
+
+# --- Environment files ---
+/.env
+/.env.*
+!.env.example
+
+# --- IDE / Editor ---
+/.idea/
+/.vscode/
+/*.code-workspace
+
+# --- PHPUnit / QA caches ---
+/.phpunit.result.cache
+.phpunit.cache/
+/.php-cs-fixer.cache
+
+# --- OS / Misc ---
+.DS_Store
+*.log
+bootstrap/cache/
+
+# --- Runtime artifacts ---
+/:memory:
+/storage/cache/*
+!/storage/cache/.gitkeep
+/storage/database/*.sqlite
+!/storage/database/glueful.sqlite

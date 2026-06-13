@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+use Glueful\Database\Migrations\MigrationInterface;
+use Glueful\Database\Schema\Interfaces\SchemaBuilderInterface;
+
+final class CreateContentTypesTable implements MigrationInterface
+{
+    public function up(SchemaBuilderInterface $schema): void
+    {
+        $schema->createTable('content_types', function ($table) {
+            $table->bigInteger('id')->primary()->autoIncrement();
+            $table->string('uuid', 12);
+            $table->string('slug', 160);
+            $table->string('name', 200);
+            $table->text('description')->nullable();
+            $table->json('schema');                 // field definitions (JSONB)
+            $table->integer('schema_version')->default(1);
+            $table->string('created_by', 12)->nullable();
+            $table->timestamp('created_at')->default('CURRENT_TIMESTAMP');
+            $table->timestamp('updated_at')->nullable();
+            $table->unique('uuid');
+            $table->unique('slug');
+        });
+    }
+
+    public function down(SchemaBuilderInterface $schema): void
+    {
+        $schema->dropTableIfExists('content_types');
+    }
+
+    public function getDescription(): string
+    {
+        return 'Create content_types (content models + JSONB field schema).';
+    }
+}

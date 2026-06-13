@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\PublicationController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -40,5 +41,10 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
     $router->put('/entries/{uuid}/draft/{locale}', [EntryController::class, 'saveDraft'])
         ->middleware('lemma_permission:lemma.entries.write');
 
-    // Publication routes added in Task 13.
+    $router->post('/entries/{uuid}/publish/{locale}', [PublicationController::class, 'publish'])
+        ->middleware('lemma_permission:lemma.entries.publish');
+    $router->post('/entries/{uuid}/unpublish/{locale}', [PublicationController::class, 'unpublish'])
+        ->middleware('lemma_permission:lemma.entries.publish');
+    $router->post('/entries/{uuid}/rollback/{locale}', [PublicationController::class, 'rollback'])
+        ->middleware('lemma_permission:lemma.entries.publish');
 });

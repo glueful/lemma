@@ -9,6 +9,9 @@ final class CreateEntryReferencesTable implements MigrationInterface
 {
     public function up(SchemaBuilderInterface $schema): void
     {
+        if ($schema->hasTable('entry_references')) {
+            return;
+        }
         $schema->createTable('entry_references', function ($table) {
             $table->bigInteger('id')->primary()->autoIncrement();
             $table->string('source_entry_uuid', 12);

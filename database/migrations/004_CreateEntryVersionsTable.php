@@ -9,6 +9,9 @@ final class CreateEntryVersionsTable implements MigrationInterface
 {
     public function up(SchemaBuilderInterface $schema): void
     {
+        if ($schema->hasTable('entry_versions')) {
+            return;
+        }
         $schema->createTable('entry_versions', function ($table) {
             $table->bigInteger('id')->primary()->autoIncrement();
             $table->string('uuid', 12);

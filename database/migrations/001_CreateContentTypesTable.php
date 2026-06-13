@@ -9,6 +9,9 @@ final class CreateContentTypesTable implements MigrationInterface
 {
     public function up(SchemaBuilderInterface $schema): void
     {
+        if ($schema->hasTable('content_types')) {
+            return;
+        }
         $schema->createTable('content_types', function ($table) {
             $table->bigInteger('id')->primary()->autoIncrement();
             $table->string('uuid', 12);

@@ -9,6 +9,9 @@ final class CreateEntryRoutesTable implements MigrationInterface
 {
     public function up(SchemaBuilderInterface $schema): void
     {
+        if ($schema->hasTable('entry_routes')) {
+            return;
+        }
         $schema->createTable('entry_routes', function ($table) {
             $table->bigInteger('id')->primary()->autoIncrement();
             $table->string('entry_uuid', 12);

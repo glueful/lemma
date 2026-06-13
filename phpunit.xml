@@ -11,6 +11,9 @@
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
         </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -18,14 +21,13 @@
         </include>
     </source>
     <php>
+        <!--
+          Override only the environment and the Postgres database name. Host, user
+          and (crucially) the password come from .env so the real password never
+          lives in this committed file. The framework pgsql block reads DB_PGSQL_*,
+          so the var MUST be DB_PGSQL_DATABASE (not DB_DATABASE).
+        -->
         <env name="APP_ENV" value="testing"/>
-        <env name="APP_DEBUG" value="true"/>
-        <env name="CACHE_DRIVER" value="array"/>
-        <env name="DB_DRIVER" value="sqlite"/>
-        <env name="DB_SQLITE_DATABASE" value=":memory:"/>
-        <env name="LOG_TO_FILE" value="false"/>
-        <env name="LOG_TO_DB" value="false"/>
-        <env name="JWT_KEY" value="testing-secret-key-not-for-production-use-only"/>
-        <env name="APP_KEY" value="base64:dGVzdGluZy1hcHAta2V5LTMyLWJ5dGVzLWxvbmchIQ=="/>
+        <env name="DB_PGSQL_DATABASE" value="lemma_test"/>
     </php>
 </phpunit>

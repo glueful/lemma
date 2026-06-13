@@ -42,7 +42,12 @@
     "serve": "php glueful serve",
     "migrate": "php glueful migrate:run",
     "key:generate": "php glueful generate:key",
-    "test": "vendor/bin/phpunit",
+    "test:migrate": "DB_PGSQL_DATABASE=lemma_test APP_ENV=testing php glueful migrate:run --force",
+    "test:phpunit": "vendor/bin/phpunit",
+    "test": [
+      "@test:migrate",
+      "@test:phpunit"
+    ],
     "test:unit": "vendor/bin/phpunit --testsuite Unit",
     "test:integration": "vendor/bin/phpunit --testsuite Integration",
     "phpcs": "vendor/bin/phpcs",

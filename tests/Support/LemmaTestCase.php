@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace App\Tests\Support;
 
+use Glueful\Application;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Framework;
+use Glueful\Routing\RouteManifest;
+use Glueful\Routing\Router;
+use Psr\Container\ContainerInterface;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 abstract class LemmaTestCase extends TestCase
 {
@@ -23,6 +29,18 @@ abstract class LemmaTestCase extends TestCase
     {
         if (self::$app === null) {
             $root = dirname(__DIR__, 2);
+
+            // Earlier suites (e.g. tests/Feature, which boot the framework per test)
+            // leave RouteManifest::$loaded === true process-globally. Without resetting
+            // it, this boot's RouteManifest::load() early-returns and the app routes
+            // (including routes/lemma_admin.php) never register in THIS router. The
+            // framework's per-boot route cache would normally paper over that, but its
+            // signature is basePath-sensitive and is discarded across differing boots,
+            // leaving an empty router. Reset the manifest and drop any stale route cache
+            // so this boot loads every routes/*.php file fresh and deterministically.
+            RouteManifest::reset();
+            self::clearRouteCache($root);
+
             // Schema is created by `composer test:migrate` before PHPUnit runs.
             // Framework::boot() returns a Glueful\Application; we keep its
             // ApplicationContext (both expose getContainer()).
@@ -31,6 +49,13 @@ abstract class LemmaTestCase extends TestCase
                 ->withEnvironment('testing')
                 ->boot()
                 ->getContext();
+        }
+    }
+
+    private static function clearRouteCache(string $root): void
+    {
+        foreach (glob($root . '/storage/cache/routes_*.php') ?: [] as $file) {
+            @unlink($file);
         }
     }
 
@@ -50,6 +75,58 @@ abstract class LemmaTestCase extends TestCase
 
     protected function connection(): Connection
     {
-        return self::$app->getContainer()->get(Connection::class);
+        return $this->container()->get(Connection::class);
+    }
+
+    protected function container(): ContainerInterface
+    {
+        return self::$app->getContainer();
+    }
+
+    protected function router(): Router
+    {
+        return $this->container()->get(Router::class);
+    }
+
+    /**
+     * Drive a request through the real application kernel (Router::dispatch via
+     * Application::handle) — the same entry point public/index.php uses.
+     */
+    protected function handle(Request $request): HttpResponse
+    {
+        return (new Application(self::$app))->handle($request);
+    }
+
+    /** Build a JSON request with method, path and (optional) body. */
+    protected function jsonRequest(string $method, string $path, ?array $body = null): Request
+    {
+        return Request::create(
+            $path,
+            $method,
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'],
+            $body === null ? null : (string) json_encode($body)
+        );
+    }
+
+    /**
+     * Find a registered route by method + exact path. Returns the Router's route
+     * descriptor (handler, middleware, name, ...) or null if no such route exists.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function findRoute(string $method, string $path): ?array
+    {
+        foreach ($this->router()->getAllRoutes() as $route) {
+            if (
+                strtoupper((string) $route['method']) === strtoupper($method)
+                && (string) $route['path'] === $path
+            ) {
+                return $route;
+            }
+        }
+        return null;
     }
 }

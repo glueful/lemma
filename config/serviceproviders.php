@@ -11,6 +11,7 @@
 return [
     'enabled' => [
         'App\\Providers\\AppServiceProvider',
+        'App\\Providers\\LemmaServiceProvider',
         // 'App\\Providers\\EventServiceProvider',
     ],
 ];

@@ -21,7 +21,7 @@ These resolve framework specifics so later tasks are unambiguous:
 - **Identifiers:** 12-char NanoIDs via `Glueful\Helpers\Utils::generateNanoID(12)`, stored as `string('uuid', 12)` columns. This matches every Glueful extension and keeps `created_by`/`updated_by` type-compatible with the `glueful/users` store. (Postgres has a native `uuid()` type, but FK-compatibility with the nanoid ecosystem wins.)
 - **JSONB:** `$table->json('fields')` renders as `JSONB` on PostgreSQL (verified: `PostgreSQLSqlGenerator` maps `'json' => 'JSONB'`). Use `->json()` for every field-value/schema column.
 - **Composite "primary key (entry_uuid, locale)"** from the design is implemented as a surrogate `bigInteger('id')->primary()->autoIncrement()` plus a `unique([...])` constraint — the framework idiom (the schema builder's primary path is the surrogate id; uniqueness is enforced by the named unique index). Semantics are identical.
-- **Migrations** live in `database/migrations/` as plain (unnamespaced) classes implementing `Glueful\Database\Migrations\MigrationInterface`; the runner `include`s the file and instantiates by class name. Filenames are numeric-prefixed (`001_…`). Auto-discovered from `config/database.php` `migrations.path`.
+- **Migrations** live in `database/migrations/` as plain (unnamespaced) classes implementing `Glueful\Database\Migrations\MigrationInterface`; the runner `include`s the file and instantiates by class name. Filenames are numeric-prefixed (`001_…`). Auto-discovered from `config/database.php` `migrations.path`. **Every `createTable` migration's `up()` opens with the codebase idiom guard `if ($schema->hasTable('<table>')) { return; }`** (re-run safety; matches framework-core/users/aegis migrations). **Data-seed migrations (e.g. `008`) are the exception** — the target tables already exist, so a `hasTable` guard would wrongly skip seeding; they achieve idempotency via row-level batch-check-then-insert instead (per aegis `003_SeedDefaultRoles`).
 - **Repositories** inject `Glueful\Database\Connection` and use the query builder: `$this->db->table('t')->where('k', '=', $v)->first()|get()|insert($row)|update($data)`.
 - **Responses** use `Glueful\Http\Response` statics: `success()`, `created()`, `validation()`, `notFound()`, `error()`, `paginated()`.
 - **Transactions:** `db($context)->transaction(fn() => …)` (per CLAUDE.md; `DB::transaction` does not exist).
@@ -556,7 +556,7 @@ In `composer.json` `scripts`, make `test` migrate the test DB first (inline `DB_
 
 ```json
 "scripts": {
-    "test:migrate": "DB_PGSQL_DATABASE=lemma_test APP_ENV=testing php glueful migrate:run",
+    "test:migrate": "DB_PGSQL_DATABASE=lemma_test APP_ENV=testing php glueful migrate:run --force",
     "test:phpunit": "vendor/bin/phpunit",
     "test": ["@test:migrate", "@test:phpunit"]
 }
@@ -595,10 +595,13 @@ abstract class LemmaTestCase extends TestCase
         if (self::$app === null) {
             $root = dirname(__DIR__, 2);
             // Schema is created by `composer test:migrate` before PHPUnit runs.
+            // boot() returns Glueful\Application; store its ApplicationContext
+            // (Application::getContext()) so the ?ApplicationContext property + appContext() are correct.
             self::$app = Framework::create($root)
                 ->withConfigDir($root . '/config')
                 ->withEnvironment('testing')
-                ->boot();
+                ->boot()
+                ->getContext();
         }
     }
 

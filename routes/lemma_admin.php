@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Content\Http\Controllers\ContentTypeController;
+use App\Content\Http\Controllers\EntryController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -30,5 +31,14 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
     $router->patch('/content-types/{slug}/schema', [ContentTypeController::class, 'updateSchema'])
         ->middleware('lemma_permission:lemma.models.manage');
 
-    // Entry + publication routes added in Tasks 12–13.
+    $router->post('/entries', [EntryController::class, 'store'])
+        ->middleware('lemma_permission:lemma.entries.write');
+    $router->get('/entries/{uuid}', [EntryController::class, 'show'])
+        ->middleware('lemma_permission:lemma.entries.read');
+    $router->get('/entries/{uuid}/draft/{locale}', [EntryController::class, 'getDraft'])
+        ->middleware('lemma_permission:lemma.entries.read');
+    $router->put('/entries/{uuid}/draft/{locale}', [EntryController::class, 'saveDraft'])
+        ->middleware('lemma_permission:lemma.entries.write');
+
+    // Publication routes added in Task 13.
 });

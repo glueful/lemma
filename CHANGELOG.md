@@ -7,17 +7,63 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 ## [Unreleased]
 
 ### Added
-- Initial Glueful API skeleton.
-- Delivery API `FilterCompiler`: safe, typed, filterable-only JSONB filter predicates
-  (`?filter[field][op]=value`) with always-bound values, mirroring the filterable-field
-  expression indexes via a shared `FieldSqlExpression` helper.
-- Publishing pipeline `InvalidateCacheTagsListener`: invalidates the delivery layer's
-  surrogate cache tags (`lemma:entry:{uuid}`, `lemma:type:{slug}`) on content events —
-  entry events drop the entry + type tags (resolving the content-type UUID to its slug),
-  model events drop the type tag. Wired in `LemmaServiceProvider::boot()` as the first of
-  the pipeline's PSR-14 listeners.
+
+#### Delivery API (`/v1/content`)
+- Public, read-only delivery of **published content only**. `DeliveryRepository` reads
+  exclusively through `entry_publications ⋈ entry_versions ⋈ entries[status=active]` — there is
+  no draft/status column on the read path, so drafts physically cannot leak.
+- `require_content_scope` middleware: a fail-closed API-key scope gate (`read:content`) — unlike
+  core's attribute-only `require_scope`, it reads its route param and denies when the scope is
+  absent or unsatisfied.
+- `FilterCompiler`: safe, typed, filterable-only JSONB filter predicates
+  (`?filter[field][op]=value`) with always-bound values, sharing a `FieldSqlExpression` helper
+  with the expression-index planner so predicates always hit their index.
+- Filterable-field expression-index lifecycle: a queued `EnsureFilterIndexesJob` builds Postgres
+  expression indexes (`CREATE INDEX CONCURRENTLY`) out-of-band; a registry table tracks them.
+- `SortCompiler` + keyset (cursor) pagination, stable under publish churn (`v.id` tiebreaker);
+  framework offset pagination for the `?page`/`?perPage` convenience path.
+- `ReferenceResolver`: batch-loaded, published-only resolution of entry-UUID references at read
+  time (unpublished/archived targets resolve to `null`; depth-bounded).
+- Field selection / `ETag` / `Cache-Tag` (`lemma:entry:{uuid}`, `lemma:type:{slug}`) /
+  `Cache-Control` on delivery responses.
+
+#### Publishing pipeline
+- A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,
+  `model.created/updated/deleted`, `asset.attached/detached`) with identity-only payloads
+  (never full field content).
+- Events dispatched from `db()->afterCommit(...)` — fire once, on the outermost commit only,
+  never on rollback. Asset `attached`/`detached` deltas diffed on draft save.
+- Listeners (registered in `LemmaServiceProvider::boot()`): `InvalidateCacheTagsListener`
+  (invalidates the delivery cache tags), `DispatchWebhookListener` (core `WebhookDispatcher`,
+  identity-only, gated by `pipeline.webhooks_enabled`), and capability-gated `PurgeCdnListener`
+  / `ReindexSearchListener` (clean no-ops without `glueful/cdn` / `glueful/meilisearch`).
+- `lemma:resync` command: re-drives the idempotent effects (cache invalidation + search reindex;
+  webhooks opt-in via `--webhooks`) for an entry, a type, or everything — published content only,
+  bounded/keyset-paged.
+
+#### Preview tokens
+- HMAC-signed (`APP_KEY`) `PreviewToken` bound to `{entry, locale, version?}` with a minutes-scale
+  TTL — signature verified constant-time before any payload is trusted; `exp` is inside the signed
+  payload (no lifetime extension).
+- Admin mint endpoint `POST /v1/admin/entries/{uuid}/preview/{locale}` (auth + `lemma_permission`);
+  public `GET /v1/preview/{token}` — unauthenticated by design (the token is the capability),
+  rate-limited by IP, fail-closed (invalid/malformed → 403, expired → 410, target gone → 404).
+  Serves the entry's current draft, or a specific pinned version (bound to the token's entry+locale).
+  This is the **only** door to a draft; the public delivery API can never see drafts.
 
 ### Changed
 - `FieldValidator` normalizes `datetime` field values to canonical ISO-8601 UTC
   (`YYYY-MM-DDTHH:MM:SSZ`) on write, keeping stored values lexicographically comparable
   as text for the datetime expression index and filter range comparisons.
+- `EntryRepository::saveDraft` now rebuilds the `entry_references` projection and emits content
+  events inside the same transaction (CAS-safe; a stale-lock 409 emits nothing).
+- `RequireLemmaPermission` resolves the authenticated principal from the post-auth `user` request
+  attribute set by `AuthMiddleware` (falling back from the optional `auth.user` enricher), so every
+  `lemma_permission`-gated admin route authorizes correctly in a lean install — still fail-closed
+  (no principal or missing grant → 403).
+
+### Known limitations / tech-debt
+- `ModelDeleted` is wired but has no producer (no content-type delete endpoint yet).
+- `EntryRepository::softDelete` emits `EntryDeleted` but not `AssetDetached` for the entry's assets.
+- `ReindexSearchListener` references the meilisearch reindex job by a placeholder FQCN (the search
+  extension owns the real class); reconcile when `glueful/meilisearch` lands.

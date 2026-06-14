@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Content\Delivery\DeliveryRepository;
+use App\Content\Delivery\FilterCompiler;
+use App\Content\Delivery\ReferenceResolver;
+use App\Content\Delivery\SortCompiler;
 use App\Content\Http\Controllers\ContentTypeController;
+use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\PublicationController;
+use App\Content\Http\DeliveryEtag;
+use App\Content\Http\RequireContentScope;
 use App\Content\Http\RequireLemmaPermission;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
@@ -16,6 +23,7 @@ use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\ServiceProvider;
+use Glueful\Support\FieldSelection\Projector;
 
 /**
  * Wires the Lemma content engine into the application container.
@@ -101,6 +109,49 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
                 'alias' => ['lemma_permission'],
+            ],
+
+            // Delivery API (published-only read path).
+            DeliveryRepository::class => [
+                'class' => DeliveryRepository::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            FilterCompiler::class => [
+                'class' => FilterCompiler::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            SortCompiler::class => [
+                'class' => SortCompiler::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ReferenceResolver::class => [
+                'class' => ReferenceResolver::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            Projector::class => [
+                'class' => Projector::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            DeliveryEtag::class => [
+                'class' => DeliveryEtag::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            DeliveryController::class => [
+                'class' => DeliveryController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RequireContentScope::class => [
+                'class' => RequireContentScope::class,
+                'shared' => true,
+                'autowire' => true,
+                'alias' => ['require_content_scope'],
             ],
         ];
     }

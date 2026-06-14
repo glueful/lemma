@@ -8,6 +8,7 @@ use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\ReferenceResolver;
 use App\Content\Delivery\SortCompiler;
+use App\Content\Console\ResyncCommand;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
@@ -203,6 +204,14 @@ final class LemmaServiceProvider extends ServiceProvider
                 'autowire' => true,
                 'alias' => ['require_content_scope'],
             ],
+
+            // Console command (resolved by commands() in boot()). Autowire fills its
+            // BaseCommand (ContainerInterface, ApplicationContext) constructor.
+            ResyncCommand::class => [
+                'class' => ResyncCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
         ];
     }
 
@@ -220,6 +229,10 @@ final class LemmaServiceProvider extends ServiceProvider
         // Router throws on duplicate static paths.
 
         $this->registerEventListeners($context);
+
+        // Console: register Lemma's app commands. commands() is a console-only no-op in
+        // the HTTP phase (runningInConsole() guards it), so this is free during requests.
+        $this->commands([ResyncCommand::class]);
     }
 
     /**

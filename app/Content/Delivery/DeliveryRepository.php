@@ -197,6 +197,58 @@ final class DeliveryRepository
         return $out;
     }
 
+    /**
+     * The distinct locales that have at least one PUBLISHED entry of a content type.
+     *
+     * Reads the publication spine (only published rows exist there) joined to `entries`
+     * for the type filter + the active-status guard, so the result can never include a
+     * locale that only exists as a draft. Used by `lemma:resync` to enumerate every
+     * (type, locale) read scope through this leak-proof repository rather than touching
+     * tables directly.
+     *
+     * @return list<string>
+     */
+    public function publishedLocalesForType(string $contentTypeUuid): array
+    {
+        $rows = $this->db->table('entry_publications as p')
+            ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
+            ->select(['p.locale'])
+            ->distinct()
+            ->where('e.content_type_uuid', '=', $contentTypeUuid)
+            ->where('e.status', '=', 'active')
+            ->get();
+        return array_values(array_map(static fn(array $r): string => (string) $r['locale'], $rows));
+    }
+
+    /**
+     * The published pin(s) for a single entry, identity-only (entry uuid, content type,
+     * locale, version) — used by `lemma:resync --entry={uuid}` to rebuild the publish
+     * event without leaking field values or touching drafts.
+     *
+     * An entry may be published in several locales (one publication row per locale), so
+     * this returns a list. Reads through the same leak-proof spine + active guard: a
+     * draft-only or archived entry yields an empty list.
+     *
+     * @return list<array{entry:string,type:string,locale:string,version:int}>
+     */
+    public function publishedPinsForEntry(string $entryUuid): array
+    {
+        $rows = $this->db->table('entry_publications as p')
+            ->join('entry_versions as v', 'v.uuid', '=', 'p.version_uuid')
+            ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
+            ->select(['p.entry_uuid', 'e.content_type_uuid', 'p.locale', 'v.version'])
+            ->where('p.entry_uuid', '=', $entryUuid)
+            ->where('e.status', '=', 'active')
+            ->get();
+
+        return array_values(array_map(static fn(array $r): array => [
+            'entry' => (string) $r['entry_uuid'],
+            'type' => (string) $r['content_type_uuid'],
+            'locale' => (string) $r['locale'],
+            'version' => (int) $r['version'],
+        ], $rows));
+    }
+
     private function base(string $contentTypeUuid, string $locale): QueryBuilder
     {
         // entry_publications is the spine; join the pinned version. We also join

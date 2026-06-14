@@ -22,9 +22,19 @@ final class DeliveryRepository
     }
 
     /**
-     * @param array<string,mixed>|null $filter  compiled [sql, bindings] from FilterCompiler (Task 4)
-     * @param array<string,mixed>|null $order   compiled ORDER BY from SortCompiler (Task 5)
-     * @param array<string,mixed>|null $cursor  decoded cursor (Task 6)
+     * Cursor/keyset list — the default, publish-churn-stable read path.
+     *
+     * Order comes from {@see SortCompiler} (default `published_at DESC, v.id DESC`); when
+     * a decoded `$cursor` is present a keyset predicate restricts the result to rows
+     * *after* the cursor's position, so paging never skips or duplicates rows even as
+     * the published set changes underneath it. This is deliberately NOT the framework's
+     * offset `paginate()` (unstable + O(offset)); the offset convenience path is
+     * {@see paginatePublished()}.
+     *
+     * @param array{sql:string,bindings:list<mixed>}|null $filter compiled from FilterCompiler
+     * @param array{sql:string,expr:string,direction:string,field:?string,column:?string}|null $order
+     *        compiled from SortCompiler; null => default newest-first order
+     * @param array{sort:scalar|null,id:int}|null $cursor decoded keyset position (Cursor::decode)
      * @return list<array<string,mixed>> newest-published first (default order)
      */
     public function listPublished(
@@ -36,6 +46,96 @@ final class DeliveryRepository
         ?array $cursor = null,
     ): array {
         $q = $this->base($contentTypeUuid, $locale);
+        $this->applyFilter($q, $filter);
+
+        $order ??= SortCompiler::defaultOrder();
+
+        // Keyset predicate: the ORDER BY mixes the primary direction with a fixed
+        // `v.id DESC` tiebreaker, so a single row-value comparison cannot express it.
+        // Use the expanded equivalent: `expr <dirOp> ? OR (expr = ? AND v.id < ?)`,
+        // with all values BOUND. dirOp is `<` for DESC, `>` for ASC.
+        if ($cursor !== null) {
+            $dirOp = $order['direction'] === 'ASC' ? '>' : '<';
+            $expr = $order['expr'];
+            $q->whereRaw(
+                "({$expr} {$dirOp} ? OR ({$expr} = ? AND v.id < ?))",
+                [$cursor['sort'], $cursor['sort'], $cursor['id']]
+            );
+        }
+
+        $q->orderByRaw(substr($order['sql'], strlen('ORDER BY ')));
+        $q->limit($limit);
+        return array_map([$this, 'hydrate'], $q->get());
+    }
+
+    /**
+     * Offset convenience path — `page`/`perPage`. Uses the framework's offset-based
+     * `QueryBuilder::paginate()` (NOT hand-rolled) so it matches the admin API's
+     * pagination envelope. Offset paging is not churn-stable; that is an accepted
+     * trade-off for this opt-in convenience mode (use the cursor path for live feeds).
+     *
+     * @param array{sql:string,bindings:list<mixed>}|null $filter compiled from FilterCompiler
+     * @param array{sql:string,expr:string,direction:string,field:?string,column:?string}|null $order
+     * @return array{data:list<array<string,mixed>>,total:int,current_page:int,per_page:int}
+     */
+    public function paginatePublished(
+        string $contentTypeUuid,
+        string $locale,
+        int $page,
+        int $perPage,
+        ?array $filter = null,
+        ?array $order = null,
+    ): array {
+        $q = $this->base($contentTypeUuid, $locale);
+        $this->applyFilter($q, $filter);
+
+        $order ??= SortCompiler::defaultOrder();
+        $q->orderByRaw(substr($order['sql'], strlen('ORDER BY ')));
+
+        $result = $q->paginate($page, $perPage);
+
+        /** @var list<array<string,mixed>> $data */
+        $data = $result['data'] ?? [];
+        return [
+            'data' => array_map([$this, 'hydrate'], $data),
+            'total' => (int) ($result['total'] ?? 0),
+            'current_page' => (int) ($result['current_page'] ?? $page),
+            'per_page' => (int) ($result['per_page'] ?? $perPage),
+        ];
+    }
+
+    /**
+     * Build the keyset cursor position for a row under a given order, so the caller
+     * (controller) can emit the next-page cursor. Reads the sort value from the same
+     * place the keyset predicate compares against: the JSONB field for a field sort,
+     * or the `published_at` column for the default order. `id` is the monotonic
+     * `v.id` tiebreaker.
+     *
+     * @param array<string,mixed> $row a hydrated row from listPublished()
+     * @param array{sql:string,expr:string,direction:string,field:?string,column:?string} $order
+     * @return array{sort:scalar|null,id:int}
+     */
+    public function cursorFor(array $row, array $order): array
+    {
+        if ($order['field'] !== null) {
+            /** @var array<string,mixed> $fields */
+            $fields = $row['fields'] ?? [];
+            $sort = $fields[$order['field']] ?? null;
+        } else {
+            $sort = $row[$order['column'] ?? 'published_at'] ?? null;
+        }
+
+        return [
+            'sort' => is_scalar($sort) ? $sort : null,
+            'id' => (int) ($row['id'] ?? 0),
+        ];
+    }
+
+    /**
+     * @param array{sql:string,bindings:list<mixed>}|null $filter
+     */
+    private function applyFilter(QueryBuilder $q, ?array $filter): void
+    {
         // Compiled filter from FilterCompiler (Task 4): a typed JSONB predicate over
         // entry_versions.fields, bound placeholders only. The predicate uses the same
         // expression as the filterable-field expression index so it hits the index.
@@ -44,10 +144,6 @@ final class DeliveryRepository
             $bindings = $filter['bindings'] ?? [];
             $q->whereRaw((string) $filter['sql'], $bindings);
         }
-        // order/cursor applied by Tasks 5-6 via orderByRaw; default order:
-        $q->orderBy('p.published_at', 'DESC')->orderBy('v.id', 'DESC');
-        $q->limit($limit);
-        return array_map([$this, 'hydrate'], $q->get());
     }
 
     /** @return array<string,mixed>|null */

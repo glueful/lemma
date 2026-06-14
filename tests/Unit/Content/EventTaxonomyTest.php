@@ -1,0 +1,199 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Unit\Content;
+
+use App\Content\Events\AssetAttached;
+use App\Content\Events\AssetDetached;
+use App\Content\Events\BaseContentEvent;
+use App\Content\Events\EntryCreated;
+use App\Content\Events\EntryDeleted;
+use App\Content\Events\EntryPublished;
+use App\Content\Events\EntryUnpublished;
+use App\Content\Events\EntryUpdated;
+use App\Content\Events\ModelCreated;
+use App\Content\Events\ModelDeleted;
+use App\Content\Events\ModelUpdated;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Pins the Lemma content-event taxonomy as a frozen API contract.
+ *
+ * The event names returned by name() are a public contract (V1_DESIGN §5):
+ * any rename must break this test. Payloads NEVER carry a `fields` key —
+ * receivers fetch the full record via the delivery API with their own key.
+ */
+final class EventTaxonomyTest extends TestCase
+{
+    /**
+     * The 10 frozen event names. A rename anywhere breaks this map.
+     *
+     * @return array<class-string<BaseContentEvent>, string>
+     */
+    private const FROZEN_NAMES = [
+        EntryCreated::class => 'entry.created',
+        EntryUpdated::class => 'entry.updated',
+        EntryPublished::class => 'entry.published',
+        EntryUnpublished::class => 'entry.unpublished',
+        EntryDeleted::class => 'entry.deleted',
+        ModelCreated::class => 'model.created',
+        ModelUpdated::class => 'model.updated',
+        ModelDeleted::class => 'model.deleted',
+        AssetAttached::class => 'asset.attached',
+        AssetDetached::class => 'asset.detached',
+    ];
+
+    public function testTaxonomyCoversExactlyTenEvents(): void
+    {
+        self::assertCount(10, self::FROZEN_NAMES);
+        self::assertSame(
+            ['entry.created', 'entry.updated', 'entry.published', 'entry.unpublished',
+             'entry.deleted', 'model.created', 'model.updated', 'model.deleted',
+             'asset.attached', 'asset.detached'],
+            array_values(self::FROZEN_NAMES)
+        );
+    }
+
+    /**
+     * @return iterable<string, array{class-string<BaseContentEvent>}>
+     */
+    public static function entryEventProvider(): iterable
+    {
+        yield 'entry.created' => [EntryCreated::class];
+        yield 'entry.updated' => [EntryUpdated::class];
+        yield 'entry.published' => [EntryPublished::class];
+        yield 'entry.unpublished' => [EntryUnpublished::class];
+        yield 'entry.deleted' => [EntryDeleted::class];
+    }
+
+    /**
+     * @param class-string<BaseContentEvent> $eventClass
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('entryEventProvider')]
+    public function testEntryEventNameAndPayloadShape(string $eventClass): void
+    {
+        $event = new $eventClass(
+            entry: 'entry-uuid-1',
+            type: 'article',
+            locale: 'en',
+            version: 3,
+            actor: 'user-uuid-7',
+        );
+
+        self::assertSame(self::FROZEN_NAMES[$eventClass], $event->name());
+
+        $payload = $event->payload();
+
+        self::assertSame(
+            ['entry', 'type', 'locale', 'version', 'actor', 'timestamp'],
+            array_keys($payload)
+        );
+        self::assertSame('entry-uuid-1', $payload['entry']);
+        self::assertSame('article', $payload['type']);
+        self::assertSame('en', $payload['locale']);
+        self::assertSame(3, $payload['version']);
+        self::assertSame('user-uuid-7', $payload['actor']);
+        self::assertIsFloat($payload['timestamp']);
+
+        self::assertArrayNotHasKey('fields', $payload);
+    }
+
+    public function testEntryEventAllowsNullLocaleAndVersion(): void
+    {
+        $event = new EntryCreated(
+            entry: 'entry-uuid-2',
+            type: 'page',
+            locale: null,
+            version: null,
+            actor: null,
+        );
+
+        $payload = $event->payload();
+
+        self::assertNull($payload['locale']);
+        self::assertNull($payload['version']);
+        self::assertNull($payload['actor']);
+        self::assertArrayNotHasKey('fields', $payload);
+    }
+
+    /**
+     * @return iterable<string, array{class-string<BaseContentEvent>}>
+     */
+    public static function modelEventProvider(): iterable
+    {
+        yield 'model.created' => [ModelCreated::class];
+        yield 'model.updated' => [ModelUpdated::class];
+        yield 'model.deleted' => [ModelDeleted::class];
+    }
+
+    /**
+     * @param class-string<BaseContentEvent> $eventClass
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('modelEventProvider')]
+    public function testModelEventNameAndPayloadShape(string $eventClass): void
+    {
+        $event = new $eventClass(
+            type: 'article',
+            actor: 'user-uuid-7',
+        );
+
+        self::assertSame(self::FROZEN_NAMES[$eventClass], $event->name());
+
+        $payload = $event->payload();
+
+        // Model events describe a content-type change: no locale/version.
+        self::assertSame(['type', 'actor', 'timestamp'], array_keys($payload));
+        self::assertSame('article', $payload['type']);
+        self::assertSame('user-uuid-7', $payload['actor']);
+        self::assertIsFloat($payload['timestamp']);
+
+        self::assertArrayNotHasKey('locale', $payload);
+        self::assertArrayNotHasKey('version', $payload);
+        self::assertArrayNotHasKey('fields', $payload);
+    }
+
+    /**
+     * @return iterable<string, array{class-string<BaseContentEvent>}>
+     */
+    public static function assetEventProvider(): iterable
+    {
+        yield 'asset.attached' => [AssetAttached::class];
+        yield 'asset.detached' => [AssetDetached::class];
+    }
+
+    /**
+     * @param class-string<BaseContentEvent> $eventClass
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('assetEventProvider')]
+    public function testAssetEventNameAndPayloadShape(string $eventClass): void
+    {
+        $event = new $eventClass(
+            asset: 'blob-uuid-9',
+            entry: 'entry-uuid-1',
+            actor: 'user-uuid-7',
+        );
+
+        self::assertSame(self::FROZEN_NAMES[$eventClass], $event->name());
+
+        $payload = $event->payload();
+
+        self::assertSame(['asset', 'entry', 'actor', 'timestamp'], array_keys($payload));
+        self::assertSame('blob-uuid-9', $payload['asset']);
+        self::assertSame('entry-uuid-1', $payload['entry']);
+        self::assertSame('user-uuid-7', $payload['actor']);
+        self::assertIsFloat($payload['timestamp']);
+
+        self::assertArrayNotHasKey('fields', $payload);
+    }
+
+    public function testEventsExtendBaseContentEventAndCarryFrameworkMetadata(): void
+    {
+        $event = new EntryPublished('entry-uuid-1', 'article', 'en', 1, 'actor-1');
+
+        self::assertInstanceOf(BaseContentEvent::class, $event);
+        // BaseEvent assigns an event id + timestamp via parent::__construct().
+        self::assertNotEmpty($event->getEventId());
+        self::assertGreaterThan(0.0, $event->getTimestamp());
+    }
+}

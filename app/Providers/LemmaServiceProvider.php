@@ -27,6 +27,8 @@ use App\Content\Events\AssetAttached;
 use App\Content\Events\AssetDetached;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
+use App\Content\Pipeline\Listeners\PurgeCdnListener;
+use App\Content\Pipeline\Listeners\ReindexSearchListener;
 use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
@@ -119,6 +121,16 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             DispatchWebhookListener::class => [
                 'class' => DispatchWebhookListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            PurgeCdnListener::class => [
+                'class' => PurgeCdnListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ReindexSearchListener::class => [
+                'class' => ReindexSearchListener::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -230,17 +242,60 @@ final class LemmaServiceProvider extends ServiceProvider
         $events = app($context, EventService::class);
 
         // event class => list of listener service ids (lazy '@' form).
+        //
+        // PurgeCdnListener and ReindexSearchListener are CAPABILITY-GATED no-ops in a lean
+        // install (no glueful/cdn / glueful/meilisearch): they self-skip at invocation, so
+        // wiring them broadly is safe. PurgeCdnListener mirrors the cache listener's tag
+        // scope (entry + model events, since both move lemma:type:{slug}). ReindexSearchListener
+        // is wired to entry LIFECYCLE events only (publish/unpublish/update/delete) — the ones
+        // that change a single entry's published index document; model/asset events don't.
         $listeners = [
             // Cache-tag invalidation (V1_DESIGN §5). Entry events drop the entry + type
             // tags; model events drop the type tag.
-            EntryPublished::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
-            EntryUnpublished::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
-            EntryDeleted::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
-            EntryUpdated::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
-            EntryCreated::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
-            ModelCreated::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
-            ModelUpdated::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
-            ModelDeleted::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            EntryPublished::class => [
+                InvalidateCacheTagsListener::class,
+                DispatchWebhookListener::class,
+                PurgeCdnListener::class,
+                ReindexSearchListener::class,
+            ],
+            EntryUnpublished::class => [
+                InvalidateCacheTagsListener::class,
+                DispatchWebhookListener::class,
+                PurgeCdnListener::class,
+                ReindexSearchListener::class,
+            ],
+            EntryDeleted::class => [
+                InvalidateCacheTagsListener::class,
+                DispatchWebhookListener::class,
+                PurgeCdnListener::class,
+                ReindexSearchListener::class,
+            ],
+            EntryUpdated::class => [
+                InvalidateCacheTagsListener::class,
+                DispatchWebhookListener::class,
+                PurgeCdnListener::class,
+                ReindexSearchListener::class,
+            ],
+            EntryCreated::class => [
+                InvalidateCacheTagsListener::class,
+                DispatchWebhookListener::class,
+                PurgeCdnListener::class,
+            ],
+            ModelCreated::class => [
+                InvalidateCacheTagsListener::class,
+                DispatchWebhookListener::class,
+                PurgeCdnListener::class,
+            ],
+            ModelUpdated::class => [
+                InvalidateCacheTagsListener::class,
+                DispatchWebhookListener::class,
+                PurgeCdnListener::class,
+            ],
+            ModelDeleted::class => [
+                InvalidateCacheTagsListener::class,
+                DispatchWebhookListener::class,
+                PurgeCdnListener::class,
+            ],
             // Asset delta events (V1_DESIGN §8) are meaningful to external receivers
             // ("where is this asset used") but carry no cache tags — webhook only.
             AssetAttached::class => [DispatchWebhookListener::class],

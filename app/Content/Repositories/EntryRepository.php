@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Content\Repositories;
 
+use App\Content\Events\EntryCreated;
+use App\Content\Events\EntryDeleted;
+use App\Content\Events\EntryUpdated;
+use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Support\OptimisticLockException;
 use Glueful\Bootstrap\ApplicationContext;
@@ -16,6 +20,7 @@ final class EntryRepository
         private readonly Connection $db,
         private readonly ApplicationContext $context,
         private readonly ContentTypeRepository $types,
+        private readonly ?PublishEventEmitter $events = null,
     ) {
     }
 
@@ -40,6 +45,15 @@ final class EntryRepository
             'updated_by' => $actor,
             'updated_at' => $this->now(),
         ]);
+        // No surrounding transaction here, so afterCommit dispatches immediately —
+        // unless an outer transaction is active, in which case it binds to that commit.
+        $this->events?->emitAfterCommit(new EntryCreated(
+            entry: $uuid,
+            type: $contentTypeUuid,
+            locale: $locale,
+            version: null,
+            actor: $actor,
+        ));
         return $uuid;
     }
 
@@ -89,6 +103,18 @@ final class EntryRepository
 
             $this->rebuildReferenceProjection($entryUuid, $fields);
         });
+
+        // Reached only if the CAS succeeded (a stale save throws inside the transaction
+        // above and never gets here, so no event fires on the 409 path). One primary
+        // EntryUpdated per successful save.
+        $entry = $this->findEntry($entryUuid);
+        $this->events?->emitAfterCommit(new EntryUpdated(
+            entry: $entryUuid,
+            type: $entry === null ? '' : (string) $entry['content_type_uuid'],
+            locale: $locale,
+            version: $expectedLockVersion + 1,
+            actor: $actor,
+        ));
     }
 
     /**
@@ -137,8 +163,16 @@ final class EntryRepository
 
     public function softDelete(string $uuid): void
     {
+        $entry = $this->findEntry($uuid);
         $this->db->table('entries')->where('uuid', '=', $uuid)
             ->update(['status' => 'deleted', 'updated_at' => $this->now()]);
+        $this->events?->emitAfterCommit(new EntryDeleted(
+            entry: $uuid,
+            type: $entry === null ? '' : (string) $entry['content_type_uuid'],
+            locale: null,
+            version: null,
+            actor: null,
+        ));
     }
 
     private function now(): string

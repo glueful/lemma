@@ -15,6 +15,7 @@ use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Http\RequireContentScope;
 use App\Content\Http\RequireLemmaPermission;
+use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\RouteRepository;
@@ -81,6 +82,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             FieldValidator::class => [
                 'class' => FieldValidator::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            PublishEventEmitter::class => [
+                'class' => PublishEventEmitter::class,
                 'shared' => true,
                 'autowire' => true,
             ],

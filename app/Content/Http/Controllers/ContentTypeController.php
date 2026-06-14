@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Content\Http\Controllers;
 
+use App\Content\Events\ModelCreated;
+use App\Content\Events\ModelUpdated;
 use App\Content\Indexing\EnsureFilterIndexesJob;
+use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Schema\SchemaParseException;
 use Glueful\Auth\UserIdentity;
@@ -17,6 +20,7 @@ final class ContentTypeController
     public function __construct(
         private readonly ContentTypeRepository $types,
         private readonly QueueManager $queue,
+        private readonly ?PublishEventEmitter $events = null,
     ) {
     }
 
@@ -48,6 +52,7 @@ final class ContentTypeController
             return Response::validation(['schema' => $e->getMessage()]);
         }
         $this->ensureFilterIndexes($uuid);
+        $this->events?->emitAfterCommit(new ModelCreated(type: $slug, actor: $this->actor($request)));
         return Response::created(['content_type' => $this->types->findByUuid($uuid)], 'Content type created.');
     }
 
@@ -71,6 +76,7 @@ final class ContentTypeController
             return Response::validation(['schema' => $e->getMessage()]);
         }
         $this->ensureFilterIndexes($row['uuid']);
+        $this->events?->emitAfterCommit(new ModelUpdated(type: (string) $row['slug'], actor: $this->actor($request)));
         return Response::success(['content_type' => $this->types->findByUuid($row['uuid'])], 'Schema updated.');
     }
 

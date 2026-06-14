@@ -27,6 +27,12 @@ return [
         'cache_ttl' => (int) env('LEMMA_DELIVERY_CACHE_TTL', 60),
     ],
 
+    // Preview tokens (see docs/V1_DESIGN.md). Drafts are only reachable through a
+    // signed, short-lived preview token; this is its lifetime in seconds.
+    'preview' => [
+        'ttl_seconds' => (int) env('LEMMA_PREVIEW_TTL', 600),
+    ],
+
     // Downstream publishing-pipeline effects (see docs/V1_DESIGN.md §5). Each listener is
     // gated here so a deployment can opt out without unwiring the event bus.
     'pipeline' => [

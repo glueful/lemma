@@ -75,7 +75,7 @@ final class DeliveryController
                 $result['current_page'],
                 $result['per_page'],
             );
-            return $this->withCacheHeaders($request, $response, $rows, $type, $selector, false);
+            return $this->withCacheHeaders($request, $response, $rows, $type);
         }
 
         // Default: cursor/keyset list.
@@ -94,7 +94,7 @@ final class DeliveryController
             'next_cursor' => $nextCursor,
         ], 'Content retrieved.');
 
-        return $this->withCacheHeaders($request, $response, $shaped, $type, $selector, false);
+        return $this->withCacheHeaders($request, $response, $shaped, $type);
     }
 
     public function show(Request $request, string $type, string $slugOrUuid): Response
@@ -194,8 +194,6 @@ final class DeliveryController
         Response $response,
         array $rows,
         string $typeSlug,
-        FieldSelector $selector,
-        bool $single,
     ): Response {
         $versionUuids = array_map(static fn(array $r): string => (string) ($r['version_uuid'] ?? ''), $rows);
         $entryUuids = array_map(static fn(array $r): string => (string) ($r['entry_uuid'] ?? ''), $rows);

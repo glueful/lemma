@@ -54,13 +54,27 @@ final class DeliveryRepository
         // `v.id DESC` tiebreaker, so a single row-value comparison cannot express it.
         // Use the expanded equivalent: `expr <dirOp> ? OR (expr = ? AND v.id < ?)`,
         // with all values BOUND. dirOp is `<` for DESC, `>` for ASC.
+        //
+        // Field sorts are over an OPTIONAL JSONB field, so the sort expression can be
+        // NULL (row missing the field); the default `published_at` sort cannot. The
+        // ORDER BY pins nulls LAST (see SortCompiler), so we mirror that here:
+        //   - cursor still in the non-null region (sort != null): also pull in the whole
+        //     null tail via `OR expr IS NULL` — nulls sort after every non-null value.
+        //   - cursor already inside the null tail (sort == null): only further null rows
+        //     remain, paged by the `v.id` tiebreaker.
+        // `published_at` is never null, so its predicate stays exactly as before.
         if ($cursor !== null) {
-            $dirOp = $order['direction'] === 'ASC' ? '>' : '<';
             $expr = $order['expr'];
-            $q->whereRaw(
-                "({$expr} {$dirOp} ? OR ({$expr} = ? AND v.id < ?))",
-                [$cursor['sort'], $cursor['sort'], $cursor['id']]
-            );
+            $nullable = $order['field'] !== null;
+
+            if ($nullable && $cursor['sort'] === null) {
+                $q->whereRaw("({$expr} IS NULL AND v.id < ?)", [$cursor['id']]);
+            } else {
+                $dirOp = $order['direction'] === 'ASC' ? '>' : '<';
+                $predicate = "({$expr} {$dirOp} ? OR ({$expr} = ? AND v.id < ?)";
+                $predicate .= $nullable ? " OR {$expr} IS NULL)" : ")";
+                $q->whereRaw($predicate, [$cursor['sort'], $cursor['sort'], $cursor['id']]);
+            }
         }
 
         $q->orderByRaw(substr($order['sql'], strlen('ORDER BY ')));

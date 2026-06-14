@@ -235,6 +235,108 @@ final class DeliveryRepositoryTest extends LemmaTestCase
         ));
     }
 
+    public function testKeysetCursorIncludesRowsMissingTheSortedField(): void
+    {
+        // price is optional + filterable: one entry omits it entirely (sorts NULL).
+        $type = $this->productType();
+        $this->publishFields($type, ['title' => 'p10', 'price' => 10], 'p10');
+        $this->publishFields($type, ['title' => 'p20', 'price' => 20], 'p20');
+        $this->publishFields($type, ['title' => 'noprice'], 'noprice');
+
+        $schema = (new ContentTypeRepository($this->connection()))->schemaFor($type);
+        $order = (new SortCompiler())->compile($schema, 'price:asc');
+
+        // Page 1: the two priced entries, ascending.
+        $page1 = $this->repo()->listPublished($type, 'en', limit: 2, order: $order);
+        self::assertSame(['p10', 'p20'], array_map(
+            static fn(array $r): string => (string) $r['fields']['title'],
+            $page1
+        ));
+
+        // Page 2: the missing-field row must NOT be dropped — it sorts last (NULLS LAST).
+        $page2 = $this->repo()->listPublished(
+            $type,
+            'en',
+            limit: 2,
+            order: $order,
+            cursor: Cursor::decode(Cursor::encode($this->repo()->cursorFor($page1[1], $order)))
+        );
+        self::assertSame(['noprice'], array_map(
+            static fn(array $r): string => (string) $r['fields']['title'],
+            $page2
+        ));
+
+        // Page 3: paging past the null tail terminates cleanly (no infinite loop).
+        $page3 = $this->repo()->listPublished(
+            $type,
+            'en',
+            limit: 2,
+            order: $order,
+            cursor: Cursor::decode(Cursor::encode($this->repo()->cursorFor($page2[0], $order)))
+        );
+        self::assertSame([], $page3);
+    }
+
+    public function testKeysetCursorDescendingIncludesRowsMissingTheSortedField(): void
+    {
+        $type = $this->productType();
+        $this->publishFields($type, ['title' => 'p10', 'price' => 10], 'p10');
+        $this->publishFields($type, ['title' => 'p20', 'price' => 20], 'p20');
+        $this->publishFields($type, ['title' => 'noprice'], 'noprice');
+
+        $schema = (new ContentTypeRepository($this->connection()))->schemaFor($type);
+        $order = (new SortCompiler())->compile($schema, 'price:desc');
+
+        // DESC NULLS LAST: 20, 10, then the missing-field row.
+        $page1 = $this->repo()->listPublished($type, 'en', limit: 2, order: $order);
+        self::assertSame(['p20', 'p10'], array_map(
+            static fn(array $r): string => (string) $r['fields']['title'],
+            $page1
+        ));
+
+        $page2 = $this->repo()->listPublished(
+            $type,
+            'en',
+            limit: 2,
+            order: $order,
+            cursor: Cursor::decode(Cursor::encode($this->repo()->cursorFor($page1[1], $order)))
+        );
+        self::assertSame(['noprice'], array_map(
+            static fn(array $r): string => (string) $r['fields']['title'],
+            $page2
+        ));
+    }
+
+    public function testKeysetCursorPagesThroughMultipleNullSortRows(): void
+    {
+        // Two missing-field rows in the null tail: paging must cover both, once each.
+        $type = $this->productType();
+        $this->publishFields($type, ['title' => 'p10', 'price' => 10], 'p10');
+        $this->publishFields($type, ['title' => 'noA'], 'no-a');
+        $this->publishFields($type, ['title' => 'noB'], 'no-b');
+
+        $schema = (new ContentTypeRepository($this->connection()))->schemaFor($type);
+        $order = (new SortCompiler())->compile($schema, 'price:asc');
+
+        $seen = [];
+        $cursor = null;
+        for ($page = 0; $page < 5; $page++) {
+            $rows = $this->repo()->listPublished($type, 'en', limit: 1, order: $order, cursor: $cursor);
+            if ($rows === []) {
+                break;
+            }
+            $seen[] = (string) $rows[0]['fields']['title'];
+            $cursor = Cursor::decode(Cursor::encode($this->repo()->cursorFor($rows[0], $order)));
+        }
+
+        // p10 first (only non-null), then both null-tail rows, each exactly once.
+        self::assertSame('p10', $seen[0]);
+        $tail = array_slice($seen, 1);
+        sort($tail);
+        self::assertSame(['noA', 'noB'], $tail);
+        self::assertSame($seen, array_values(array_unique($seen)));
+    }
+
     public function testPaginatePublishedReturnsFrameworkShape(): void
     {
         $type = $this->productType();

@@ -58,8 +58,14 @@ final class SortCompiler
 
         $expr = FieldSqlExpression::cast($field->name, (string) $field->filterType);
 
+        // A row missing this (optional) field reads as NULL. Pin nulls LAST explicitly
+        // for BOTH directions — Postgres defaults NULLS LAST for ASC but NULLS FIRST for
+        // DESC, which would scatter missing-field rows differently per direction. With a
+        // deterministic NULLS LAST the keyset predicate in DeliveryRepository can mirror
+        // it (treat the null tail as coming after every non-null value) and never drop a
+        // missing-field row from a page.
         return [
-            'sql' => "ORDER BY {$expr} {$dir}, v.id DESC",
+            'sql' => "ORDER BY {$expr} {$dir} NULLS LAST, v.id DESC",
             'expr' => $expr,
             'direction' => $dir,
             'field' => $field->name,

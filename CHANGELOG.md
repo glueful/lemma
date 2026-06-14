@@ -20,8 +20,10 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   with the expression-index planner so predicates always hit their index.
 - Filterable-field expression-index lifecycle: a queued `EnsureFilterIndexesJob` builds Postgres
   expression indexes (`CREATE INDEX CONCURRENTLY`) out-of-band; a registry table tracks them.
-- `SortCompiler` + keyset (cursor) pagination, stable under publish churn (`v.id` tiebreaker);
-  framework offset pagination for the `?page`/`?perPage` convenience path.
+- `SortCompiler` + keyset (cursor) pagination, stable under publish churn (`v.id` tiebreaker).
+  Sorting on an optional filterable field pins missing-value rows last (`NULLS LAST`, both
+  directions) and the keyset predicate mirrors that, so rows missing the sorted field are never
+  skipped across page boundaries. Framework offset pagination backs the `?page`/`?perPage` path.
 - `ReferenceResolver`: batch-loaded, published-only resolution of entry-UUID references at read
   time (unpublished/archived targets resolve to `null`; depth-bounded).
 - Field selection / `ETag` / `Cache-Tag` (`lemma:entry:{uuid}`, `lemma:type:{slug}`) /

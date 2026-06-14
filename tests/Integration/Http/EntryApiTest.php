@@ -39,6 +39,13 @@ final class EntryApiTest extends LemmaTestCase
         return new Request([], [], [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode($b));
     }
 
+    private function createEntryUuid(): string
+    {
+        $resp = $this->controller()->store($this->json(['content_type' => 'post', 'locale' => 'en']));
+
+        return json_decode($resp->getContent(), true)['data']['entry']['uuid'];
+    }
+
     public function testCreateEntryReturnsEntryWithEmptyDraft(): void
     {
         $resp = $this->controller()->store($this->json(['content_type' => 'post', 'locale' => 'en']));
@@ -47,18 +54,28 @@ final class EntryApiTest extends LemmaTestCase
 
     public function testSaveDraftRejectsStaleLockWith409(): void
     {
-        $created = json_decode($this->controller()->store($this->json(['content_type' => 'post', 'locale' => 'en']))->getContent(), true);
-        $uuid = $created['data']['entry']['uuid'];
-        $this->controller()->saveDraft($this->json(['fields' => ['title' => 'A'], 'lock_version' => 0]), $uuid, 'en');
-        $resp = $this->controller()->saveDraft($this->json(['fields' => ['title' => 'B'], 'lock_version' => 0]), $uuid, 'en');
+        $uuid = $this->createEntryUuid();
+        $this->controller()->saveDraft(
+            $this->json(['fields' => ['title' => 'A'], 'lock_version' => 0]),
+            $uuid,
+            'en',
+        );
+        $resp = $this->controller()->saveDraft(
+            $this->json(['fields' => ['title' => 'B'], 'lock_version' => 0]),
+            $uuid,
+            'en',
+        );
         self::assertSame(409, $resp->getStatusCode());
     }
 
     public function testSaveDraftValidatesFields(): void
     {
-        $created = json_decode($this->controller()->store($this->json(['content_type' => 'post', 'locale' => 'en']))->getContent(), true);
-        $uuid = $created['data']['entry']['uuid'];
-        $resp = $this->controller()->saveDraft($this->json(['fields' => ['title' => 123], 'lock_version' => 0]), $uuid, 'en');
+        $uuid = $this->createEntryUuid();
+        $resp = $this->controller()->saveDraft(
+            $this->json(['fields' => ['title' => 123], 'lock_version' => 0]),
+            $uuid,
+            'en',
+        );
         self::assertSame(422, $resp->getStatusCode());
     }
 }

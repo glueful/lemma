@@ -20,7 +20,7 @@ use Glueful\Auth\UserIdentity;
  */
 final class AuthEndToEndTest extends TestCase
 {
-    public function test_login_through_seam_succeeds_and_has_no_roles_without_rbac(): void
+    public function testLoginThroughSeamSucceedsAndHasNoRolesWithoutRbac(): void
     {
         $provider = (new InMemoryUserProvider())->add(
             new UserIdentity('u-amy00000001', email: 'amy@example.test', username: 'amy', status: 'active'),

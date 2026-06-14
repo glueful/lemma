@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Content\Http\Controllers;
 
+use App\Content\Indexing\EnsureFilterIndexesJob;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Schema\SchemaParseException;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
+use Glueful\Queue\QueueManager;
 use Symfony\Component\HttpFoundation\Request;
 
 final class ContentTypeController
 {
-    public function __construct(private readonly ContentTypeRepository $types)
-    {
+    public function __construct(
+        private readonly ContentTypeRepository $types,
+        private readonly QueueManager $queue,
+    ) {
     }
 
     public function index(Request $request): Response
@@ -43,6 +47,7 @@ final class ContentTypeController
         } catch (SchemaParseException $e) {
             return Response::validation(['schema' => $e->getMessage()]);
         }
+        $this->ensureFilterIndexes($uuid);
         return Response::created(['content_type' => $this->types->findByUuid($uuid)], 'Content type created.');
     }
 
@@ -65,7 +70,17 @@ final class ContentTypeController
         } catch (SchemaParseException $e) {
             return Response::validation(['schema' => $e->getMessage()]);
         }
+        $this->ensureFilterIndexes($row['uuid']);
         return Response::success(['content_type' => $this->types->findByUuid($row['uuid'])], 'Schema updated.');
+    }
+
+    /**
+     * Enqueue the expression-index reconciliation for a content type's filterable fields.
+     * The DDL (CREATE/DROP INDEX CONCURRENTLY) runs out-of-band in the queued job.
+     */
+    private function ensureFilterIndexes(string $typeUuid): void
+    {
+        $this->queue->push(EnsureFilterIndexesJob::class, ['content_type_uuid' => $typeUuid]);
     }
 
     /** @return array<string,mixed> */

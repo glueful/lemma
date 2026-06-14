@@ -13,7 +13,9 @@ final class ContentTypeApiTest extends LemmaTestCase
 {
     private function controller(): ContentTypeController
     {
-        return new ContentTypeController(new ContentTypeRepository($this->connection()));
+        // Resolve from the container so the autowired QueueManager + ApplicationContext
+        // (used to enqueue the filter-index reconciliation job) are injected.
+        return $this->container()->get(ContentTypeController::class);
     }
 
     private function json(array $body): Request

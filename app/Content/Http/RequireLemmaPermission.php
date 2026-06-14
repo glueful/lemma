@@ -33,23 +33,67 @@ final class RequireLemmaPermission implements RouteMiddleware
         if ($permission === '') {
             return $this->forbidden();
         }
-        $user = $request->attributes->get('auth.user');
-        if (!$user instanceof UserIdentity) {
+
+        // Resolve the authenticated principal. Two shapes are accepted, both set by the
+        // framework's `auth` middleware chain:
+        //   - `auth.user`: a UserIdentity, present only when the optional
+        //     AuthToRequestAttributesMiddleware enricher is wired into the container.
+        //   - `user`: the plain identity array AuthMiddleware always sets after a
+        //     successful authentication (uuid/roles/scopes/claims). This is the shape a
+        //     lean install (no enricher binding) actually carries, so the gate must read
+        //     it too — otherwise every permissioned route would fail closed even for a
+        //     correctly authenticated user.
+        $principal = $this->resolvePrincipal($request);
+        if ($principal === null) {
             return $this->forbidden();
         }
+
         $manager = $this->permissionManager();
         if (!$manager instanceof PermissionManager) {
             return $this->forbidden();
         }
         $context = [
-            'roles' => $user->roles(),
-            'scopes' => $user->scopes(),
+            'roles' => $principal['roles'],
+            'scopes' => $principal['scopes'],
             'jwt_claims' => (array) $request->attributes->get('jwt.claims'),
         ];
-        if (!$manager->can($user->id(), $permission, 'lemma', $context)) {
+        if (!$manager->can($principal['uuid'], $permission, 'lemma', $context)) {
             return $this->forbidden();
         }
         return $next($request);
+    }
+
+    /**
+     * Extract {uuid, roles, scopes} for the authenticated user from either the
+     * UserIdentity (`auth.user`) or the plain identity array (`user`). Returns null when
+     * neither carries a usable, non-empty uuid — the same fail-closed deny as before.
+     *
+     * @return array{uuid: string, roles: array<int, string>, scopes: array<int, string>}|null
+     */
+    private function resolvePrincipal(Request $request): ?array
+    {
+        $user = $request->attributes->get('auth.user');
+        if ($user instanceof UserIdentity) {
+            $uuid = trim($user->id());
+            return $uuid === '' ? null : [
+                'uuid' => $uuid,
+                'roles' => array_values(array_filter($user->roles(), 'is_string')),
+                'scopes' => array_values(array_filter($user->scopes(), 'is_string')),
+            ];
+        }
+
+        $array = $request->attributes->get('user');
+        if (is_array($array) && isset($array['uuid']) && is_string($array['uuid']) && trim($array['uuid']) !== '') {
+            $roles = isset($array['roles']) && is_array($array['roles'])
+                ? array_values(array_filter($array['roles'], 'is_string'))
+                : [];
+            $scopes = isset($array['claims']['scopes']) && is_array($array['claims']['scopes'])
+                ? array_values(array_filter($array['claims']['scopes'], 'is_string'))
+                : [];
+            return ['uuid' => trim($array['uuid']), 'roles' => $roles, 'scopes' => $scopes];
+        }
+
+        return null;
     }
 
     private function permissionManager(): ?PermissionManager

@@ -44,22 +44,19 @@ final class FilterIndexPlanner
     }
 
     /**
-     * The JSONB expression (with the type cast) used for both the index and the filter predicate.
+     * The JSONB expression (with the type cast) used for the index DDL.
+     *
+     * The inner cast comes from {@see FieldSqlExpression::cast()} — the SAME source the
+     * FilterCompiler (Task 4) predicate uses — wrapped in the outer parens Postgres
+     * requires for an expression index, so the index and the predicate cannot drift.
+     *
+     * datetime is indexed/compared as TEXT (the only IMMUTABLE option — a
+     * ::timestamptz/::timestamp cast is DateStyle-dependent so CREATE INDEX rejects it).
+     * Text comparison sorts datetimes chronologically only when values are stored as
+     * canonical ISO-8601 UTC; FieldValidator::normalizeDatetime enforces that on write.
      */
     private function expression(string $field, string $filterType): string
     {
-        return match ($filterType) {
-            'number' => "((fields ->> '{$field}')::numeric)",
-            // datetime is indexed/compared as TEXT (the only IMMUTABLE option — a
-            // ::timestamptz/::timestamp cast is not IMMUTABLE because text->timestamp
-            // parsing is DateStyle-dependent, so CREATE INDEX rejects it). Text comparison
-            // sorts datetimes chronologically ONLY if values are stored as canonical,
-            // lexicographically-sortable ISO-8601 (e.g. UTC `YYYY-MM-DDTHH:MM:SSZ`). The
-            // FilterCompiler (Task 4) must compare datetime as text, and the FieldValidator
-            // must normalize datetime values on write — tracked for Task 4.
-            'datetime' => "((fields ->> '{$field}'))",
-            'boolean' => "((fields ->> '{$field}')::boolean)",
-            default => "((fields ->> '{$field}'))", // string | enum (text)
-        };
+        return '(' . FieldSqlExpression::cast($field, $filterType) . ')';
     }
 }

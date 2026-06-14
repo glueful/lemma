@@ -38,6 +38,12 @@ final class FieldValidator
                 $errors[$field->name] = $error;
                 continue;
             }
+            // Normalize datetime values to canonical ISO-8601 UTC so stored values are
+            // lexicographically comparable as TEXT (the only IMMUTABLE index expression
+            // for datetime — see FilterIndexPlanner / FilterCompiler).
+            if ($field->type === 'datetime' && is_string($value)) {
+                $value = self::normalizeDatetime($value);
+            }
             $clean[$field->name] = $value;
         }
 
@@ -45,6 +51,22 @@ final class FieldValidator
             throw new ValidationException($errors);
         }
         return $clean;
+    }
+
+    /**
+     * Canonicalize a datetime string to ISO-8601 UTC (`YYYY-MM-DDTHH:MM:SSZ`).
+     *
+     * Returned form is lexicographically sortable and identical regardless of the
+     * input's timezone/offset, so stored values and filter bindings compare correctly
+     * as text. Callers must validate parseability first (`strtotime() !== false`).
+     */
+    public static function normalizeDatetime(string $value): string
+    {
+        $ts = strtotime($value);
+        if ($ts === false) {
+            return $value;
+        }
+        return gmdate('Y-m-d\TH:i:s\Z', $ts);
     }
 
     private function checkType(FieldDefinition $field, mixed $value): ?string

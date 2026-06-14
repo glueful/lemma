@@ -36,7 +36,15 @@ final class DeliveryRepository
         ?array $cursor = null,
     ): array {
         $q = $this->base($contentTypeUuid, $locale);
-        // filter/order/cursor applied by Tasks 4-6 via whereRaw/orderByRaw; default order:
+        // Compiled filter from FilterCompiler (Task 4): a typed JSONB predicate over
+        // entry_versions.fields, bound placeholders only. The predicate uses the same
+        // expression as the filterable-field expression index so it hits the index.
+        if ($filter !== null && ($filter['sql'] ?? '') !== '') {
+            /** @var list<mixed> $bindings */
+            $bindings = $filter['bindings'] ?? [];
+            $q->whereRaw((string) $filter['sql'], $bindings);
+        }
+        // order/cursor applied by Tasks 5-6 via orderByRaw; default order:
         $q->orderBy('p.published_at', 'DESC')->orderBy('v.id', 'DESC');
         $q->limit($limit);
         return array_map([$this, 'hydrate'], $q->get());

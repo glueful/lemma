@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Content;
 
 use App\Content\Delivery\DeliveryRepository;
+use App\Content\Delivery\FilterCompiler;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\RouteRepository;
@@ -102,5 +103,45 @@ final class DeliveryRepositoryTest extends LemmaTestCase
         self::assertArrayHasKey($published, $out);
         self::assertArrayNotHasKey($draftOnly, $out);
         self::assertSame('Batch', $out[$published]['fields']['title']);
+    }
+
+    public function testListAppliesCompiledNumberFilter(): void
+    {
+        $type = (new ContentTypeRepository($this->connection()))->create([
+            'slug' => 'product',
+            'name' => 'Product',
+            'schema' => [
+                ['name' => 'title', 'type' => 'string', 'required' => true],
+                ['name' => 'price', 'type' => 'number',
+                    'filterable' => true, 'filter_type' => 'number'],
+            ],
+        ]);
+        $this->publishFields($type, ['title' => 'Cheap', 'price' => 5], 'cheap');
+        $this->publishFields($type, ['title' => 'Pricey', 'price' => 50], 'pricey');
+
+        $schema = (new ContentTypeRepository($this->connection()))->schemaFor($type);
+        $filter = (new FilterCompiler())->compile($schema, ['price' => ['gt' => '10']]);
+
+        $rows = $this->repo()->listPublished($type, 'en', limit: 20, filter: $filter);
+
+        self::assertCount(1, $rows);
+        self::assertSame('Pricey', $rows[0]['fields']['title']);
+    }
+
+    /** @param array<string,mixed> $fields */
+    private function publishFields(string $type, array $fields, string $slug): string
+    {
+        $entries = $this->entries();
+        $uuid = $entries->createEntry($type, 'en', 1, 'user00000001');
+        $entries->saveDraft($uuid, 'en', $fields, 1, 0, 'user00000001');
+        (new RouteRepository($this->connection()))->assign($uuid, $type, 'en', $slug);
+        (new PublishService(
+            $this->appContext(),
+            $entries,
+            new VersionRepository($this->connection()),
+            new ContentTypeRepository($this->connection()),
+            new FieldValidator()
+        ))->publish($uuid, 'en', 'user00000001');
+        return $uuid;
     }
 }

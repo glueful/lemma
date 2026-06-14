@@ -18,6 +18,7 @@ final class FieldValidatorTest extends TestCase
             ['name' => 'price', 'type' => 'number'],
             ['name' => 'status', 'type' => 'enum', 'enum' => ['draft', 'live']],
             ['name' => 'active', 'type' => 'boolean'],
+            ['name' => 'published_at', 'type' => 'datetime'],
         ]);
     }
 
@@ -50,5 +51,41 @@ final class FieldValidatorTest extends TestCase
     {
         $this->expectException(ValidationException::class);
         (new FieldValidator())->validate($this->schema(), ['title' => 'ok', 'status' => 'archived']);
+    }
+
+    public function testNormalizesSpaceSeparatedDatetimeToCanonicalUtc(): void
+    {
+        $clean = (new FieldValidator())->validate($this->schema(), [
+            'title' => 'ok',
+            'published_at' => '2026-06-14 09:30:00',
+        ]);
+        // Local '2026-06-14 09:30:00' is interpreted in the default TZ and emitted as UTC `...Z`.
+        self::assertSame(
+            FieldValidator::normalizeDatetime('2026-06-14 09:30:00'),
+            $clean['published_at']
+        );
+        self::assertMatchesRegularExpression(
+            '/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/',
+            $clean['published_at']
+        );
+    }
+
+    public function testNormalizesOffsetDatetimeToUtc(): void
+    {
+        $clean = (new FieldValidator())->validate($this->schema(), [
+            'title' => 'ok',
+            'published_at' => '2026-06-14T09:30:00+02:00',
+        ]);
+        // +02:00 09:30 == 07:30 UTC
+        self::assertSame('2026-06-14T07:30:00Z', $clean['published_at']);
+    }
+
+    public function testRejectsUnparseableDatetime(): void
+    {
+        $this->expectException(ValidationException::class);
+        (new FieldValidator())->validate($this->schema(), [
+            'title' => 'ok',
+            'published_at' => 'not-a-date',
+        ]);
     }
 }

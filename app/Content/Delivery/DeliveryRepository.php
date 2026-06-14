@@ -169,6 +169,11 @@ final class DeliveryRepository
      * Batch-load the published versions for a set of entry uuids (any type/locale) —
      * used by ReferenceResolver (Task 6). One query.
      *
+     * Joins `entries` and filters `e.status = 'active'` so an archived-but-published
+     * target is treated as gone (resolves to null), consistent with the main read
+     * path's {@see base()} guard — a referenced entry that's been archived must not
+     * surface through another entry's reference.
+     *
      * @param list<string> $entryUuids
      * @return array<string,array<string,mixed>> keyed by entry_uuid
      */
@@ -179,8 +184,10 @@ final class DeliveryRepository
         }
         $rows = $this->db->table('entry_publications as p')
             ->join('entry_versions as v', 'v.uuid', '=', 'p.version_uuid')
+            ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
             ->select(['p.entry_uuid', 'v.uuid AS version_uuid', 'v.fields', 'v.version'])
             ->whereIn('p.entry_uuid', $entryUuids)
+            ->where('e.status', '=', 'active')
             ->where('p.locale', '=', $locale)
             ->get();
         $out = [];

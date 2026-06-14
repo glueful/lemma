@@ -194,7 +194,7 @@ final class DeliveryRepository
         if ($entryUuids === []) { return []; }
         $rows = $this->db->table('entry_publications as p')
             ->join('entry_versions as v', 'v.uuid', '=', 'p.version_uuid')
-            ->select(['p.entry_uuid', 'v.uuid as version_uuid', 'v.fields', 'v.version'])
+            ->select(['p.entry_uuid', 'v.uuid AS version_uuid', 'v.fields', 'v.version'])
             ->whereIn('p.entry_uuid', $entryUuids)
             ->where('p.locale', '=', $locale)
             ->get();
@@ -231,7 +231,7 @@ final class DeliveryRepository
 }
 ```
 
-> **Verify against `src/Database/QueryBuilder.php`:** the `join('t as alias', a, op, b)` form, `select()` with `as` aliases, `orderBy`, `whereIn`. If the builder doesn't support table aliases in `join`/`table`, fall back to fully-qualified names without aliases (the queries are still simple). The leak-proof property (no status column on the read path) does not depend on aliasing.
+> **Verified against `src/Database/QueryBuilder.php` + `Features/QueryValidator.php` + `Driver/PostgreSQLDriver.php` + `Query/SelectBuilder.php`/`JoinClause.php`:** `table('t as alias')` and `join('t as alias', a, op, b)` are supported — `wrapIdentifier()` recognizes the `table [AS] alias` form (case-insensitive `as`) and `formatJoinColumn()`/`formatTableColumn()` quote `alias.col` per-part. **Caveat:** `select()` column aliases require **uppercase ` AS `** — `SelectBuilder::formatColumn()` only detects ` AS ` (case-sensitive); a lowercase `'v.uuid as version_uuid'` would be mis-parsed as a column named `uuid as version_uuid`. So the `select()` list uses `'v.uuid AS version_uuid'`. The leak-proof property (no status column on the read path) does not depend on aliasing.
 
 - [ ] **Step 4: Run → pass.** Add `config/lemma.php` keys: `delivery.default_per_page` (20), `delivery.max_per_page` (100), `delivery.cache_ttl` (per-type override later). (No `public_types` in v1 — delivery is always API-key gated; see Task 7's route note for why anonymous-per-type is deferred.)
 - [ ] **Step 5: Commit** `Add leak-proof DeliveryRepository (publications⋈versions read path)`.

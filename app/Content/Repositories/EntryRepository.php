@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Content\Repositories;
 
+use App\Content\Events\AssetAttached;
+use App\Content\Events\AssetDetached;
 use App\Content\Events\EntryCreated;
 use App\Content\Events\EntryDeleted;
 use App\Content\Events\EntryUpdated;
@@ -76,6 +78,13 @@ final class EntryRepository
         int $expectedLockVersion,
         ?string $actor,
     ): void {
+        // Capture the PRIOR persisted draft's asset-field targets BEFORE the write, so we
+        // can diff old-vs-new after a successful commit (V1_DESIGN §8 "where is this asset
+        // used"). Read here, before the CAS overwrites the row; the diff/emit happens only
+        // on the success path below, so a stale-lock 409 (which throws inside the
+        // transaction) emits nothing.
+        $oldAssets = $this->assetTargets($entryUuid, $this->draftFields($entryUuid, $locale));
+
         db($this->context)->transaction(function () use (
             $entryUuid,
             $locale,
@@ -115,6 +124,69 @@ final class EntryRepository
             version: $expectedLockVersion + 1,
             actor: $actor,
         ));
+
+        // ADDITIVE asset-delta events (V1_DESIGN §8): diff the prior draft's asset-field
+        // targets against the new ones and emit one event per changed blob. These are
+        // ADDITIONAL to — and do not affect — the single primary EntryUpdated above. They
+        // emit after the transaction returns (only reached on success), so a 409 discards
+        // them along with the primary event; on success they all fire post-commit.
+        $newAssets = $this->assetTargets($entryUuid, $fields);
+        foreach (array_diff($newAssets, $oldAssets) as $blob) {
+            $this->events?->emitAfterCommit(new AssetAttached(
+                asset: $blob,
+                entry: $entryUuid,
+                actor: $actor,
+            ));
+        }
+        foreach (array_diff($oldAssets, $newAssets) as $blob) {
+            $this->events?->emitAfterCommit(new AssetDetached(
+                asset: $blob,
+                entry: $entryUuid,
+                actor: $actor,
+            ));
+        }
+    }
+
+    /**
+     * The deduped set of blob uuids referenced by the entry's asset-type fields in the
+     * given draft fields. Asset-type fields are resolved from the content type schema;
+     * each value is normalized to a list of uuids via the same logic the reference
+     * projection uses, so asset-target parsing stays identical across both.
+     *
+     * @param array<string,mixed> $fields
+     * @return list<string>
+     */
+    private function assetTargets(string $entryUuid, array $fields): array
+    {
+        $entry = $this->findEntry($entryUuid);
+        $type = $entry === null
+            ? null
+            : $this->types->findByUuid((string) $entry['content_type_uuid']);
+        $schema = $type === null
+            ? ContentTypeSchema::fromArray([])
+            : ContentTypeSchema::fromArray($type['schema']);
+
+        $targets = [];
+        foreach ($schema->fields() as $f) {
+            if ($f->type !== 'asset') {
+                continue;
+            }
+            foreach (ReferenceProjectionRepository::targets($fields[$f->name] ?? null) as $blob) {
+                $targets[$blob] = true;
+            }
+        }
+        return array_keys($targets);
+    }
+
+    /**
+     * The prior persisted draft's raw fields (empty array if the draft does not yet exist).
+     *
+     * @return array<string,mixed>
+     */
+    private function draftFields(string $entryUuid, string $locale): array
+    {
+        $draft = $this->findDraft($entryUuid, $locale);
+        return $draft === null ? [] : (array) $draft['fields'];
     }
 
     /**

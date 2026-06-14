@@ -32,7 +32,7 @@ final class ReferenceProjectionRepository
             if ($f->type !== 'reference' && $f->type !== 'asset') {
                 continue;
             }
-            foreach ($this->targets($fields[$f->name] ?? null) as $target) {
+            foreach (self::targets($fields[$f->name] ?? null) as $target) {
                 $rows[] = [
                     'source_entry_uuid' => $sourceEntryUuid,
                     'source_field' => $f->name,
@@ -64,10 +64,12 @@ final class ReferenceProjectionRepository
 
     /**
      * A reference/asset field value is a uuid string or a list of uuid strings.
+     * Shared with EntryRepository's asset-delta diff so target parsing is identical
+     * to this projection's.
      *
      * @return list<string>
      */
-    private function targets(mixed $value): array
+    public static function targets(mixed $value): array
     {
         if (is_string($value) && $value !== '') {
             return [$value];

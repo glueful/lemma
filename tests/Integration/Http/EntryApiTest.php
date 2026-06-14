@@ -28,7 +28,11 @@ final class EntryApiTest extends LemmaTestCase
     {
         return new EntryController(
             $this->appContext(),
-            new EntryRepository($this->connection()),
+            new EntryRepository(
+                $this->connection(),
+                $this->appContext(),
+                new ContentTypeRepository($this->connection()),
+            ),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
         );

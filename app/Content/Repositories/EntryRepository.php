@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace App\Content\Repositories;
 
+use App\Content\Schema\ContentTypeSchema;
 use App\Content\Support\OptimisticLockException;
+use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Helpers\Utils;
 
 final class EntryRepository
 {
-    public function __construct(private readonly Connection $db)
-    {
+    public function __construct(
+        private readonly Connection $db,
+        private readonly ApplicationContext $context,
+        private readonly ContentTypeRepository $types,
+    ) {
     }
 
     /** Create entry identity + an empty draft for the locale. Returns entry uuid. */
@@ -42,6 +47,11 @@ final class EntryRepository
      * Save the draft working copy under optimistic concurrency. The caller passes the
      * lock_version it last read; if the row has moved on, throw (controller -> 409).
      *
+     * The optimistic-lock CAS and the entry_references projection rebuild run inside one
+     * transaction (V1_DESIGN §4): the CAS `update` runs first and a stale save (0 affected)
+     * throws OptimisticLockException — which rolls the transaction back BEFORE any projection
+     * write. The projection is rebuilt only after the CAS reports `affected >= 1`.
+     *
      * @param array<string,mixed> $fields already-validated, cleaned payload
      */
     public function saveDraft(
@@ -52,20 +62,55 @@ final class EntryRepository
         int $expectedLockVersion,
         ?string $actor,
     ): void {
-        $affected = $this->db->table('entry_drafts')
-            ->where('entry_uuid', '=', $entryUuid)
-            ->where('locale', '=', $locale)
-            ->where('lock_version', '=', $expectedLockVersion)
-            ->update([
-                'fields' => json_encode($fields, JSON_THROW_ON_ERROR),
-                'schema_version' => $schemaVersion,
-                'lock_version' => $expectedLockVersion + 1,
-                'updated_by' => $actor,
-                'updated_at' => $this->now(),
-            ]);
-        if ($affected < 1) {
-            throw new OptimisticLockException();
-        }
+        db($this->context)->transaction(function () use (
+            $entryUuid,
+            $locale,
+            $fields,
+            $schemaVersion,
+            $expectedLockVersion,
+            $actor,
+        ): void {
+            $affected = $this->db->table('entry_drafts')
+                ->where('entry_uuid', '=', $entryUuid)
+                ->where('locale', '=', $locale)
+                ->where('lock_version', '=', $expectedLockVersion)
+                ->update([
+                    'fields' => json_encode($fields, JSON_THROW_ON_ERROR),
+                    'schema_version' => $schemaVersion,
+                    'lock_version' => $expectedLockVersion + 1,
+                    'updated_by' => $actor,
+                    'updated_at' => $this->now(),
+                ]);
+            if ($affected < 1) {
+                // Stale save: throw inside the transaction so it rolls back before any
+                // projection write. Controller maps OptimisticLockException -> 409.
+                throw new OptimisticLockException();
+            }
+
+            $this->rebuildReferenceProjection($entryUuid, $fields);
+        });
+    }
+
+    /**
+     * Rebuild the entry_references projection for the saved draft. Resolves the content
+     * type's schema so we know which fields are reference/asset. If the content type is
+     * unresolvable (e.g. a synthetic uuid in a unit-style test), there are no schema fields
+     * to project, so the projection is simply cleared for this entry.
+     *
+     * @param array<string,mixed> $fields
+     */
+    private function rebuildReferenceProjection(string $entryUuid, array $fields): void
+    {
+        $entry = $this->findEntry($entryUuid);
+        $type = $entry === null
+            ? null
+            : $this->types->findByUuid((string) $entry['content_type_uuid']);
+        $schema = $type === null
+            ? ContentTypeSchema::fromArray([])
+            : ContentTypeSchema::fromArray($type['schema']);
+
+        (new ReferenceProjectionRepository($this->db))
+            ->rebuildForEntry($entryUuid, $schema, $fields);
     }
 
     /** @return array<string,mixed>|null */

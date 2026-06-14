@@ -25,16 +25,25 @@ final class PublishServiceTest extends LemmaTestCase
             'slug' => 'post', 'name' => 'Post',
             'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
         ]);
-        $entries = new EntryRepository($this->connection());
+        $entries = $this->entries();
         $this->entry = $entries->createEntry($this->type, 'en', 1, 'user00000001');
         $entries->saveDraft($this->entry, 'en', ['title' => 'V1'], 1, 0, 'user00000001');
+    }
+
+    private function entries(): EntryRepository
+    {
+        return new EntryRepository(
+            $this->connection(),
+            $this->appContext(),
+            new ContentTypeRepository($this->connection()),
+        );
     }
 
     private function service(): PublishService
     {
         return new PublishService(
             $this->appContext(),
-            new EntryRepository($this->connection()),
+            $this->entries(),
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
@@ -54,7 +63,7 @@ final class PublishServiceTest extends LemmaTestCase
     public function testSecondPublishAppendsVersion2(): void
     {
         $this->service()->publish($this->entry, 'en', 'user00000001');
-        (new EntryRepository($this->connection()))
+        $this->entries()
             ->saveDraft($this->entry, 'en', ['title' => 'V2'], 1, 1, 'user00000001');
         $this->service()->publish($this->entry, 'en', 'user00000001');
         $repo = new VersionRepository($this->connection());
@@ -72,7 +81,7 @@ final class PublishServiceTest extends LemmaTestCase
         // clears the required `title`. The assertion under test is that publishing an
         // invalid draft throws ValidationException and writes NO version row — not that
         // a stale-lock error fires. Read the live lock_version to avoid that masquerade.
-        $entries = new EntryRepository($this->connection());
+        $entries = $this->entries();
         $currentLock = (int) $entries->findDraft($this->entry, 'en')['lock_version'];
         $entries->saveDraft($this->entry, 'en', [], 1, $currentLock, 'user00000001');
 
@@ -101,7 +110,7 @@ final class PublishServiceTest extends LemmaTestCase
     public function testRollbackRepinsOlderVersion(): void
     {
         $v1 = $this->service()->publish($this->entry, 'en', 'user00000001');
-        (new EntryRepository($this->connection()))
+        $this->entries()
             ->saveDraft($this->entry, 'en', ['title' => 'V2'], 1, 1, 'user00000001');
         $this->service()->publish($this->entry, 'en', 'user00000001');
         $this->service()->rollback($this->entry, 'en', $v1, 'user00000001');

@@ -24,16 +24,25 @@ final class PublicationApiTest extends LemmaTestCase
             'slug' => 'post', 'name' => 'Post',
             'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
         ]);
-        $entries = new EntryRepository($this->connection());
+        $entries = $this->entries();
         $this->entry = $entries->createEntry($type, 'en', 1, 'user00000001');
         $entries->saveDraft($this->entry, 'en', ['title' => 'Hello'], 1, 0, 'user00000001');
+    }
+
+    private function entries(): EntryRepository
+    {
+        return new EntryRepository(
+            $this->connection(),
+            $this->appContext(),
+            new ContentTypeRepository($this->connection()),
+        );
     }
 
     private function controller(): PublicationController
     {
         return new PublicationController(new PublishService(
             $this->appContext(),
-            new EntryRepository($this->connection()),
+            $this->entries(),
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),

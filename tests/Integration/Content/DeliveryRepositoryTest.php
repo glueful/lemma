@@ -27,9 +27,18 @@ final class DeliveryRepositoryTest extends LemmaTestCase
         ]);
     }
 
+    private function entries(): EntryRepository
+    {
+        return new EntryRepository(
+            $this->connection(),
+            $this->appContext(),
+            new ContentTypeRepository($this->connection()),
+        );
+    }
+
     private function publish(string $title, string $slug): string
     {
-        $entries = new EntryRepository($this->connection());
+        $entries = $this->entries();
         $uuid = $entries->createEntry($this->type, 'en', 1, 'user00000001');
         $entries->saveDraft($uuid, 'en', ['title' => $title], 1, 0, 'user00000001');
         (new RouteRepository($this->connection()))->assign($uuid, $this->type, 'en', $slug);
@@ -52,7 +61,7 @@ final class DeliveryRepositoryTest extends LemmaTestCase
     {
         $this->publish('Live', 'live');
         // an unpublished entry (draft saved, never published)
-        (new EntryRepository($this->connection()))->createEntry($this->type, 'en', 1, 'user00000001');
+        $this->entries()->createEntry($this->type, 'en', 1, 'user00000001');
 
         $rows = $this->repo()->listPublished($this->type, 'en', limit: 20);
 
@@ -75,8 +84,7 @@ final class DeliveryRepositoryTest extends LemmaTestCase
     public function testFindByUuidReturnsOnlyPublished(): void
     {
         $published = $this->publish('Visible', 'visible');
-        $draftOnly = (new EntryRepository($this->connection()))
-            ->createEntry($this->type, 'en', 1, 'user00000001');
+        $draftOnly = $this->entries()->createEntry($this->type, 'en', 1, 'user00000001');
 
         $found = $this->repo()->findPublishedByUuid($this->type, 'en', $published);
         self::assertNotNull($found);
@@ -87,8 +95,7 @@ final class DeliveryRepositoryTest extends LemmaTestCase
     public function testPublishedByEntryUuidsBatchExcludesUnpublished(): void
     {
         $published = $this->publish('Batch', 'batch');
-        $draftOnly = (new EntryRepository($this->connection()))
-            ->createEntry($this->type, 'en', 1, 'user00000001');
+        $draftOnly = $this->entries()->createEntry($this->type, 'en', 1, 'user00000001');
 
         $out = $this->repo()->publishedByEntryUuids([$published, $draftOnly], 'en');
 

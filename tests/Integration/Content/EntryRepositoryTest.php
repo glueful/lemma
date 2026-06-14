@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Content;
 
+use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Support\OptimisticLockException;
 use App\Tests\Support\LemmaTestCase;
@@ -12,7 +13,11 @@ final class EntryRepositoryTest extends LemmaTestCase
 {
     private function repo(): EntryRepository
     {
-        return new EntryRepository($this->connection());
+        return new EntryRepository(
+            $this->connection(),
+            $this->appContext(),
+            new ContentTypeRepository($this->connection()),
+        );
     }
 
     public function testCreateEntryStartsAnEmptyDraft(): void

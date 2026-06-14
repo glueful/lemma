@@ -11,6 +11,11 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - Delivery API `FilterCompiler`: safe, typed, filterable-only JSONB filter predicates
   (`?filter[field][op]=value`) with always-bound values, mirroring the filterable-field
   expression indexes via a shared `FieldSqlExpression` helper.
+- Publishing pipeline `InvalidateCacheTagsListener`: invalidates the delivery layer's
+  surrogate cache tags (`lemma:entry:{uuid}`, `lemma:type:{slug}`) on content events —
+  entry events drop the entry + type tags (resolving the content-type UUID to its slug),
+  model events drop the type tag. Wired in `LemmaServiceProvider::boot()` as the first of
+  the pipeline's PSR-14 listeners.
 
 ### Changed
 - `FieldValidator` normalizes `datetime` field values to canonical ISO-8601 UTC

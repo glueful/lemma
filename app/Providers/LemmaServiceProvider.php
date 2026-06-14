@@ -13,8 +13,17 @@ use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\DeliveryEtag;
+use App\Content\Events\EntryCreated;
+use App\Content\Events\EntryDeleted;
+use App\Content\Events\EntryPublished;
+use App\Content\Events\EntryUnpublished;
+use App\Content\Events\EntryUpdated;
+use App\Content\Events\ModelCreated;
+use App\Content\Events\ModelDeleted;
+use App\Content\Events\ModelUpdated;
 use App\Content\Http\RequireContentScope;
 use App\Content\Http\RequireLemmaPermission;
+use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
 use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
@@ -23,6 +32,7 @@ use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Support\FieldSelection\Projector;
 
@@ -87,6 +97,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             PublishEventEmitter::class => [
                 'class' => PublishEventEmitter::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            InvalidateCacheTagsListener::class => [
+                'class' => InvalidateCacheTagsListener::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -171,8 +186,43 @@ final class LemmaServiceProvider extends ServiceProvider
 
     public function boot(ApplicationContext $context): void
     {
-        // No-op: routes/lemma_admin.php is auto-discovered by RouteManifest. Do NOT
+        // Routes: routes/lemma_admin.php is auto-discovered by RouteManifest. Do NOT
         // call loadRoutesFrom() here — it would double-register the routes and the
         // Router throws on duplicate static paths.
+
+        $this->registerEventListeners($context);
+    }
+
+    /**
+     * Wire content-pipeline listeners onto the PSR-14 EventService.
+     *
+     * Listeners are registered lazily by service id ('@' . Listener::class): the
+     * dispatcher resolves them from the container on first dispatch and invokes them as
+     * callables (so each listener exposes __invoke($event)). This is the shared pattern
+     * for every pipeline listener — extend $listeners with [eventClass => [...listeners]].
+     */
+    private function registerEventListeners(ApplicationContext $context): void
+    {
+        $events = app($context, EventService::class);
+
+        // event class => list of listener service ids (lazy '@' form).
+        $listeners = [
+            // Cache-tag invalidation (V1_DESIGN §5). Entry events drop the entry + type
+            // tags; model events drop the type tag.
+            EntryPublished::class => [InvalidateCacheTagsListener::class],
+            EntryUnpublished::class => [InvalidateCacheTagsListener::class],
+            EntryDeleted::class => [InvalidateCacheTagsListener::class],
+            EntryUpdated::class => [InvalidateCacheTagsListener::class],
+            EntryCreated::class => [InvalidateCacheTagsListener::class],
+            ModelCreated::class => [InvalidateCacheTagsListener::class],
+            ModelUpdated::class => [InvalidateCacheTagsListener::class],
+            ModelDeleted::class => [InvalidateCacheTagsListener::class],
+        ];
+
+        foreach ($listeners as $eventClass => $serviceIds) {
+            foreach ($serviceIds as $serviceId) {
+                $events->addListener($eventClass, '@' . $serviceId);
+            }
+        }
     }
 }

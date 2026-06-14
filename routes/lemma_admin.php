@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use Glueful\Routing\Router;
 
@@ -40,6 +41,15 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
         ->middleware('lemma_permission:lemma.entries.read');
     $router->put('/entries/{uuid}/draft/{locale}', [EntryController::class, 'saveDraft'])
         ->middleware('lemma_permission:lemma.entries.write');
+
+    /**
+     * @route POST /v1/admin/entries/{uuid}/preview/{locale}
+     * @summary Mint a short-lived preview token for an entry+locale
+     * @tag Lemma Admin
+     * @requestBody version_uuid:string
+     */
+    $router->post('/entries/{uuid}/preview/{locale}', [PreviewController::class, 'mint'])
+        ->middleware('lemma_permission:lemma.entries.read');
 
     $router->post('/entries/{uuid}/publish/{locale}', [PublicationController::class, 'publish'])
         ->middleware('lemma_permission:lemma.entries.publish');

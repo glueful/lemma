@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Http;
 
+use App\Content\Http\Controllers\PreviewController;
 use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
@@ -15,6 +16,7 @@ use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use App\Tests\Support\LemmaTestCase;
+use Symfony\Component\HttpFoundation\Request;
 
 final class PreviewApiTest extends LemmaTestCase
 {
@@ -51,6 +53,23 @@ final class PreviewApiTest extends LemmaTestCase
     private function reader(): PreviewReader
     {
         return new PreviewReader($this->appContext(), $this->entries(), $this->versions());
+    }
+
+    private function controller(): PreviewController
+    {
+        return new PreviewController($this->minter(), $this->reader());
+    }
+
+    /** A GET request whose `{token}` path param is supplied directly to show(). */
+    private function get(): Request
+    {
+        return new Request();
+    }
+
+    /** A POST request carrying the given JSON body. */
+    private function json(array $body): Request
+    {
+        return new Request([], [], [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode($body));
     }
 
     /** Seed an entry + a draft carrying the given title; return the entry uuid. */
@@ -181,5 +200,102 @@ final class PreviewApiTest extends LemmaTestCase
 
         $this->expectException(PreviewNotFoundException::class);
         $this->reader()->read($token);
+    }
+
+    // --- Controller (HTTP layer) ---------------------------------------------
+
+    public function testMintEndpointReturnsTokenEnvelope(): void
+    {
+        $uuid = $this->seedDraft('Mint Me');
+
+        $resp = $this->controller()->mint($this->json([]), $uuid, 'en');
+
+        self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode($resp->getContent(), true)['data'];
+        self::assertArrayHasKey('token', $data);
+        self::assertArrayHasKey('expires_at', $data);
+        self::assertArrayHasKey('expires_in', $data);
+        self::assertIsString($data['token']);
+        self::assertStringContainsString('.', $data['token']);
+        self::assertSame($this->minter()->ttlSeconds(), $data['expires_in']);
+    }
+
+    public function testMintEndpointPinsVersionFromBody(): void
+    {
+        $uuid = $this->seedDraft('Pin Me');
+        $publish = new PublishService(
+            $this->appContext(),
+            $this->entries(),
+            $this->versions(),
+            new ContentTypeRepository($this->connection()),
+            new FieldValidator(),
+        );
+        $versionUuid = $publish->publish($uuid, 'en', 'tester');
+        $this->entries()->saveDraft($uuid, 'en', ['title' => 'Moved On'], 1, 1, 'tester');
+
+        $resp = $this->controller()->mint($this->json(['version_uuid' => $versionUuid]), $uuid, 'en');
+        $token = json_decode($resp->getContent(), true)['data']['token'];
+
+        // The minted token must resolve to the PINNED version, not the moved-on draft.
+        $payload = $this->reader()->read($token);
+        self::assertSame($versionUuid, $payload['version_uuid']);
+        self::assertSame('Pin Me', $payload['fields']['title']);
+    }
+
+    public function testShowReturnsDraftForValidToken(): void
+    {
+        $uuid = $this->seedDraft('Show Me');
+        $token = $this->minter()->mint($uuid, 'en', null);
+
+        $resp = $this->controller()->show($this->get(), $token);
+
+        self::assertSame(200, $resp->getStatusCode());
+        $preview = json_decode($resp->getContent(), true)['data']['preview'];
+        self::assertSame($uuid, $preview['entry_uuid']);
+        self::assertSame('Show Me', $preview['fields']['title']);
+    }
+
+    public function testShowReturns403ForTamperedToken(): void
+    {
+        $uuid = $this->seedDraft('Tamper');
+        $token = $this->minter()->mint($uuid, 'en', null);
+        $tampered = substr($token, 0, -1) . ($token[-1] === 'A' ? 'B' : 'A');
+
+        $resp = $this->controller()->show($this->get(), $tampered);
+
+        self::assertSame(403, $resp->getStatusCode());
+        $body = json_decode($resp->getContent(), true);
+        self::assertFalse($body['success']);
+    }
+
+    public function testShowReturns403ForMalformedToken(): void
+    {
+        // No dot at all -> malformed, must still fail closed as 403 (never 200/500).
+        $resp = $this->controller()->show($this->get(), 'not-a-real-token');
+
+        self::assertSame(403, $resp->getStatusCode());
+    }
+
+    public function testShowReturns410ForExpiredToken(): void
+    {
+        $uuid = $this->seedDraft('Expired');
+        $key = (string) config($this->appContext(), 'app.key', '');
+        if (str_starts_with($key, 'base64:')) {
+            $key = (string) base64_decode(substr($key, 7), true);
+        }
+        $token = PreviewToken::mint($uuid, 'en', null, time() - 1, $key);
+
+        $resp = $this->controller()->show($this->get(), $token);
+
+        self::assertSame(410, $resp->getStatusCode());
+    }
+
+    public function testShowReturns404ForNonExistentEntry(): void
+    {
+        $token = $this->minter()->mint('does-not-xx', 'en', null);
+
+        $resp = $this->controller()->show($this->get(), $token);
+
+        self::assertSame(404, $resp->getStatusCode());
     }
 }

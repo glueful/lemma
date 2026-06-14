@@ -12,6 +12,7 @@ use App\Content\Console\ResyncCommand;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Events\EntryCreated;
@@ -31,6 +32,8 @@ use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
 use App\Content\Pipeline\Listeners\PurgeCdnListener;
 use App\Content\Pipeline\Listeners\ReindexSearchListener;
 use App\Content\Pipeline\PublishEventEmitter;
+use App\Content\Preview\PreviewMinter;
+use App\Content\Preview\PreviewReader;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\RouteRepository;
@@ -203,6 +206,24 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
                 'alias' => ['require_content_scope'],
+            ],
+
+            // Preview (the narrow draft door). Minter + reader derive the same APP_KEY
+            // signing key; the controller wires the admin mint + public token read.
+            PreviewMinter::class => [
+                'class' => PreviewMinter::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            PreviewReader::class => [
+                'class' => PreviewReader::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            PreviewController::class => [
+                'class' => PreviewController::class,
+                'shared' => true,
+                'autowire' => true,
             ],
 
             // Console command (resolved by commands() in boot()). Autowire fills its

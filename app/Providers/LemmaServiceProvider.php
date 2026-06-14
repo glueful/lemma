@@ -23,6 +23,9 @@ use App\Content\Events\ModelDeleted;
 use App\Content\Events\ModelUpdated;
 use App\Content\Http\RequireContentScope;
 use App\Content\Http\RequireLemmaPermission;
+use App\Content\Events\AssetAttached;
+use App\Content\Events\AssetDetached;
+use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
 use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Repositories\ContentTypeRepository;
@@ -66,6 +69,15 @@ use Glueful\Support\FieldSelection\Projector;
  */
 final class LemmaServiceProvider extends ServiceProvider
 {
+    /**
+     * Guards registerEventListeners() against a double-run. EventService::addListener
+     * APPENDS with no dedup, so a second registration would make every listener fire
+     * twice — harmless for idempotent cache invalidation, but a real bug for webhooks
+     * (duplicate deliveries). ExtensionManager::boot() already guards each provider's
+     * boot() to once per app lifecycle; this flag is cheap defence-in-depth on top.
+     */
+    private bool $listenersRegistered = false;
+
     /** @return array<string, array<string, mixed>> */
     public static function services(): array
     {
@@ -102,6 +114,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             InvalidateCacheTagsListener::class => [
                 'class' => InvalidateCacheTagsListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            DispatchWebhookListener::class => [
+                'class' => DispatchWebhookListener::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -203,20 +220,31 @@ final class LemmaServiceProvider extends ServiceProvider
      */
     private function registerEventListeners(ApplicationContext $context): void
     {
+        // addListener() appends with no dedup, so re-running this would double-fire every
+        // listener — duplicate webhook deliveries. Refuse to register twice.
+        if ($this->listenersRegistered) {
+            return;
+        }
+        $this->listenersRegistered = true;
+
         $events = app($context, EventService::class);
 
         // event class => list of listener service ids (lazy '@' form).
         $listeners = [
             // Cache-tag invalidation (V1_DESIGN §5). Entry events drop the entry + type
             // tags; model events drop the type tag.
-            EntryPublished::class => [InvalidateCacheTagsListener::class],
-            EntryUnpublished::class => [InvalidateCacheTagsListener::class],
-            EntryDeleted::class => [InvalidateCacheTagsListener::class],
-            EntryUpdated::class => [InvalidateCacheTagsListener::class],
-            EntryCreated::class => [InvalidateCacheTagsListener::class],
-            ModelCreated::class => [InvalidateCacheTagsListener::class],
-            ModelUpdated::class => [InvalidateCacheTagsListener::class],
-            ModelDeleted::class => [InvalidateCacheTagsListener::class],
+            EntryPublished::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            EntryUnpublished::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            EntryDeleted::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            EntryUpdated::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            EntryCreated::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            ModelCreated::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            ModelUpdated::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            ModelDeleted::class => [InvalidateCacheTagsListener::class, DispatchWebhookListener::class],
+            // Asset delta events (V1_DESIGN §8) are meaningful to external receivers
+            // ("where is this asset used") but carry no cache tags — webhook only.
+            AssetAttached::class => [DispatchWebhookListener::class],
+            AssetDetached::class => [DispatchWebhookListener::class],
         ];
 
         foreach ($listeners as $eventClass => $serviceIds) {

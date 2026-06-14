@@ -26,4 +26,12 @@ return [
         // overrides land in a later task.
         'cache_ttl' => (int) env('LEMMA_DELIVERY_CACHE_TTL', 60),
     ],
+
+    // Downstream publishing-pipeline effects (see docs/V1_DESIGN.md §5). Each listener is
+    // gated here so a deployment can opt out without unwiring the event bus.
+    'pipeline' => [
+        // Forward content events to the core WebhookDispatcher. Deliveries only occur for
+        // events that have an active subscription, so this is safe to leave on.
+        'webhooks_enabled' => (bool) env('LEMMA_WEBHOOKS_ENABLED', true),
+    ],
 ];

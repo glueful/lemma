@@ -87,6 +87,34 @@ final class EnsureFilterIndexesJobTest extends LemmaTestCase
         self::assertSame($idx['name'], $reg['index_name']);
     }
 
+    public function testCreatesDatetimeExpressionIndexAsReady(): void
+    {
+        // Regression: datetime indexes formerly cast to ::timestamptz, which is not
+        // IMMUTABLE, so CREATE INDEX always failed and the field was silently
+        // unfilterable (registry row left `failed`). The planner now uses the IMMUTABLE
+        // text expression `((fields ->> 'field'))`, which CREATE INDEX accepts.
+        $type = $this->createType([
+            ['name' => 'title', 'type' => 'string'],
+            ['name' => 'published_at', 'type' => 'datetime', 'filterable' => true, 'filter_type' => 'datetime'],
+        ]);
+
+        $this->runJob($type);
+
+        // Text expression renders in pg_indexes.indexdef as (fields ->> 'published_at'::text)
+        // with no trailing cast (contrast the numeric case's ...::numeric).
+        $idx = $this->findExpressionIndex("(fields ->> 'published_at'::text))");
+        self::assertNotNull($idx, 'expected a text expression index on (fields->>published_at) on entry_versions');
+        self::assertStringNotContainsString('timestamptz', $idx['def'], 'datetime index must not cast to timestamptz');
+
+        $reg = $this->connection()->table('lemma_filter_indexes')
+            ->where('content_type_uuid', '=', $type)
+            ->where('field', '=', 'published_at')
+            ->first();
+        self::assertNotNull($reg);
+        self::assertSame('ready', $reg['status'], 'datetime index must build (was failing as not-IMMUTABLE)');
+        self::assertSame($idx['name'], $reg['index_name']);
+    }
+
     public function testRerunIsIdempotent(): void
     {
         $type = $this->createType([

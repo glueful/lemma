@@ -50,7 +50,14 @@ final class FilterIndexPlanner
     {
         return match ($filterType) {
             'number' => "((fields ->> '{$field}')::numeric)",
-            'datetime' => "((fields ->> '{$field}')::timestamptz)",
+            // datetime is indexed/compared as TEXT (the only IMMUTABLE option — a
+            // ::timestamptz/::timestamp cast is not IMMUTABLE because text->timestamp
+            // parsing is DateStyle-dependent, so CREATE INDEX rejects it). Text comparison
+            // sorts datetimes chronologically ONLY if values are stored as canonical,
+            // lexicographically-sortable ISO-8601 (e.g. UTC `YYYY-MM-DDTHH:MM:SSZ`). The
+            // FilterCompiler (Task 4) must compare datetime as text, and the FieldValidator
+            // must normalize datetime values on write — tracked for Task 4.
+            'datetime' => "((fields ->> '{$field}'))",
             'boolean' => "((fields ->> '{$field}')::boolean)",
             default => "((fields ->> '{$field}'))", // string | enum (text)
         };

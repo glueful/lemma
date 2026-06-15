@@ -129,4 +129,29 @@ abstract class LemmaTestCase extends TestCase
         }
         return null;
     }
+
+    /**
+     * Assert a runtime `data` payload's keys match a doc-only ResponseData DTO's
+     * constructor params. With $exact=false, the payload keys must be a SUBSET of the
+     * DTO params (for shapes that omit falsy keys, e.g. ContentTypeSchema::toArray()).
+     * Never recurses into freeform `fields`.
+     *
+     * @param array<string,mixed>           $data
+     * @param class-string<\Glueful\Http\Contracts\ResponseData> $dtoClass
+     */
+    protected static function assertDataMatchesDtoShape(array $data, string $dtoClass, bool $exact = true): void
+    {
+        $params = array_map(
+            static fn (\ReflectionParameter $p): string => $p->getName(),
+            (new \ReflectionMethod($dtoClass, '__construct'))->getParameters()
+        );
+        $actual = array_keys($data);
+        if ($exact) {
+            sort($params);
+            sort($actual);
+            self::assertSame($params, $actual, "Payload keys differ from {$dtoClass}");
+        } else {
+            self::assertSame([], array_diff($actual, $params), "Payload has keys not in {$dtoClass}");
+        }
+    }
 }

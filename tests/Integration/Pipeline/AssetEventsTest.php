@@ -269,4 +269,32 @@ final class AssetEventsTest extends LemmaTestCase
         self::assertCount(0, $captured['detached'], 'stale save emits no detach');
         self::assertCount(0, $captured['updated'], 'stale save emits no primary event');
     }
+
+    public function testSoftDeleteDetachesAllCurrentAssets(): void
+    {
+        $this->containerEntries()->saveDraft(
+            $this->entry,
+            'en',
+            [
+                'title' => 'V1',
+                'hero' => 'b1abcdefghij',
+                'gallery' => ['b1abcdefghij', 'b2abcdefghij'],
+            ],
+            1,
+            $this->lock(),
+            'user00000001'
+        );
+
+        $captured = $this->spy();
+
+        $this->containerEntries()->softDelete($this->entry);
+
+        $detached = array_map(static fn(AssetDetached $e): string => $e->asset, $captured['detached']);
+        sort($detached);
+
+        self::assertSame(['b1abcdefghij', 'b2abcdefghij'], $detached);
+        self::assertCount(0, $captured['attached'], 'deleting an entry emits no attach events');
+        self::assertSame($this->entry, $captured['detached'][0]->entry);
+        self::assertNull($captured['detached'][0]->actor, 'repository softDelete currently has no actor input');
+    }
 }

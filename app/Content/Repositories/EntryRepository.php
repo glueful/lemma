@@ -219,9 +219,20 @@ final class EntryRepository
     public function softDelete(string $uuid): void
     {
         $entry = $this->findEntry($uuid);
+        $assets = $this->draftAssetTargetsForEntry($uuid);
+
         $this->db->table('entries')->where('uuid', '=', $uuid)
             ->update(['status' => 'deleted', 'updated_at' => $this->now()]);
         (new ReferenceProjectionRepository($this->db))->clearForEntry($uuid);
+
+        foreach ($assets as $blob) {
+            $this->events?->emitAfterCommit(new AssetDetached(
+                asset: $blob,
+                entry: $uuid,
+                actor: null,
+            ));
+        }
+
         $this->events?->emitAfterCommit(new EntryDeleted(
             entry: $uuid,
             type: $entry === null ? '' : (string) $entry['content_type_uuid'],
@@ -229,6 +240,30 @@ final class EntryRepository
             version: null,
             actor: null,
         ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function draftAssetTargetsForEntry(string $entryUuid): array
+    {
+        $rows = $this->db->table('entry_drafts')
+            ->where('entry_uuid', '=', $entryUuid)
+            ->get();
+
+        $targets = [];
+        foreach ($rows as $row) {
+            $raw = $row['fields'] ?? [];
+            $fields = is_string($raw)
+                ? (json_decode($raw, true) ?: [])
+                : (array) $raw;
+
+            foreach ($this->assetTargets($entryUuid, $fields) as $blob) {
+                $targets[$blob] = true;
+            }
+        }
+
+        return array_keys($targets);
     }
 
     public function discardDraft(string $entryUuid, string $locale): void

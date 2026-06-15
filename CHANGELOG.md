@@ -72,11 +72,11 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   attribute set by `AuthMiddleware` (falling back from the optional `auth.user` enricher), so every
   `lemma_permission`-gated admin route authorizes correctly in a lean install — still fail-closed
   (no principal or missing grant → 403).
+- `EntryRepository::softDelete` now emits `AssetDetached` for the deleted entry's current asset
+  references before emitting `EntryDeleted`, keeping asset usage webhooks consistent with draft-save
+  asset deltas.
 - `ReindexSearchListener` now calls Lemma's provider-neutral `ContentReindexerInterface` seam, so
   any search extension can bind the reindexer and own its own queueing/document shape without Lemma
   referencing a vendor-specific job class.
 - PHPUnit now pins `DB_DRIVER=pgsql`, and the repository ships a GitHub Actions CI workflow that
   runs the Composer CI gate against Postgres.
-
-### Known limitations / tech-debt
-- `EntryRepository::softDelete` emits `EntryDeleted` but not `AssetDetached` for the entry's assets.

@@ -13,11 +13,11 @@
   ],
   "require": {
     "php": "^8.3",
-    "glueful/aegis": "^1.7",
+    "glueful/aegis": "^1.8.0",
     "glueful/email-notification": "^1.10.0",
-    "glueful/framework": "^1.56.0",
+    "glueful/framework": "^1.58.0",
     "glueful/media": "^1.1.0",
-    "glueful/users": "^1.0.1",
+    "glueful/users": "^1.1.0",
     "symfony/brevo-mailer": "^8.1"
   },
   "require-dev": {
@@ -52,6 +52,7 @@
     "test:integration": "vendor/bin/phpunit --testsuite Integration",
     "phpcs": "vendor/bin/phpcs",
     "phpcbf": "vendor/bin/phpcbf",
+    "docs:openapi": "php glueful generate:openapi -f --clean",
     "ci": [
       "@phpcs",
       "@test"

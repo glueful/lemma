@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Content\Http\Controllers;
 
+use App\Content\Http\DTOs\MintPreviewData;
+use App\Content\Http\DTOs\Responses\Preview\PreviewMintData;
+use App\Content\Http\DTOs\Responses\Preview\PreviewResultData;
 use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
-use App\Content\Http\DTOs\MintPreviewData;
 use App\Content\Preview\PreviewTokenException;
 use App\Http\DTOs\ErrorResponse;
 use Glueful\Http\Response;
@@ -60,7 +62,7 @@ final class PreviewController
             . 'Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'Preview token minted.')]
+    #[ApiResponse(200, schema: PreviewMintData::class, description: 'Preview token minted.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -104,7 +106,7 @@ final class PreviewController
             . 'target no longer exists returns 404 — all with generic messages.',
         tags: ['Lemma Preview'],
     )]
-    #[ApiResponse(200, description: 'The previewed draft (or pinned version).')]
+    #[ApiResponse(200, schema: PreviewResultData::class, description: 'The previewed draft (or pinned version).')]
     #[ApiResponse(
         403,
         schema: ErrorResponse::class,

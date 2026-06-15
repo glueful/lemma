@@ -6,6 +6,9 @@ namespace App\Tests\Integration\Http;
 
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\DTOs\MintPreviewData;
+use App\Content\Http\DTOs\Responses\Preview\PreviewData;
+use App\Content\Http\DTOs\Responses\Preview\PreviewMintData;
+use App\Content\Http\DTOs\Responses\Preview\PreviewResultData;
 use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
@@ -254,6 +257,30 @@ final class PreviewApiTest extends LemmaTestCase
         $payload = $this->reader()->read($token);
         self::assertSame($versionUuid, $payload['version_uuid']);
         self::assertSame('Pin Me', $payload['fields']['title']);
+    }
+
+    public function testMintResponseMatchesDtoShape(): void
+    {
+        $uuid = $this->seedDraft('Shape Check');
+
+        $resp = $this->controller()->mint($this->hydrate(MintPreviewData::class, []), new Request(), $uuid, 'en');
+
+        self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape($data, PreviewMintData::class);
+    }
+
+    public function testShowResponseMatchesDtoShape(): void
+    {
+        $uuid = $this->seedDraft('Shape Check Read');
+        $token = $this->minter()->mint($uuid, 'en', null);
+
+        $resp = $this->controller()->show($this->get(), $token);
+
+        self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape($data, PreviewResultData::class);
+        self::assertDataMatchesDtoShape($data['preview'], PreviewData::class);
     }
 
     public function testShowReturnsDraftForValidToken(): void

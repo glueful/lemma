@@ -16,7 +16,7 @@ use Glueful\Routing\Router;
  * Auto-discovered by RouteManifest; the provider must NOT loadRoutesFrom() this file
  * (double registration throws on duplicate static routes).
  */
-$router->group(['prefix' => '/v1/content', 'middleware' => ['auth']], function (Router $router): void {
+$router->group(['prefix' => '/v1/content', 'middleware' => ['api_key']], function (Router $router): void {
     // List published entries of a content type.
     $router->get('/{type}', [DeliveryController::class, 'index'])
         ->middleware('require_content_scope:read:content')

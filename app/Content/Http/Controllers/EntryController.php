@@ -11,6 +11,7 @@ use App\Content\Repositories\EntryRepository;
 use App\Content\Support\OptimisticLockException;
 use App\Content\Validation\FieldValidator;
 use App\Content\Validation\ValidationException;
+use App\Http\DTOs\ErrorResponse;
 use Glueful\Auth\UserIdentity;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
@@ -53,9 +54,20 @@ final class EntryController
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(201, description: 'Entry created with an empty draft.')]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.write` permission.')]
-    #[ApiResponse(422, description: 'Unknown content type.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.write` permission.',
+    )]
+    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type.')]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function store(CreateEntryData $input, Request $request): Response
     {
         // Structural validation (content_type/locale are strings) is done by the hydrated DTO.
@@ -90,9 +102,20 @@ final class EntryController
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'The entry.')]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.read` permission.')]
-    #[ApiResponse(404, description: 'No entry with that UUID.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.read` permission.',
+    )]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function show(Request $request, string $uuid): Response
     {
         $entry = $this->entries->findEntry($uuid);
@@ -116,9 +139,20 @@ final class EntryController
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'The draft.')]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.read` permission.')]
-    #[ApiResponse(404, description: 'No draft for that entry/locale.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.read` permission.',
+    )]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No draft for that entry/locale.')]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function getDraft(Request $request, string $uuid, string $locale): Response
     {
         $draft = $this->entries->findDraft($uuid, $locale);
@@ -150,11 +184,32 @@ final class EntryController
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Draft saved.')]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.write` permission.')]
-    #[ApiResponse(404, description: 'No entry with that UUID.')]
-    #[ApiResponse(409, description: 'Stale lock_version — the draft was modified by another writer.')]
-    #[ApiResponse(422, description: 'Field validation failed against the content type schema.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.write` permission.',
+    )]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(
+        409,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Stale lock_version — the draft was modified by another writer.',
+    )]
+    #[ApiResponse(
+        422,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Field validation failed against the content type schema.',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function saveDraft(SaveDraftData $input, Request $request, string $uuid, string $locale): Response
     {
         $entry = $this->entries->findEntry($uuid);

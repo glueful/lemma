@@ -14,6 +14,7 @@ use App\Content\Delivery\InvalidFilterException;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Schema\ContentTypeSchema;
+use App\Http\DTOs\ErrorResponse;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
@@ -117,11 +118,32 @@ final class DeliveryController
         description: 'A page of published entries (cursor mode by default; offset mode replaces `data` '
             . 'with the item array plus top-level pagination keys).',
     )]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'API key lacks the required `read:content` scope.')]
-    #[ApiResponse(404, description: 'Unknown content type slug.')]
-    #[ApiResponse(422, description: 'Filter or sort references a non-filterable field or an unsupported operator.')]
-    #[ApiResponse(429, description: 'Rate limit exceeded (120/minute per key).')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'API key lacks the required `read:content` scope.',
+    )]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type slug.')]
+    #[ApiResponse(
+        422,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Filter or sort references a non-filterable field or an unsupported operator.',
+    )]
+    #[ApiResponse(
+        429,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Rate limit exceeded (120/minute per key).',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function index(Request $request, string $type): Response
     {
         $typeRow = $this->types->findBySlug($type);
@@ -198,10 +220,31 @@ final class DeliveryController
         304,
         description: 'Not Modified — the supplied If-None-Match ETag still matches the published version.',
     )]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'API key lacks the required `read:content` scope.')]
-    #[ApiResponse(404, description: 'Unknown content type, or no published entry for the given slug/UUID.')]
-    #[ApiResponse(429, description: 'Rate limit exceeded (120/minute per key).')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'API key lacks the required `read:content` scope.',
+    )]
+    #[ApiResponse(
+        404,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Unknown content type, or no published entry for the given slug/UUID.',
+    )]
+    #[ApiResponse(
+        429,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Rate limit exceeded (120/minute per key).',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function show(Request $request, string $type, string $slugOrUuid): Response
     {
         $typeRow = $this->types->findBySlug($type);

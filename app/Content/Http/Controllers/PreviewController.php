@@ -9,6 +9,7 @@ use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
 use App\Content\Http\DTOs\MintPreviewData;
 use App\Content\Preview\PreviewTokenException;
+use App\Http\DTOs\ErrorResponse;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
@@ -60,8 +61,19 @@ final class PreviewController
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Preview token minted.')]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.read` permission.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.read` permission.',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function mint(MintPreviewData $input, Request $request, string $uuid, string $locale): Response
     {
         // version_uuid is optional: absent means "mint from the current draft". Existence /
@@ -93,10 +105,26 @@ final class PreviewController
         tags: ['Lemma Preview'],
     )]
     #[ApiResponse(200, description: 'The previewed draft (or pinned version).')]
-    #[ApiResponse(403, description: 'Invalid or malformed preview token.')]
-    #[ApiResponse(404, description: 'The token\'s target entry/version no longer exists.')]
-    #[ApiResponse(410, description: 'The preview token has expired.')]
-    #[ApiResponse(429, description: 'Rate limit exceeded (60/minute per IP).')]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Invalid or malformed preview token.',
+    )]
+    #[ApiResponse(
+        404,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'The token\'s target entry/version no longer exists.',
+    )]
+    #[ApiResponse(410, schema: ErrorResponse::class, envelope: false, description: 'The preview token has expired.')]
+    #[ApiResponse(
+        429,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Rate limit exceeded (60/minute per IP).',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function show(Request $request, string $token): Response
     {
         try {

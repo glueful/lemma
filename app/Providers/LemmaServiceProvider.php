@@ -40,6 +40,7 @@ use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
+use App\Http\Middleware\ApiKeyAuthMiddleware;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
@@ -206,6 +207,18 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
                 'alias' => ['require_content_scope'],
+            ],
+
+            // `api_key` middleware alias: an AuthMiddleware restricted to the api_key provider
+            // (the framework's autowired `auth` defaults to ['jwt','api_key']). The delivery
+            // routes use this so the request is strictly API-key authenticated and the OpenAPI
+            // reflect generator emits `ApiKeyAuth` natively (no post-process narrowing). Runtime
+            // is unchanged: RequireContentScope already 403s any non-api-key principal.
+            ApiKeyAuthMiddleware::class => [
+                'class' => ApiKeyAuthMiddleware::class,
+                'shared' => true,
+                'autowire' => true,
+                'alias' => ['api_key'],
             ],
 
             // Preview (the narrow draft door). Minter + reader derive the same APP_KEY

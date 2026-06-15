@@ -7,6 +7,7 @@ namespace App\Content\Http\Controllers;
 use App\Content\Http\DTOs\RollbackData;
 use App\Content\Services\PublishService;
 use App\Content\Validation\ValidationException;
+use App\Http\DTOs\ErrorResponse;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
@@ -49,10 +50,26 @@ final class PublicationController
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Entry published.')]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.publish` permission.')]
-    #[ApiResponse(404, description: 'No entry/draft to publish.')]
-    #[ApiResponse(422, description: 'Draft fields fail schema validation.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.publish` permission.',
+    )]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry/draft to publish.')]
+    #[ApiResponse(
+        422,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Draft fields fail schema validation.',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function publish(Request $request, string $uuid, string $locale): Response
     {
         try {
@@ -81,8 +98,19 @@ final class PublicationController
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Entry unpublished.')]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.publish` permission.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.publish` permission.',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function unpublish(Request $request, string $uuid, string $locale): Response
     {
         $this->publisher->unpublish($uuid, $locale);
@@ -107,9 +135,25 @@ final class PublicationController
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Rolled back to the named version.')]
-    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.publish` permission.')]
-    #[ApiResponse(422, description: 'Missing or invalid version_uuid (or it does not belong to this entry+locale).')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.publish` permission.',
+    )]
+    #[ApiResponse(
+        422,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid version_uuid (or it does not belong to this entry+locale).',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function rollback(RollbackData $input, Request $request, string $uuid, string $locale): Response
     {
         // Structural validation (version_uuid present + non-blank) is done by the hydrated DTO.

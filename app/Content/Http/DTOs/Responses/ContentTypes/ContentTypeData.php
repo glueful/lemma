@@ -7,6 +7,15 @@ namespace App\Content\Http\DTOs\Responses\ContentTypes;
 use Glueful\Http\Contracts\ResponseData;
 use Glueful\Validation\Attributes\ArrayOf;
 
+/**
+ * Doc-only schema holder: mirrors the raw `content_types` row the runtime emits as
+ * the `content_type` object inside the success envelope (see {@see ContentTypeResultData}).
+ * NEVER constructed at runtime — it exists only so the OpenAPI generator can reflect a
+ * typed schema. Field types are chosen to drive the generated schema, not to match the
+ * PHP wire type: `created_at`/`updated_at` are `\DateTimeInterface` to emit
+ * `format: date-time` (the wire value is an ISO-8601-ish string), and `schema` items
+ * are typed via #[ArrayOf].
+ */
 final class ContentTypeData implements ResponseData
 {
     /** @param list<FieldSchemaData> $schema */

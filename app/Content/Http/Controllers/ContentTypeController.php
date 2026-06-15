@@ -54,7 +54,7 @@ final class ContentTypeController
             . 'Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, ContentTypeListData::class, description: 'All content types.')]
+    #[ApiResponse(200, schema: ContentTypeListData::class, description: 'All content types.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -88,7 +88,7 @@ final class ContentTypeController
             . 'Requires the `lemma.models.manage` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(201, ContentTypeResultData::class, description: 'Content type created.')]
+    #[ApiResponse(201, schema: ContentTypeResultData::class, description: 'Content type created.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -143,7 +143,7 @@ final class ContentTypeController
             . 'Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, ContentTypeResultData::class, description: 'The content type.')]
+    #[ApiResponse(200, schema: ContentTypeResultData::class, description: 'The content type.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -183,7 +183,7 @@ final class ContentTypeController
             . 'Requires the `lemma.models.manage` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, ContentTypeResultData::class, description: 'Schema updated.')]
+    #[ApiResponse(200, schema: ContentTypeResultData::class, description: 'Schema updated.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,

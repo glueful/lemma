@@ -6,6 +6,7 @@ namespace App\Tests\Integration\Http;
 
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\DTOs\CreateContentTypeData;
+use App\Content\Http\DTOs\UpdateContentTypeSchemaData;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Validation\Contracts\RequestData;
@@ -114,5 +115,74 @@ final class ContentTypeApiTest extends LemmaTestCase
     public function testShowNotFound(): void
     {
         self::assertSame(404, $this->controller()->show(new Request(), 'nope')->getStatusCode());
+    }
+
+    public function testShowReturnsType(): void
+    {
+        // Seed a content type with a schema field so the drift assertion covers both layers.
+        $this->controller()->store(
+            $this->hydrate(CreateContentTypeData::class, [
+                'slug' => 'page', 'name' => 'Page',
+                'schema' => [['name' => 'body', 'type' => 'text', 'required' => true]],
+            ]),
+            new Request(),
+        );
+        $resp = $this->controller()->show(new Request(), 'page');
+        self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape(
+            $data,
+            \App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeResultData::class
+        );
+        self::assertDataMatchesDtoShape(
+            $data['content_type'],
+            \App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeData::class
+        );
+        foreach ($data['content_type']['schema'] as $field) {
+            self::assertDataMatchesDtoShape(
+                $field,
+                \App\Content\Http\DTOs\Responses\ContentTypes\FieldSchemaData::class,
+                exact: false
+            );
+        }
+    }
+
+    public function testUpdateSchemaReturnsType(): void
+    {
+        // Seed a content type, then replace its schema, and assert the 200 payload shape.
+        $this->controller()->store(
+            $this->hydrate(CreateContentTypeData::class, [
+                'slug' => 'event', 'name' => 'Event',
+                'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
+            ]),
+            new Request(),
+        );
+        $resp = $this->controller()->updateSchema(
+            $this->hydrate(UpdateContentTypeSchemaData::class, [
+                'schema' => [
+                    ['name' => 'title', 'type' => 'string', 'required' => true],
+                    ['name' => 'starts_at', 'type' => 'datetime'],
+                ],
+            ]),
+            new Request(),
+            'event',
+        );
+        self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape(
+            $data,
+            \App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeResultData::class
+        );
+        self::assertDataMatchesDtoShape(
+            $data['content_type'],
+            \App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeData::class
+        );
+        foreach ($data['content_type']['schema'] as $field) {
+            self::assertDataMatchesDtoShape(
+                $field,
+                \App\Content\Http\DTOs\Responses\ContentTypes\FieldSchemaData::class,
+                exact: false
+            );
+        }
     }
 }

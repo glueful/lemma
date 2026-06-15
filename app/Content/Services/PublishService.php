@@ -48,7 +48,7 @@ final class PublishService
         $version = 0;
         $versionUuid = db($this->context)->transaction(
             function () use ($entryUuid, $locale, $clean, $draft, $actor, $schema, &$version): string {
-                $version = $this->versions->nextVersionNumber($entryUuid, $locale);
+                $version = $this->versions->reserveNextVersionNumber($entryUuid, $locale);
                 $versionUuid = $this->versions->appendVersion(
                     $entryUuid,
                     $locale,

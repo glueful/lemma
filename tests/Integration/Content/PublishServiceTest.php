@@ -76,6 +76,28 @@ final class PublishServiceTest extends LemmaTestCase
         self::assertCount(2, $repo->versionsFor($this->entry, 'en'));
     }
 
+    public function testReserveNextVersionNumberUsesTransactionScopedLock(): void
+    {
+        $versions = new VersionRepository($this->connection());
+
+        $locked = db($this->appContext())->transaction(function () use ($versions): array {
+            $next = $versions->reserveNextVersionNumber($this->entry, 'en');
+            $locks = $this->connection()->getPDO()->query(
+                "SELECT mode FROM pg_locks WHERE locktype = 'advisory' AND granted = true"
+            )->fetchAll(\PDO::FETCH_ASSOC);
+
+            return [$next, $locks];
+        });
+
+        self::assertSame(1, $locked[0]);
+        self::assertNotSame([], $locked[1], 'version allocation must hold an advisory transaction lock');
+
+        $locksAfterCommit = $this->connection()->getPDO()->query(
+            "SELECT mode FROM pg_locks WHERE locktype = 'advisory' AND granted = true"
+        )->fetchAll(\PDO::FETCH_ASSOC);
+        self::assertSame([], $locksAfterCommit, 'the version allocation lock must release on commit');
+    }
+
     public function testPublishRejectsInvalidDraft(): void
     {
         // setUp already saved the draft once, so lock_version is now 1 (not 0).

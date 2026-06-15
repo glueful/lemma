@@ -176,6 +176,33 @@ final class AssetEventsTest extends LemmaTestCase
         self::assertCount(1, $captured['updated'], 'primary EntryUpdated still fires once');
     }
 
+    public function testNoOpDraftSaveEmitsNoUpdatedEvent(): void
+    {
+        $this->containerEntries()->saveDraft(
+            $this->entry,
+            'en',
+            ['title' => 'V1', 'hero' => 'b1abcdefghij'],
+            1,
+            $this->lock(),
+            'user00000001'
+        );
+
+        $captured = $this->spy();
+
+        $this->containerEntries()->saveDraft(
+            $this->entry,
+            'en',
+            ['title' => 'V1', 'hero' => 'b1abcdefghij'],
+            1,
+            $this->lock(),
+            'user00000001'
+        );
+
+        self::assertCount(0, $captured['attached'], 'unchanged asset field emits no attach');
+        self::assertCount(0, $captured['detached'], 'unchanged asset field emits no detach');
+        self::assertCount(0, $captured['updated'], 'unchanged draft emits no primary update');
+    }
+
     public function testMultiAssetDiffOnlyEmitsDelta(): void
     {
         // First save: gallery = [b1, b2]

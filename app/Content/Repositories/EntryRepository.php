@@ -63,10 +63,9 @@ final class EntryRepository
      * Save the draft working copy under optimistic concurrency. The caller passes the
      * lock_version it last read; if the row has moved on, throw (controller -> 409).
      *
-     * The optimistic-lock CAS and the entry_references projection rebuild run inside one
-     * transaction (V1_DESIGN §4): the CAS `update` runs first and a stale save (0 affected)
-     * throws OptimisticLockException — which rolls the transaction back BEFORE any projection
-     * write. The projection is rebuilt only after the CAS reports `affected >= 1`.
+     * The optimistic-lock CAS runs inside one transaction (V1_DESIGN §4): a stale save
+     * (0 affected) throws OptimisticLockException and rolls back. Reference projection is
+     * intentionally not touched here because it indexes published versions, not drafts.
      *
      * @param array<string,mixed> $fields already-validated, cleaned payload
      */
@@ -83,7 +82,9 @@ final class EntryRepository
         // used"). Read here, before the CAS overwrites the row; the diff/emit happens only
         // on the success path below, so a stale-lock 409 (which throws inside the
         // transaction) emits nothing.
-        $oldAssets = $this->assetTargets($entryUuid, $this->draftFields($entryUuid, $locale));
+        $oldFields = $this->draftFields($entryUuid, $locale);
+        $oldAssets = $this->assetTargets($entryUuid, $oldFields);
+        $changed = $oldFields != $fields;
 
         db($this->context)->transaction(function () use (
             $entryUuid,
@@ -115,16 +116,19 @@ final class EntryRepository
         });
 
         // Reached only if the CAS succeeded (a stale save throws inside the transaction
-        // above and never gets here, so no event fires on the 409 path). One primary
-        // EntryUpdated per successful save.
+        // above and never gets here, so no event fires on the 409 path). Emit the primary
+        // update only for a content change; a client retry that writes identical fields may
+        // advance the optimistic lock, but downstream consumers do not need reprocessing.
         $entry = $this->findEntry($entryUuid);
-        $this->events?->emitAfterCommit(new EntryUpdated(
-            entry: $entryUuid,
-            type: $entry === null ? '' : (string) $entry['content_type_uuid'],
-            locale: $locale,
-            version: $expectedLockVersion + 1,
-            actor: $actor,
-        ));
+        if ($changed) {
+            $this->events?->emitAfterCommit(new EntryUpdated(
+                entry: $entryUuid,
+                type: $entry === null ? '' : (string) $entry['content_type_uuid'],
+                locale: $locale,
+                version: $expectedLockVersion + 1,
+                actor: $actor,
+            ));
+        }
 
         // ADDITIVE asset-delta events (V1_DESIGN §8): diff the prior draft's asset-field
         // targets against the new ones and emit one event per changed blob. These are

@@ -9,29 +9,27 @@ use App\Content\Pipeline\Listeners\PurgeCdnListener;
 use App\Content\Pipeline\Listeners\ReindexSearchListener;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Search\ContentReindexerInterface;
 use App\Content\Services\PublishService;
 use App\Tests\Support\LemmaTestCase;
+use App\Tests\Support\RecordingContentReindexer;
 use App\Tests\Support\RecordingEdgeCache;
-use App\Tests\Support\RecordingQueueManager;
-use App\Tests\Support\RecordingSearchAdapter;
-use Glueful\Api\Filtering\Contracts\SearchAdapterInterface;
 use Glueful\Cache\Contracts\EdgeCacheInterface;
 use Glueful\Cache\NullEdgeCache;
-use Glueful\Queue\QueueManager;
 
 /**
  * Proves the two capability-gated listeners (V1_DESIGN §5) are a CLEAN NO-OP in the
- * default Lemma install — which enables users/aegis/media/email but NOT glueful/cdn or
- * glueful/meilisearch — while the rest of the pipeline (cache/webhook) still runs.
+ * default Lemma install — which enables users/aegis/media/email but NOT glueful/cdn or a
+ * search reindexer — while the rest of the pipeline (cache/webhook) still runs.
  *
  * This is the headline behaviour: a lean install must publish with cache + webhook effects
  * and ZERO error from CDN purge / search reindex. The test proves the gate in BOTH
  * directions:
- *   - DEFAULT env (no cdn/meilisearch): publishing succeeds, neither listener touches a
+ *   - DEFAULT env (no cdn/search reindexer): publishing succeeds, neither listener touches a
  *     missing service, nothing throws.
- *   - PRESENT env (a real EdgeCache / a search seam substituted in): the listeners DO act —
- *     PurgeCdnListener purges by the delivery surrogate tags; ReindexSearchListener enqueues
- *     a reindex job for the entry.
+ *   - PRESENT env (a real EdgeCache / a content reindexer substituted in): the listeners DO act —
+ *     PurgeCdnListener purges by the delivery surrogate tags; ReindexSearchListener requests
+ *     a provider-neutral reindex for the entry.
  *
  * The container-substitution (reflection on the compiled container's `singletons`) mirrors
  * CacheInvalidationTest / WebhookDispatchTest.
@@ -61,25 +59,25 @@ final class CapabilityGatingTest extends LemmaTestCase
         parent::tearDown();
     }
 
-    // ---- default env: cdn/meilisearch absent -> clean no-op -------------------------
+    // ---- default env: cdn/search reindexer absent -> clean no-op --------------------
 
-    public function testTheDefaultInstallHasNeitherCdnNorMeilisearch(): void
+    public function testTheDefaultInstallHasNeitherCdnNorContentReindexer(): void
     {
         // The CDN seam is always bound (to the no-op NullEdgeCache); it must report disabled.
         $edge = $this->container()->get(EdgeCacheInterface::class);
         self::assertInstanceOf(NullEdgeCache::class, $edge, 'default install must bind NullEdgeCache');
         self::assertFalse($edge->isEnabled(), 'NullEdgeCache must report the CDN disabled');
 
-        // The search seam is unbound entirely by default — no glueful/meilisearch.
+        // The content reindexer is unbound entirely by default.
         self::assertFalse(
-            $this->container()->has(SearchAdapterInterface::class),
-            'default install must not bind a search adapter'
+            $this->container()->has(ContentReindexerInterface::class),
+            'default install must not bind a content reindexer'
         );
     }
 
     public function testPublishIsCleanWithNeitherCapabilityPresent(): void
     {
-        // No substitution: the real default container (NullEdgeCache, no search seam).
+        // No substitution: the real default container (NullEdgeCache, no content reindexer).
         $this->container()->get(PublishService::class)->publish($this->entry, 'en', 'user00000001');
 
         // The publish succeeded: the entry is published.
@@ -99,7 +97,7 @@ final class CapabilityGatingTest extends LemmaTestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testReindexSearchListenerSkipsWhenNoSearchSeamIsBound(): void
+    public function testReindexSearchListenerSkipsWhenNoContentReindexerIsBound(): void
     {
         $listener = $this->container()->get(ReindexSearchListener::class);
         $listener(new EntryPublished($this->entry, $this->type, 'en', 1, 'user00000001'));
@@ -127,22 +125,21 @@ final class CapabilityGatingTest extends LemmaTestCase
         );
     }
 
-    public function testReindexSearchListenerEnqueuesAReindexJobWhenSearchSeamIsBound(): void
+    public function testReindexSearchListenerCallsContentReindexerWhenBound(): void
     {
-        $queue = new RecordingQueueManager();
-        $this->setSingleton(QueueManager::class, $queue);
-        $this->setSingleton(SearchAdapterInterface::class, new RecordingSearchAdapter());
+        $reindexer = new RecordingContentReindexer();
+        $this->setSingleton(ContentReindexerInterface::class, $reindexer);
 
         $listener = $this->container()->get(ReindexSearchListener::class);
         $listener(new EntryPublished($this->entry, $this->type, 'en', 1, 'user00000001'));
 
-        self::assertCount(1, $queue->pushed, 'a reindex job must be enqueued when search is present');
-        $job = $queue->pushed[0];
-        self::assertSame(ReindexSearchListener::REINDEX_JOB, $job['job']);
-        self::assertSame($this->entry, $job['data']['entry']);
-        self::assertSame('en', $job['data']['locale']);
-        // Identity-only payload: the search extension owns the document shape.
-        self::assertArrayNotHasKey('fields', $job['data']);
+        self::assertCount(
+            1,
+            $reindexer->requests,
+            'a reindex request must be recorded when a content reindexer is present'
+        );
+        self::assertSame($this->entry, $reindexer->requests[0]['entry']);
+        self::assertSame('en', $reindexer->requests[0]['locale']);
     }
 
     // ---- container surgery (the compiled container exposes no setter) ----------------

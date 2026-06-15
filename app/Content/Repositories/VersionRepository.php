@@ -21,6 +21,15 @@ final class VersionRepository
         return (int) ($max ?? 0) + 1;
     }
 
+    public function reserveNextVersionNumber(string $entryUuid, string $locale): int
+    {
+        $lockKey = "lemma:entry_versions:{$entryUuid}:{$locale}";
+        $stmt = $this->db->getPDO()->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))');
+        $stmt->execute(['lock_key' => $lockKey]);
+
+        return $this->nextVersionNumber($entryUuid, $locale);
+    }
+
     /** @param array<string,mixed> $fields  Returns the new version uuid. */
     public function appendVersion(
         string $entryUuid,

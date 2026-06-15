@@ -62,6 +62,10 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - `PublishService` now rebuilds the `entry_references` projection from the published version
   snapshot on publish/rollback, so draft edits never affect delete protection or delivery-time
   reference resolution until they are actually published.
+- `EntryRepository::saveDraft` debounces `entry.updated`: successful saves that write the same
+  field payload no longer emit redundant update events.
+- `PublishService` now reserves the next immutable version number under a transaction-scoped
+  advisory lock per entry+locale before appending the version row.
 - `FieldValidator` validates `asset` fields against active core `blobs` on the configured
   `lemma.media_disk`, instead of accepting any non-empty UUID-shaped string.
 - `RequireLemmaPermission` resolves the authenticated principal from the post-auth `user` request

@@ -10,12 +10,10 @@ use App\Content\Repositories\EntryRepository;
 use App\Content\Services\PublishService;
 use App\Tests\Support\LemmaTestCase;
 use App\Tests\Support\RecordingArrayCache;
-use App\Tests\Support\RecordingQueueManager;
-use App\Tests\Support\RecordingSearchAdapter;
+use App\Content\Search\ContentReindexerInterface;
+use App\Tests\Support\RecordingContentReindexer;
 use App\Tests\Support\RecordingWebhookDispatcher;
-use Glueful\Api\Filtering\Contracts\SearchAdapterInterface;
 use Glueful\Api\Webhooks\WebhookDispatcher;
-use Glueful\Queue\QueueManager;
 use Symfony\Component\Console\Tester\CommandTester;
 
 /**
@@ -23,7 +21,7 @@ use Symfony\Component\Console\Tester\CommandTester;
  * for content that was published while a crash dropped the in-process afterCommit callbacks.
  *
  * The test SIMULATES a dropped afterCommit by publishing first, then swapping the cache /
- * queue / search / webhook singletons for recording spies AFTER the publish — so the spies
+ * search / webhook singletons for recording spies AFTER the publish — so the spies
  * captured NOTHING from the original publish. Running `lemma:resync` must then re-drive the
  * cache invalidation + search reindex (the re-drivable effects), prove the cache tags get
  * invalidated, and prove webhooks DO NOT re-fire unless `--webhooks` is passed.
@@ -38,7 +36,7 @@ final class ResyncCommandTest extends LemmaTestCase
 {
     private string $type;
     private RecordingArrayCache $cache;
-    private RecordingQueueManager $queue;
+    private RecordingContentReindexer $reindexer;
     private RecordingWebhookDispatcher $webhooks;
 
     protected function setUp(): void
@@ -82,9 +80,8 @@ final class ResyncCommandTest extends LemmaTestCase
         $this->cache = new RecordingArrayCache();
         $this->setSingleton('cache.store', $this->cache);
 
-        $this->queue = new RecordingQueueManager();
-        $this->setSingleton(QueueManager::class, $this->queue);
-        $this->setSingleton(SearchAdapterInterface::class, new RecordingSearchAdapter());
+        ->reindexer = new RecordingContentReindexer();
+        ->setSingleton(ContentReindexerInterface::class, ->reindexer);
 
         $this->webhooks = new RecordingWebhookDispatcher();
         $this->setSingleton(WebhookDispatcher::class, $this->webhooks);
@@ -112,9 +109,9 @@ final class ResyncCommandTest extends LemmaTestCase
         self::assertContains('lemma:entry:' . $entry, $invalidated, 'entry tag must be re-invalidated');
         self::assertContains('lemma:type:post', $invalidated, 'type slug tag must be re-invalidated');
 
-        self::assertCount(1, $this->queue->pushed, 'one reindex job must be enqueued for the entry');
-        self::assertSame($entry, $this->queue->pushed[0]['data']['entry']);
-        self::assertSame('en', $this->queue->pushed[0]['data']['locale']);
+        self::assertCount(1, $this->reindexer->requests, 'one reindex request must be enqueued for the entry');
+        self::assertSame($entry, $this->reindexer->requests[0]['data']['entry']);
+        self::assertSame('en', $this->reindexer->requests[0]['data']['locale']);
 
         // Webhooks are OPT-IN: default resync must NOT re-fire deliveries.
         self::assertSame([], $this->webhooks->calls, 'default resync must NOT dispatch webhooks');
@@ -133,8 +130,8 @@ final class ResyncCommandTest extends LemmaTestCase
         self::assertSame(0, $exit);
 
         // N published entries -> N reindex enqueues.
-        self::assertCount(3, $this->queue->pushed, 'every published entry of the type must reindex');
-        $reindexed = array_map(static fn(array $j): string => $j['data']['entry'], $this->queue->pushed);
+        self::assertCount(3, $this->reindexer->requests, 'every published entry of the type must reindex');
+        $reindexed = array_map(static fn(array $j): string => $j['data']['entry'], $this->reindexer->requests);
         self::assertEqualsCanonicalizing([$a, $b, $c], $reindexed);
 
         // Each entry tag invalidated + the type tag.
@@ -170,7 +167,7 @@ final class ResyncCommandTest extends LemmaTestCase
         self::assertSame(0, $exit);
 
         // Covers all published entries across every type.
-        $reindexed = array_map(static fn(array $j): string => $j['data']['entry'], $this->queue->pushed);
+        $reindexed = array_map(static fn(array $j): string => $j['data']['entry'], $this->reindexer->requests);
         self::assertEqualsCanonicalizing([$post, $page], $reindexed, 'no-args resync covers all types');
 
         $invalidated = $this->cache->allInvalidatedTags();
@@ -195,7 +192,7 @@ final class ResyncCommandTest extends LemmaTestCase
 
         $this->tester()->execute(['--type' => 'post']);
 
-        $reindexed = array_map(static fn(array $j): string => $j['data']['entry'], $this->queue->pushed);
+        $reindexed = array_map(static fn(array $j): string => $j['data']['entry'], $this->reindexer->requests);
         self::assertContains($published, $reindexed, 'the published entry is re-driven');
         self::assertNotContains($draftOnly, $reindexed, 'a draft-only entry must NEVER be re-driven');
         self::assertNotContains(
@@ -231,9 +228,9 @@ final class ResyncCommandTest extends LemmaTestCase
         $this->tester()->execute(['--entry' => $entry]);
         $this->tester()->execute(['--entry' => $entry]);
 
-        // Running twice simply re-drives twice — no error, two reindex jobs (the worker
+        // Running twice simply re-drives twice — no error, two reindex requests (the worker
         // re-derives the same document, so this is harmless / idempotent at the effect level).
-        self::assertCount(2, $this->queue->pushed, 'a second resync re-drives again without error');
+        self::assertCount(2, $this->reindexer->requests, 'a second resync re-drives again without error');
     }
 
     // ---- container surgery (the compiled container exposes no setter) -----------------

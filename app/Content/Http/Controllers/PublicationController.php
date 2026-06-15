@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Http\Controllers;
 
 use App\Content\Http\DTOs\RollbackData;
+use App\Content\Http\DTOs\Responses\Publication\VersionResultData;
 use App\Content\Services\PublishService;
 use App\Content\Validation\ValidationException;
 use App\Http\DTOs\ErrorResponse;
@@ -49,7 +50,7 @@ final class PublicationController
             . 'the schema. Requires the `lemma.entries.publish` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'Entry published.')]
+    #[ApiResponse(200, schema: VersionResultData::class, description: 'Entry published.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -134,7 +135,7 @@ final class PublicationController
             . 'the version to re-publish). Requires the `lemma.entries.publish` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'Rolled back to the named version.')]
+    #[ApiResponse(200, schema: VersionResultData::class, description: 'Rolled back to the named version.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,

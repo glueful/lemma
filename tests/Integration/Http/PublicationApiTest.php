@@ -70,6 +70,8 @@ final class PublicationApiTest extends LemmaTestCase
         $resp = $this->controller()->publish(new Request(), $this->entry, 'en');
         self::assertSame(200, $resp->getStatusCode());
         self::assertNotNull((new VersionRepository($this->connection()))->findPublication($this->entry, 'en'));
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Publication\VersionResultData::class);
     }
 
     public function testUnpublishRemovesPin(): void
@@ -91,6 +93,8 @@ final class PublicationApiTest extends LemmaTestCase
             'en',
         );
         self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Publication\VersionResultData::class);
     }
 
     public function testRollbackRejectsMissingVersionAtHydration(): void

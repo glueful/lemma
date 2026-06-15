@@ -6,6 +6,9 @@ namespace App\Content\Http\Controllers;
 
 use App\Content\Http\DTOs\CreateEntryData;
 use App\Content\Http\DTOs\SaveDraftData;
+use App\Content\Http\DTOs\Responses\Entries\DraftResultData;
+use App\Content\Http\DTOs\Responses\Entries\EntryCreateResultData;
+use App\Content\Http\DTOs\Responses\Entries\EntryResultData;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Support\OptimisticLockException;
@@ -53,7 +56,7 @@ final class EntryController
             . 'lemma.default_locale). Requires the `lemma.entries.write` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(201, description: 'Entry created with an empty draft.')]
+    #[ApiResponse(201, schema: EntryCreateResultData::class, description: 'Entry created with an empty draft.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -101,7 +104,7 @@ final class EntryController
             . 'Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'The entry.')]
+    #[ApiResponse(200, schema: EntryResultData::class, description: 'The entry.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -138,7 +141,7 @@ final class EntryController
             . 'entry in the given locale. Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'The draft.')]
+    #[ApiResponse(200, schema: DraftResultData::class, description: 'The draft.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -183,7 +186,7 @@ final class EntryController
             . 'Requires the `lemma.entries.write` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'Draft saved.')]
+    #[ApiResponse(200, schema: DraftResultData::class, description: 'Draft saved.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,

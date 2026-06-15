@@ -167,9 +167,6 @@ return [
         |
         */
         'route_prefixes' => [
-            // App routes - versioned API
-            'api.php' => '/v1',
-
             // Lemma route files already carry absolute /v1/... paths in their
             // @route tags, so they take no prefix injection.
             'lemma_content.php' => '',

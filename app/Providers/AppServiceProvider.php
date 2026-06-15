@@ -12,12 +12,8 @@ final class AppServiceProvider
      */
     public static function services(): array
     {
-        return [
-            // Autowire application controllers so Router can resolve them via container
-            \App\Controllers\WelcomeController::class => [
-                'autowire' => true,
-                'shared' => true,
-            ],
-        ];
+        // Application controllers are registered here. The Lemma content engine
+        // wires its own services in LemmaServiceProvider.
+        return [];
     }
 }

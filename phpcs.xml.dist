@@ -23,4 +23,14 @@
     <rule ref="PSR1.Classes.ClassDeclaration.MissingNamespace">
         <exclude-pattern>database/migrations/*</exclude-pattern>
     </rule>
+
+    <!--
+      Route files carry OpenAPI annotations (@description / @response / @queryParam /
+      @requestBody) inside PHPDoc blocks. The doc generator parses these line-by-line,
+      so each annotation must be a single line — which legitimately exceeds 120 chars.
+      Relax only the line-length sniff, and only for route files.
+    -->
+    <rule ref="Generic.Files.LineLength">
+        <exclude-pattern>routes/*</exclude-pattern>
+    </rule>
 </ruleset>

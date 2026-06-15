@@ -9,11 +9,15 @@ use App\Content\Events\ModelUpdated;
 use App\Content\Indexing\EnsureFilterIndexesJob;
 use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Repositories\ContentTypeRepository;
+use App\Content\Http\DTOs\CreateContentTypeData;
+use App\Content\Http\DTOs\FieldDefinitionData;
+use App\Content\Http\DTOs\UpdateContentTypeSchemaData;
 use App\Content\Schema\SchemaParseException;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
 use Glueful\Queue\QueueManager;
 use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiRequestBody;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -71,34 +75,32 @@ final class ContentTypeController
             . 'Requires the `lemma.models.manage` permission.',
         tags: ['Lemma Admin'],
     )]
+    #[ApiRequestBody(schema: CreateContentTypeData::class)]
     #[ApiResponse(201, description: 'Content type created.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.models.manage` permission.')]
     #[ApiResponse(422, description: 'Invalid slug/name, duplicate slug, or invalid field schema.')]
-    public function store(Request $request): Response
+    public function store(CreateContentTypeData $input, Request $request): Response
     {
-        $in = $this->body($request);
-        $slug = (string) ($in['slug'] ?? '');
-        $name = (string) ($in['name'] ?? '');
-        if (preg_match('/\A[a-z0-9][a-z0-9_-]{0,159}\z/', $slug) !== 1 || trim($name) === '') {
-            return Response::validation(['slug' => 'lowercase slug required', 'name' => 'name required']);
-        }
-        if ($this->types->findBySlug($slug) !== null) {
-            return Response::validation(['slug' => "content type '{$slug}' already exists"]);
+        // Structural validation (slug shape, required name, well-formed field defs) is done
+        // by the hydrated DTO. The duplicate-slug check and semantic schema parsing
+        // (SchemaParseException) are domain rules and stay here.
+        if ($this->types->findBySlug($input->slug) !== null) {
+            return Response::validation(['slug' => "content type '{$input->slug}' already exists"]);
         }
         try {
             $uuid = $this->types->create([
-                'slug' => $slug,
-                'name' => trim($name),
-                'description' => $in['description'] ?? null,
-                'schema' => (array) ($in['schema'] ?? []),
+                'slug' => $input->slug,
+                'name' => trim($input->name),
+                'description' => $input->description,
+                'schema' => array_map(static fn (FieldDefinitionData $f): array => $f->toArray(), $input->schema),
                 'created_by' => $this->actor($request),
             ]);
         } catch (SchemaParseException $e) {
             return Response::validation(['schema' => $e->getMessage()]);
         }
         $this->ensureFilterIndexes($uuid);
-        $this->events?->emitAfterCommit(new ModelCreated(type: $slug, actor: $this->actor($request)));
+        $this->events?->emitAfterCommit(new ModelCreated(type: $input->slug, actor: $this->actor($request)));
         return Response::created(['content_type' => $this->types->findByUuid($uuid)], 'Content type created.');
     }
 
@@ -142,19 +144,23 @@ final class ContentTypeController
             . 'Requires the `lemma.models.manage` permission.',
         tags: ['Lemma Admin'],
     )]
+    #[ApiRequestBody(schema: UpdateContentTypeSchemaData::class)]
     #[ApiResponse(200, description: 'Schema updated.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.models.manage` permission.')]
     #[ApiResponse(404, description: 'No content type with that slug.')]
     #[ApiResponse(422, description: 'Invalid field schema.')]
-    public function updateSchema(Request $request, string $slug): Response
+    public function updateSchema(UpdateContentTypeSchemaData $input, Request $request, string $slug): Response
     {
         $row = $this->types->findBySlug($slug);
         if ($row === null) {
             return Response::notFound('Content type not found.');
         }
         try {
-            $this->types->updateSchema($row['uuid'], (array) ($this->body($request)['schema'] ?? []));
+            $this->types->updateSchema(
+                $row['uuid'],
+                array_map(static fn (FieldDefinitionData $f): array => $f->toArray(), $input->schema),
+            );
         } catch (SchemaParseException $e) {
             return Response::validation(['schema' => $e->getMessage()]);
         }

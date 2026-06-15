@@ -11,7 +11,6 @@ use App\Content\Http\DTOs\MintPreviewData;
 use App\Content\Preview\PreviewTokenException;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
-use Glueful\Routing\Attributes\ApiRequestBody;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -60,7 +59,6 @@ final class PreviewController
             . 'Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiRequestBody(schema: MintPreviewData::class, required: false)]
     #[ApiResponse(200, description: 'Preview token minted.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.read` permission.')]

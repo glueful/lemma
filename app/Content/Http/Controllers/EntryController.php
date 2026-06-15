@@ -15,7 +15,6 @@ use Glueful\Auth\UserIdentity;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
-use Glueful\Routing\Attributes\ApiRequestBody;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -53,7 +52,6 @@ final class EntryController
             . 'lemma.default_locale). Requires the `lemma.entries.write` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiRequestBody(schema: CreateEntryData::class)]
     #[ApiResponse(201, description: 'Entry created with an empty draft.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.write` permission.')]
@@ -151,7 +149,6 @@ final class EntryController
             . 'Requires the `lemma.entries.write` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiRequestBody(schema: SaveDraftData::class)]
     #[ApiResponse(200, description: 'Draft saved.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.write` permission.')]

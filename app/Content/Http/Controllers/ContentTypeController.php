@@ -17,7 +17,6 @@ use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
 use Glueful\Queue\QueueManager;
 use Glueful\Routing\Attributes\ApiOperation;
-use Glueful\Routing\Attributes\ApiRequestBody;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -75,7 +74,6 @@ final class ContentTypeController
             . 'Requires the `lemma.models.manage` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiRequestBody(schema: CreateContentTypeData::class)]
     #[ApiResponse(201, description: 'Content type created.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.models.manage` permission.')]
@@ -144,7 +142,6 @@ final class ContentTypeController
             . 'Requires the `lemma.models.manage` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiRequestBody(schema: UpdateContentTypeSchemaData::class)]
     #[ApiResponse(200, description: 'Schema updated.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.models.manage` permission.')]

@@ -10,7 +10,6 @@ use App\Content\Validation\ValidationException;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
-use Glueful\Routing\Attributes\ApiRequestBody;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -107,7 +106,6 @@ final class PublicationController
             . 'the version to re-publish). Requires the `lemma.entries.publish` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiRequestBody(schema: RollbackData::class)]
     #[ApiResponse(200, description: 'Rolled back to the named version.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.publish` permission.')]

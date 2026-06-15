@@ -297,11 +297,11 @@ final class LemmaServiceProvider extends ServiceProvider
         // event class => list of listener service ids (lazy '@' form).
         //
         // PurgeCdnListener and ReindexSearchListener are CAPABILITY-GATED no-ops in a lean
-        // install (no glueful/cdn / glueful/meilisearch): they self-skip at invocation, so
-        // wiring them broadly is safe. PurgeCdnListener mirrors the cache listener's tag
-        // scope (entry + model events, since both move lemma:type:{slug}). ReindexSearchListener
-        // is wired to entry LIFECYCLE events only (publish/unpublish/update/delete) — the ones
-        // that change a single entry's published index document; model/asset events don't.
+        // install (no glueful/cdn / content reindexer): they self-skip at invocation, so wiring
+        // them broadly is safe. PurgeCdnListener mirrors the cache listener's tag scope (entry
+        // + model events, since both move lemma:type:{slug}). ReindexSearchListener is wired to
+        // entry LIFECYCLE events only (publish/unpublish/update/delete) — the ones that change a
+        // single entry's published index document; model/asset events don't.
         $listeners = [
             // Cache-tag invalidation (V1_DESIGN §5). Entry events drop the entry + type
             // tags; model events drop the type tag.

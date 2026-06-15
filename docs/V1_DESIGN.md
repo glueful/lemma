@@ -241,7 +241,7 @@ publish(entry, locale):
     dispatch domain events (BaseEvent)
     invalidate cache tags
     enqueue: webhook deliveries, CDN purge (if glueful/cdn),
-             search index update (if glueful/meilisearch)
+             search index update (if a content reindexer is bound)
 ```
 
 **`afterCommit` is verified real, with one stated limitation.** Glueful's

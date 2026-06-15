@@ -113,7 +113,8 @@ Useful existing extensions:
 - `glueful/tenancy` - built: shared-database, row-level multi-tenancy (`tenant_uuid` columns auto-scoped via a `BelongsToTenant` ORM trait + raw-SQL interceptor backstop, tenant propagation into jobs/CLI/scheduler; requires framework ^1.53.0 seams). For future multi-tenant CMS and agency/customer installs — Lemma v1 deliberately does **not** carry tenant columns; see V1_DESIGN.md §10 for the bounded retrofit path and why this differs from the locale decision.
 - `glueful/media` - rich media processing.
 - `glueful/cdn` - CDN and edge cache purge.
-- `glueful/meilisearch` - search indexing.
+- Search extensions - bind Lemma's `ContentReindexerInterface` to reindex published content
+  (for example a future `glueful/meilisearch` adapter).
 - `glueful/queue-ops` - queue supervision and worker operations.
 - `glueful/email-notification` - email delivery.
 - `glueful/notiva` - notifications.

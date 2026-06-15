@@ -40,7 +40,7 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - Listeners (registered in `LemmaServiceProvider::boot()`): `InvalidateCacheTagsListener`
   (invalidates the delivery cache tags), `DispatchWebhookListener` (core `WebhookDispatcher`,
   identity-only, gated by `pipeline.webhooks_enabled`), and capability-gated `PurgeCdnListener`
-  / `ReindexSearchListener` (clean no-ops without `glueful/cdn` / `glueful/meilisearch`).
+  / `ReindexSearchListener` (clean no-ops without `glueful/cdn` / a bound content reindexer).
 - `lemma:resync` command: re-drives the idempotent effects (cache invalidation + search reindex;
   webhooks opt-in via `--webhooks`) for an entry, a type, or everything — published content only,
   bounded/keyset-paged.
@@ -72,10 +72,11 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   attribute set by `AuthMiddleware` (falling back from the optional `auth.user` enricher), so every
   `lemma_permission`-gated admin route authorizes correctly in a lean install — still fail-closed
   (no principal or missing grant → 403).
+- `ReindexSearchListener` now calls Lemma's provider-neutral `ContentReindexerInterface` seam, so
+  any search extension can bind the reindexer and own its own queueing/document shape without Lemma
+  referencing a vendor-specific job class.
 - PHPUnit now pins `DB_DRIVER=pgsql`, and the repository ships a GitHub Actions CI workflow that
   runs the Composer CI gate against Postgres.
 
 ### Known limitations / tech-debt
 - `EntryRepository::softDelete` emits `EntryDeleted` but not `AssetDetached` for the entry's assets.
-- `ReindexSearchListener` references the meilisearch reindex job by a placeholder FQCN (the search
-  extension owns the real class); reconcile when `glueful/meilisearch` lands.

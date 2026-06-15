@@ -4,9 +4,9 @@
 
 **Goal:** Hang the downstream effects of content changes off the publish (and mutation) transactions via `afterCommit`: dispatch a **frozen domain-event taxonomy**, invalidate cache tags, and enqueue webhook deliveries / CDN purge / search reindex — all **re-drivable and idempotent**, with a `lemma:resync` command to re-drive.
 
-**Architecture:** Each content mutation dispatches **one primary** PSR-14 domain event (and, for draft saves that change asset references, **zero or more** `asset.attached`/`asset.detached` delta events) from inside `db($context)->afterCommit(...)` (so effects fire only on the outermost commit, never on rollback). Listeners are registered at boot via **`EventService::addListener(EventClass::class, '@ListenerService')`** in `LemmaServiceProvider::boot()` (the lazy `@serviceId` form, resolved from the container) — **there is no config-driven listener map for the app event system**; `config/events.php` holds only toggles (`enabled`, etc.), so the plan does NOT register listeners there. The listeners: a cache-invalidation listener calls `CacheStore::invalidateTags`, a webhook listener calls the core `WebhookDispatcher` (which enqueues signed, retried deliveries), and capability-gated listeners enqueue CDN purge (`EdgeCacheInterface`, only if `glueful/cdn`) and search reindex (only if `glueful/meilisearch`). Because `afterCommit` is in-process and cannot survive a crash between commit and callback (verified limitation, V1_DESIGN §5), every effect is idempotent and re-drivable, and `lemma:resync` re-emits them.
+**Architecture:** Each content mutation dispatches **one primary** PSR-14 domain event (and, for draft saves that change asset references, **zero or more** `asset.attached`/`asset.detached` delta events) from inside `db($context)->afterCommit(...)` (so effects fire only on the outermost commit, never on rollback). Listeners are registered at boot via **`EventService::addListener(EventClass::class, '@ListenerService')`** in `LemmaServiceProvider::boot()` (the lazy `@serviceId` form, resolved from the container) — **there is no config-driven listener map for the app event system**; `config/events.php` holds only toggles (`enabled`, etc.), so the plan does NOT register listeners there. The listeners: a cache-invalidation listener calls `CacheStore::invalidateTags`, a webhook listener calls the core `WebhookDispatcher` (which enqueues signed, retried deliveries), and capability-gated listeners enqueue CDN purge (`EdgeCacheInterface`, only if `glueful/cdn`) and search reindex (only if a provider binds Lemma's `ContentReindexerInterface`). Because `afterCommit` is in-process and cannot survive a crash between commit and callback (verified limitation, V1_DESIGN §5), every effect is idempotent and re-drivable, and `lemma:resync` re-emits them.
 
-**Tech Stack:** PHP 8.3, Glueful ^1.56.0, `Glueful\Events\Contracts\BaseEvent` + `EventService::dispatch`, `Glueful\Database\Connection::afterCommit`, core `Glueful\Api\Webhooks\WebhookDispatcher` (signing/retries/delivery tracking), `Glueful\Cache\CacheStore::invalidateTags`, `Glueful\Cache\Contracts\EdgeCacheInterface` (CDN), the `glueful/meilisearch` search seam. Builds on the foundation + the **Delivery API** plan (which emits the `lemma:entry:{uuid}` / `lemma:type:{slug}` cache tags this plan invalidates).
+**Tech Stack:** PHP 8.3, Glueful ^1.56.0, `Glueful\Events\Contracts\BaseEvent` + `EventService::dispatch`, `Glueful\Database\Connection::afterCommit`, core `Glueful\Api\Webhooks\WebhookDispatcher` (signing/retries/delivery tracking), `Glueful\Cache\CacheStore::invalidateTags`, `Glueful\Cache\Contracts\EdgeCacheInterface` (CDN), Lemma's `ContentReindexerInterface` search-provider seam. Builds on the foundation + the **Delivery API** plan (which emits the `lemma:entry:{uuid}` / `lemma:type:{slug}` cache tags this plan invalidates).
 
 **Source of truth:** [`../V1_DESIGN.md`](../V1_DESIGN.md) §5 (pipeline contract, the frozen event table, cache tags) and §8 (asset events). **Depends on the Delivery API plan** for the cache-tag scheme — sequence this after it.
 
@@ -15,7 +15,7 @@
 ---
 
 ## Conventions
-Inherit the foundation conventions (repositories, migrations with `hasTable` guard, `LemmaTestCase`, PSR-12 `composer phpcs` gate, `Glueful\Http\Response`). Events extend `Glueful\Events\Contracts\BaseEvent` and call `parent::__construct()` (per CLAUDE.md). Capability gates use `class_exists(...)` / container `has(...)` checks so a lean install (no cdn/meilisearch) is a clean no-op.
+Inherit the foundation conventions (repositories, migrations with `hasTable` guard, `LemmaTestCase`, PSR-12 `composer phpcs` gate, `Glueful\Http\Response`). Events extend `Glueful\Events\Contracts\BaseEvent` and call `parent::__construct()` (per CLAUDE.md). Capability gates use `class_exists(...)` / container `has(...)` checks so a lean install (no cdn/content reindexer) is a clean no-op.
 
 ---
 
@@ -49,7 +49,7 @@ tests/
   Integration/Pipeline/AfterCommitDispatchTest.php   # publish -> event fired once, on commit only, not on rollback
   Integration/Pipeline/CacheInvalidationTest.php
   Integration/Pipeline/WebhookDispatchTest.php
-  Integration/Pipeline/CapabilityGatingTest.php      # no cdn/meilisearch -> clean no-op
+  Integration/Pipeline/CapabilityGatingTest.php      # no cdn/content reindexer -> clean no-op
   Integration/Console/ResyncCommandTest.php
 ```
 
@@ -124,10 +124,10 @@ Lemma does not build webhook infra — it calls `WebhookDispatcher::dispatch(str
 
 **Files:** Create `app/Content/Pipeline/Listeners/PurgeCdnListener.php`, `ReindexSearchListener.php`; register both (services + `addListener` in boot); Test `tests/Integration/Pipeline/CapabilityGatingTest.php`.
 
-- [ ] **Step 1: Write the failing test** — with **neither** `glueful/cdn` nor `glueful/meilisearch` present (the default Lemma install per the foundation enables users/aegis/media/email — not cdn/meilisearch), publishing an entry must be a **clean no-op** for these listeners (no error, no exception), and the rest of the pipeline (cache/webhook) still runs. (If a test env has them, assert the purge/reindex is enqueued; otherwise assert graceful skip.)
+- [ ] **Step 1: Write the failing test** — with **neither** `glueful/cdn` nor a content reindexer present (the default Lemma install per the foundation enables users/aegis/media/email — not cdn/search), publishing an entry must be a **clean no-op** for these listeners (no error, no exception), and the rest of the pipeline (cache/webhook) still runs. (If a test env has them, assert the purge/reindex is requested; otherwise assert graceful skip.)
 - [ ] **Step 2–4:** implement.
   - `PurgeCdnListener`: if the container has `Glueful\Cache\Contracts\EdgeCacheInterface` bound to a real (non-null) edge cache, call `purgeByTag('lemma:entry:{uuid}')` / `purgeByTag('lemma:type:{slug}')`; else skip. (The core ships `NullEdgeCache` when cdn is absent — confirm and treat null/`getProvider()===null` as "skip".)
-  - `ReindexSearchListener`: if `glueful/meilisearch`'s engine contract is bound, enqueue a reindex job for the entry's published version; else skip. Keep payload minimal (entry uuid + locale); the search extension owns the document shape.
+  - `ReindexSearchListener`: if Lemma's `ContentReindexerInterface` is bound, request a reindex for the entry's published version; else skip. Keep payload minimal (entry uuid + locale); the search extension owns queueing and document shape.
   - Register both via `addListener` in `LemmaServiceProvider::boot()`. Both idempotent + re-drivable.
 - [ ] **Step 5: Commit** `Add capability-gated CDN purge + search reindex listeners`.
 
@@ -150,7 +150,7 @@ Lemma does not build webhook infra — it calls `WebhookDispatcher::dispatch(str
 **Files:** Modify `LemmaServiceProvider` (register the emitter + the four listener services in `services()`, and wire them in `boot()` via `EventService::addListener(EventClass::class, '@ListenerService')`); Test `tests/Integration/Pipeline/ListenerWiringTest.php` (+ aggregate).
 
 - [ ] **Step 1: Write a wiring test** — boot the app (via `LemmaTestCase`) and assert `app($context, EventService::class)->hasListeners(EntryPublished::class)` (and `EntryUpdated`, `ModelUpdated`) returns `true`. This pins that the `boot()` `addListener` calls actually ran (catches the "listeners silently not registered" failure mode the original config-driven approach would have hit). `EventService::addListener`/`hasListeners` are confirmed present.
-- [ ] **Step 2:** ensure listeners are registered and resolvable; run the FULL suite `composer test` (green, incl. the foundation + delivery suites) and `composer phpcs` (clean). Confirm a lean install (no cdn/meilisearch) publishes with the cache + webhook effects and no errors.
+- [ ] **Step 2:** ensure listeners are registered and resolvable; run the FULL suite `composer test` (green, incl. the foundation + delivery suites) and `composer phpcs` (clean). Confirm a lean install (no cdn/content reindexer) publishes with the cache + webhook effects and no errors.
 - [ ] **Step 2: Commit** `Wire Lemma publishing pipeline`.
 
 ---
@@ -160,6 +160,6 @@ Lemma does not build webhook infra — it calls `WebhookDispatcher::dispatch(str
 - **Re-drivability/idempotency** is a first-class property: every listener is safe to run twice, and `lemma:resync` exists precisely because `afterCommit` is in-process (the §5 "outbox table" upgrade path is explicitly out of scope until webhook delivery becomes a hard guarantee).
 - **Listener registration (P1 fix):** there is **no** config-driven listener map for the app event system — registration is `EventService::addListener(EventClass::class, '@ListenerService')` in `LemmaServiceProvider::boot()` (lazy `@serviceId` form, confirmed). A wiring test asserts `hasListeners()` after boot so a missed registration fails loudly (Task 7).
 - **Primary-vs-asset events (P2 fix):** exactly one *primary* event per mutation (the afterCommit "fires once" test enforces this); `asset.attached`/`asset.detached` are separate additional deltas in Task 2b — the invariant and the test are aligned.
-- **Verify-points:** `BaseEvent` constructor/metadata (T1); `WebhookDispatcher`/`WebhookSubscription` API (T4); `EdgeCacheInterface` null/Null-edge detection + meilisearch engine binding (T5); app console-command registration (T6); the `?PublishEventEmitter` optional injection not breaking foundation repo tests (T2).
+- **Verify-points:** `BaseEvent` constructor/metadata (T1); `WebhookDispatcher`/`WebhookSubscription` API (T4); `EdgeCacheInterface` null/Null-edge detection + content reindexer binding (T5); app console-command registration (T6); the `?PublishEventEmitter` optional injection not breaking foundation repo tests (T2).
 - **Lean-install safety:** with only the foundation's extensions, cdn/search listeners no-op; webhooks fire only if a subscription exists; nothing in the pipeline is a hard dependency.
 - **Sequencing:** build the **Delivery API** plan first (it defines the cache tags + the `DeliveryRepository` this plan's resync/search listeners read through).

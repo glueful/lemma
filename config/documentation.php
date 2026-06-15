@@ -56,8 +56,25 @@ return [
     |
     */
     'info' => [
-        'title' => env('API_TITLE', env('APP_NAME', 'API Documentation')),
-        'description' => env('API_DESCRIPTION', 'Auto-generated API documentation'),
+        'title' => env('API_TITLE', 'Lemma CMS API'),
+        'description' => env('API_DESCRIPTION', implode("\n", [
+            'The Lemma headless CMS API.',
+            '',
+            '## Authentication',
+            '',
+            '- **Delivery API** (`/v1/content/*`) — send an API key in the `X-API-Key` header. '
+                . 'The key must carry the `read:content` scope. Keys are environment-prefixed '
+                . '(`gf_live_*` / `gf_test_*`) and provisioned out of band.',
+            '- **Admin API** (`/v1/admin/*`) — send a bearer JWT in the `Authorization` header '
+                . '(`Authorization: Bearer <token>`). Each route also enforces a `lemma.*` '
+                . 'permission (named in the operation description). Obtain a token from your '
+                . 'Glueful auth endpoint (e.g. `POST /v1/auth/login`).',
+            '- **Preview** (`GET /v1/preview/{token}`) — unauthenticated: the signed, '
+                . 'short-lived token in the path is itself the capability.',
+            '',
+            'Only published content is ever returned by the delivery API; drafts are reachable '
+                . 'only through a valid preview token.',
+        ])),
         'version' => env('API_VERSION', '1') . '.0.0',
         'contact' => [
             'name' => env('API_CONTACT_NAME', ''),
@@ -83,9 +100,13 @@ return [
     */
     'servers' => [
         [
-            // Use base URL - route paths include their own prefixes
-            'url' => env('API_SERVER_URL', env('APP_URL', 'http://localhost')),
-            'description' => env('API_SERVER_DESCRIPTION', 'API Server'),
+            // Production first so SDK/codegen defaults to the live base URL.
+            'url' => env('API_SERVER_URL', 'https://api.getlemma.dev'),
+            'description' => 'Production',
+        ],
+        [
+            'url' => 'http://localhost:8000',
+            'description' => 'Local development',
         ],
     ],
 
@@ -125,8 +146,11 @@ return [
         // Directory containing project route files
         'routes' => $root . '/routes',
 
-        // Include framework routes in documentation generation
-        'include_framework_routes' => env('API_DOCS_INCLUDE_FRAMEWORK_ROUTES', true),
+        // Include framework routes in documentation generation.
+        // Default false: this spec documents the Lemma CMS API only. The framework's
+        // own auth/blobs/health routes are documented upstream; authentication is
+        // summarized in info.description instead. Set true to include them.
+        'include_framework_routes' => env('API_DOCS_INCLUDE_FRAMEWORK_ROUTES', false),
 
         // Framework routes directory (auto-detected from vendor or local path)
         'framework_routes' => null, // Will be resolved at runtime
@@ -145,6 +169,12 @@ return [
         'route_prefixes' => [
             // App routes - versioned API
             'api.php' => '/v1',
+
+            // Lemma route files already carry absolute /v1/... paths in their
+            // @route tags, so they take no prefix injection.
+            'lemma_content.php' => '',
+            'lemma_admin.php' => '',
+            'lemma_preview.php' => '',
 
             // Framework routes - no version prefix
             'health.php' => '',
@@ -170,8 +200,35 @@ return [
             'type' => 'http',
             'scheme' => 'bearer',
             'bearerFormat' => 'JWT',
-            'description' => 'JWT authentication token',
+            'description' => 'JWT bearer token. Used by the admin authoring API (/v1/admin/*), '
+                . 'combined with a per-route lemma_permission RBAC check.',
         ],
+        'ApiKeyAuth' => [
+            'type' => 'apiKey',
+            'in' => 'header',
+            'name' => 'X-API-Key',
+            'description' => 'Environment-prefixed API key (gf_live_* / gf_test_*) sent in the '
+                . 'X-API-Key header. The public delivery API (/v1/content/*) requires a key '
+                . 'carrying the read:content scope. (OpenAPI apiKey schemes cannot express '
+                . 'scopes natively; the required scope is noted in each operation description.)',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Middleware → Security Scheme Map
+    |--------------------------------------------------------------------------
+    |
+    | Maps route middleware names to the security schemes above. Each route
+    | resolves its security from the middleware it carries: the admin API uses
+    | `auth` (BearerAuth) and the delivery API uses `api_key` (ApiKeyAuth), so
+    | per-operation security is emitted natively. scripts/openapi-finalize-
+    | security.php only refines the public preview route's explicit no-auth.
+    |
+    */
+    'middleware_map' => [
+        'auth' => ['BearerAuth'],
+        'api_key' => ['ApiKeyAuth'],
     ],
 
     /*
@@ -186,8 +243,9 @@ return [
         // Include route-based documentation from PHPDoc comments
         'include_routes' => true,
 
-        // Include extension documentation
-        'include_extensions' => true,
+        // Include extension documentation (e.g. the aegis /rbac/* admin routes).
+        // Default false to keep this spec focused on the Lemma CMS API.
+        'include_extensions' => false,
 
         // Pretty print JSON output
         'pretty_print' => true,

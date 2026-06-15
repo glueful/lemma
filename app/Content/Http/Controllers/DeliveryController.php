@@ -16,6 +16,9 @@ use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Schema\ContentTypeSchema;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
+use Glueful\Routing\Attributes\QueryParam;
 use Glueful\Support\FieldSelection\FieldSelector;
 use Glueful\Support\FieldSelection\Projector;
 use Symfony\Component\HttpFoundation\Request;
@@ -45,6 +48,54 @@ final class DeliveryController
     ) {
     }
 
+    #[ApiOperation(
+        summary: 'List published entries of a content type',
+        description: 'Returns a page of PUBLISHED entries for the content type identified by the {type} '
+            . 'slug. Reads only through the publication spine, so drafts/unpublished/archived entries are '
+            . 'never returned. Requires an API key carrying the `read:content` scope (header `X-API-Key`); '
+            . 'rate-limited to 120 requests/minute per key. Two pagination modes: by default a keyset '
+            . 'cursor (stable under publish churn) returns `data.items` + `data.next_cursor`; passing '
+            . '`page`/`perPage` switches to an offset envelope with top-level '
+            . '`current_page`/`per_page`/`total`/`total_pages`. Filtering and sorting are accepted only on '
+            . 'fields the content type marks filterable — anything else returns 422.',
+        tags: ['Lemma Delivery'],
+    )]
+    #[QueryParam(
+        'filter',
+        'string',
+        description: 'Typed filters on filterable fields using bracket syntax `filter[field][op]=value`. '
+            . 'Operators: eq, neq, gt, gte, lt, lte, in. Only fields declared filterable are accepted.',
+    )]
+    #[QueryParam(
+        'sort',
+        'string',
+        description: 'Sort by a filterable field, `sort=field:asc` or `sort=field:desc`. '
+            . 'Defaults to `published_at:desc`.',
+    )]
+    #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to lemma.default_locale, e.g. `en`).')]
+    #[QueryParam(
+        'cursor',
+        'string',
+        description: 'Opaque keyset cursor taken from a previous response\'s `next_cursor`. '
+            . 'Cursor (default) mode only.',
+    )]
+    #[QueryParam(
+        'page',
+        'integer',
+        description: 'Page number. Supplying `page` or `perPage` switches the response to the '
+            . 'offset-pagination envelope.',
+    )]
+    #[QueryParam('perPage', 'integer', description: 'Items per page for offset pagination (clamped to delivery.max_per_page).')]
+    #[ApiResponse(
+        200,
+        description: 'A page of published entries (cursor mode by default; offset mode replaces `data` '
+            . 'with the item array plus top-level pagination keys).',
+    )]
+    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
+    #[ApiResponse(403, description: 'API key lacks the required `read:content` scope.')]
+    #[ApiResponse(404, description: 'Unknown content type slug.')]
+    #[ApiResponse(422, description: 'Filter or sort references a non-filterable field or an unsupported operator.')]
+    #[ApiResponse(429, description: 'Rate limit exceeded (120/minute per key).')]
     public function index(Request $request, string $type): Response
     {
         $typeRow = $this->types->findBySlug($type);
@@ -97,6 +148,22 @@ final class DeliveryController
         return $this->withCacheHeaders($request, $response, $shaped, $type);
     }
 
+    #[ApiOperation(
+        summary: 'Get a single published entry by slug or UUID',
+        description: 'Returns one PUBLISHED entry of the {type} content type, resolved by its route slug or '
+            . 'by its 12-char entry UUID. Only published content is reachable — a draft-only or '
+            . 'unpublished entry yields 404. Requires an API key with the `read:content` scope. Emits an '
+            . '`ETag`; send it back as `If-None-Match` to receive a `304 Not Modified` when the published '
+            . 'version is unchanged. Field projection and reference expansion via `fields`/`expand`.',
+        tags: ['Lemma Delivery'],
+    )]
+    #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to lemma.default_locale).')]
+    #[ApiResponse(200, description: 'The published entry.')]
+    #[ApiResponse(304, description: 'Not Modified — the supplied If-None-Match ETag still matches the published version.')]
+    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
+    #[ApiResponse(403, description: 'API key lacks the required `read:content` scope.')]
+    #[ApiResponse(404, description: 'Unknown content type, or no published entry for the given slug/UUID.')]
+    #[ApiResponse(429, description: 'Rate limit exceeded (120/minute per key).')]
     public function show(Request $request, string $type, string $slugOrUuid): Response
     {
         $typeRow = $this->types->findBySlug($type);

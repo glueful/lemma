@@ -21,11 +21,7 @@ use Glueful\Routing\Router;
  * (double registration throws on duplicate static routes).
  */
 $router->group(['prefix' => '/v1/preview'], function (Router $router): void {
-    /**
-     * @route GET /v1/preview/{token}
-     * @summary Read the draft (or pinned version) named by a signed preview token
-     * @tag Lemma Preview
-     */
+    // Read a draft via a signed preview token (unauthenticated; rate-limited by IP).
     $router->get('/{token}', [PreviewController::class, 'show'])
         ->middleware('rate_limit')
         ->rateLimit(60, 1, by: 'ip');

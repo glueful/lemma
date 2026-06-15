@@ -10,51 +10,49 @@ use Glueful\Routing\Router;
 
 /** @var Router $router */
 
+/*
+ * Admin authoring API. Every route is gated by the `auth` middleware (a Bearer JWT or an
+ * API key resolves the principal) PLUS a `lemma_permission:<permission>` RBAC check. The
+ * required permission is named per route in its @description. Auto-discovered by
+ * RouteManifest; the provider must NOT loadRoutesFrom() this file.
+ */
 $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Router $router): void {
-    /**
-     * @route GET /v1/admin/content-types
-     * @summary List content types
-     * @tag Lemma Admin
-     */
+    // Content type (model) management.
     $router->get('/content-types', [ContentTypeController::class, 'index'])
         ->middleware('lemma_permission:lemma.entries.read');
 
-    /**
-     * @route POST /v1/admin/content-types
-     * @summary Create content type
-     * @tag Lemma Admin
-     * @requestBody slug:string name:string schema:array {required=slug,name}
-     */
     $router->post('/content-types', [ContentTypeController::class, 'store'])
         ->middleware('lemma_permission:lemma.models.manage');
 
     $router->get('/content-types/{slug}', [ContentTypeController::class, 'show'])
         ->middleware('lemma_permission:lemma.entries.read');
+
     $router->patch('/content-types/{slug}/schema', [ContentTypeController::class, 'updateSchema'])
         ->middleware('lemma_permission:lemma.models.manage');
 
+    // Entry authoring (identity, drafts, preview).
     $router->post('/entries', [EntryController::class, 'store'])
         ->middleware('lemma_permission:lemma.entries.write');
+
     $router->get('/entries/{uuid}', [EntryController::class, 'show'])
         ->middleware('lemma_permission:lemma.entries.read');
+
     $router->get('/entries/{uuid}/draft/{locale}', [EntryController::class, 'getDraft'])
         ->middleware('lemma_permission:lemma.entries.read');
+
     $router->put('/entries/{uuid}/draft/{locale}', [EntryController::class, 'saveDraft'])
         ->middleware('lemma_permission:lemma.entries.write');
 
-    /**
-     * @route POST /v1/admin/entries/{uuid}/preview/{locale}
-     * @summary Mint a short-lived preview token for an entry+locale
-     * @tag Lemma Admin
-     * @requestBody version_uuid:string
-     */
     $router->post('/entries/{uuid}/preview/{locale}', [PreviewController::class, 'mint'])
         ->middleware('lemma_permission:lemma.entries.read');
 
+    // Publication lifecycle.
     $router->post('/entries/{uuid}/publish/{locale}', [PublicationController::class, 'publish'])
         ->middleware('lemma_permission:lemma.entries.publish');
+
     $router->post('/entries/{uuid}/unpublish/{locale}', [PublicationController::class, 'unpublish'])
         ->middleware('lemma_permission:lemma.entries.publish');
+
     $router->post('/entries/{uuid}/rollback/{locale}', [PublicationController::class, 'rollback'])
         ->middleware('lemma_permission:lemma.entries.publish');
 });

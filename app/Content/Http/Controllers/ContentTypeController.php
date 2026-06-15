@@ -13,6 +13,8 @@ use App\Content\Schema\SchemaParseException;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
 use Glueful\Queue\QueueManager;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 final class ContentTypeController
@@ -24,11 +26,32 @@ final class ContentTypeController
     ) {
     }
 
+    #[ApiOperation(
+        summary: 'List content types',
+        description: 'Lists every content type (model) defined in this Lemma instance. '
+            . 'Requires the `lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'All content types.')]
+    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
+    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.read` permission.')]
     public function index(Request $request): Response
     {
         return Response::success(['content_types' => $this->types->all()], 'Content types retrieved.');
     }
 
+    #[ApiOperation(
+        summary: 'Create a content type',
+        description: 'Defines a new content type (model) with a field schema. The slug must be a unique '
+            . 'lowercase identifier. Body: `slug` (required), `name` (required), `description`, '
+            . '`schema` (field definitions, each { name, type, required? }). '
+            . 'Requires the `lemma.models.manage` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(201, description: 'Content type created.')]
+    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
+    #[ApiResponse(403, description: 'Principal lacks the `lemma.models.manage` permission.')]
+    #[ApiResponse(422, description: 'Invalid slug/name, duplicate slug, or invalid field schema.')]
     public function store(Request $request): Response
     {
         $in = $this->body($request);
@@ -56,6 +79,16 @@ final class ContentTypeController
         return Response::created(['content_type' => $this->types->findByUuid($uuid)], 'Content type created.');
     }
 
+    #[ApiOperation(
+        summary: 'Get a content type by slug',
+        description: 'Returns one content type (model) by its slug, including its field schema. '
+            . 'Requires the `lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'The content type.')]
+    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
+    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.read` permission.')]
+    #[ApiResponse(404, description: 'No content type with that slug.')]
     public function show(Request $request, string $slug): Response
     {
         $row = $this->types->findBySlug($slug);
@@ -64,6 +97,19 @@ final class ContentTypeController
             : Response::success(['content_type' => $row], 'Content type retrieved.');
     }
 
+    #[ApiOperation(
+        summary: 'Update a content type\'s field schema',
+        description: 'Replaces the field schema of an existing content type and bumps its schema version. '
+            . 'Enqueues (re)building of filterable-field expression indexes. Body: `schema` (required; '
+            . 'replacement field definitions, each { name, type, required?, filterable? }). '
+            . 'Requires the `lemma.models.manage` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Schema updated.')]
+    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
+    #[ApiResponse(403, description: 'Principal lacks the `lemma.models.manage` permission.')]
+    #[ApiResponse(404, description: 'No content type with that slug.')]
+    #[ApiResponse(422, description: 'Invalid field schema.')]
     public function updateSchema(Request $request, string $slug): Response
     {
         $row = $this->types->findBySlug($slug);

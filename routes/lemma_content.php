@@ -17,21 +17,13 @@ use Glueful\Routing\Router;
  * (double registration throws on duplicate static routes).
  */
 $router->group(['prefix' => '/v1/content', 'middleware' => ['auth']], function (Router $router): void {
-    /**
-     * @route GET /v1/content/{type}
-     * @summary List published entries of a content type
-     * @tag Lemma Delivery
-     */
+    // List published entries of a content type.
     $router->get('/{type}', [DeliveryController::class, 'index'])
         ->middleware('require_content_scope:read:content')
         ->middleware('rate_limit')
         ->rateLimit(120, 1, by: 'user');
 
-    /**
-     * @route GET /v1/content/{type}/{slugOrUuid}
-     * @summary Get a single published entry by slug or uuid
-     * @tag Lemma Delivery
-     */
+    // Get a single published entry by slug or UUID.
     $router->get('/{type}/{slugOrUuid}', [DeliveryController::class, 'show'])
         ->middleware('require_content_scope:read:content')
         ->middleware('rate_limit')

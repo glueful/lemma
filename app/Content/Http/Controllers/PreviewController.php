@@ -9,6 +9,8 @@ use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
 use App\Content\Preview\PreviewTokenException;
 use Glueful\Http\Response;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -44,6 +46,17 @@ final class PreviewController
      * Mint a preview token for one entry+locale. The route's permission middleware is
      * the access gate; an optional `version_uuid` in the body pins a historical version.
      */
+    #[ApiOperation(
+        summary: 'Mint a short-lived preview token',
+        description: 'Issues a signed, expiring preview token bound to this entry+locale. The token is the '
+            . 'capability for the unauthenticated `GET /v1/preview/{token}` endpoint. Body: `version_uuid` '
+            . '(optional; preview a specific historical version instead of the current draft). '
+            . 'Requires the `lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Preview token minted.')]
+    #[ApiResponse(401, description: 'Missing or invalid authentication.')]
+    #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.read` permission.')]
     public function mint(Request $request, string $uuid, string $locale): Response
     {
         $body = json_decode((string) $request->getContent(), true);
@@ -66,6 +79,22 @@ final class PreviewController
      * Verify a preview token and return the one draft (or pinned version) it names.
      * Public + rate-limited (no auth). Fails closed on every token/target problem.
      */
+    #[ApiOperation(
+        summary: 'Read a draft via a signed preview token',
+        description: 'Resolves a signed, expiring preview token (minted by '
+            . '`POST /v1/admin/entries/{uuid}/preview/{locale}`) and returns the entry\'s current draft — '
+            . 'or the specific historical version the token names. This is the ONLY way to read '
+            . 'unpublished content. UNAUTHENTICATED by design: the token itself is the capability (no '
+            . 'Authorization header). Rate-limited to 60 requests/minute per IP. Fails closed: an '
+            . 'invalid/malformed token returns 403, an expired token returns 410, and a token whose '
+            . 'target no longer exists returns 404 — all with generic messages.',
+        tags: ['Lemma Preview'],
+    )]
+    #[ApiResponse(200, description: 'The previewed draft (or pinned version).')]
+    #[ApiResponse(403, description: 'Invalid or malformed preview token.')]
+    #[ApiResponse(404, description: 'The token\'s target entry/version no longer exists.')]
+    #[ApiResponse(410, description: 'The preview token has expired.')]
+    #[ApiResponse(429, description: 'Rate limit exceeded (60/minute per IP).')]
     public function show(Request $request, string $token): Response
     {
         try {

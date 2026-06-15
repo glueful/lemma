@@ -7,9 +7,11 @@ namespace App\Content\Http\Controllers;
 use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
+use App\Content\Http\DTOs\MintPreviewData;
 use App\Content\Preview\PreviewTokenException;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiRequestBody;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -58,17 +60,15 @@ final class PreviewController
             . 'Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
+    #[ApiRequestBody(schema: MintPreviewData::class, required: false)]
     #[ApiResponse(200, description: 'Preview token minted.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.read` permission.')]
-    public function mint(Request $request, string $uuid, string $locale): Response
+    public function mint(MintPreviewData $input, Request $request, string $uuid, string $locale): Response
     {
-        $body = json_decode((string) $request->getContent(), true);
-        $versionUuid = is_array($body) && isset($body['version_uuid']) && is_string($body['version_uuid'])
-            ? $body['version_uuid']
-            : null;
-
-        $token = $this->minter->mint($uuid, $locale, $versionUuid);
+        // version_uuid is optional: absent means "mint from the current draft". Existence /
+        // ownership of a pinned version is validated by the reader at read time (domain rule).
+        $token = $this->minter->mint($uuid, $locale, $input->version_uuid);
         $ttl = $this->minter->ttlSeconds();
         $exp = time() + $ttl;
 

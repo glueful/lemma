@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Content\Http\Controllers;
 
+use App\Content\Http\DTOs\CreateEntryData;
+use App\Content\Http\DTOs\SaveDraftData;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Support\OptimisticLockException;
@@ -13,6 +15,7 @@ use Glueful\Auth\UserIdentity;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiRequestBody;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -50,18 +53,20 @@ final class EntryController
             . 'lemma.default_locale). Requires the `lemma.entries.write` permission.',
         tags: ['Lemma Admin'],
     )]
+    #[ApiRequestBody(schema: CreateEntryData::class)]
     #[ApiResponse(201, description: 'Entry created with an empty draft.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.write` permission.')]
     #[ApiResponse(422, description: 'Unknown content type.')]
-    public function store(Request $request): Response
+    public function store(CreateEntryData $input, Request $request): Response
     {
-        $in = $this->body($request);
-        $type = $this->types->findBySlug((string) ($in['content_type'] ?? ''));
+        // Structural validation (content_type/locale are strings) is done by the hydrated DTO.
+        // The content-type-exists check is a domain rule and stays here.
+        $type = $this->types->findBySlug($input->content_type);
         if ($type === null) {
             return Response::validation(['content_type' => 'unknown content type']);
         }
-        $locale = (string) ($in['locale'] ?? config($this->context, 'lemma.default_locale', 'en'));
+        $locale = $input->locale ?? (string) config($this->context, 'lemma.default_locale', 'en');
         $uuid = $this->entries->createEntry(
             (string) $type['uuid'],
             $locale,
@@ -146,22 +151,22 @@ final class EntryController
             . 'Requires the `lemma.entries.write` permission.',
         tags: ['Lemma Admin'],
     )]
+    #[ApiRequestBody(schema: SaveDraftData::class)]
     #[ApiResponse(200, description: 'Draft saved.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.write` permission.')]
     #[ApiResponse(404, description: 'No entry with that UUID.')]
     #[ApiResponse(409, description: 'Stale lock_version — the draft was modified by another writer.')]
     #[ApiResponse(422, description: 'Field validation failed against the content type schema.')]
-    public function saveDraft(Request $request, string $uuid, string $locale): Response
+    public function saveDraft(SaveDraftData $input, Request $request, string $uuid, string $locale): Response
     {
         $entry = $this->entries->findEntry($uuid);
         if ($entry === null) {
             return Response::notFound('Entry not found.');
         }
-        $in = $this->body($request);
         $schema = $this->types->schemaFor((string) $entry['content_type_uuid']);
         try {
-            $clean = $this->validator->validate($schema, (array) ($in['fields'] ?? []));
+            $clean = $this->validator->validate($schema, $input->fields);
         } catch (ValidationException $e) {
             return Response::validation($e->errors());
         }
@@ -172,7 +177,7 @@ final class EntryController
                 $locale,
                 $clean,
                 (int) $type['schema_version'],
-                (int) ($in['lock_version'] ?? -1),
+                $input->lock_version ?? -1,
                 $this->actor($request),
             );
         } catch (OptimisticLockException) {
@@ -182,13 +187,6 @@ final class EntryController
             ]);
         }
         return Response::success(['draft' => $this->entries->findDraft($uuid, $locale)], 'Draft saved.');
-    }
-
-    /** @return array<string,mixed> */
-    private function body(Request $request): array
-    {
-        $data = json_decode((string) $request->getContent(), true);
-        return is_array($data) ? $data : [];
     }
 
     /**

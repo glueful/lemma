@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Content\Http\Controllers;
 
+use App\Content\Http\DTOs\RollbackData;
 use App\Content\Services\PublishService;
 use App\Content\Validation\ValidationException;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiRequestBody;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -105,23 +107,21 @@ final class PublicationController
             . 'the version to re-publish). Requires the `lemma.entries.publish` permission.',
         tags: ['Lemma Admin'],
     )]
+    #[ApiRequestBody(schema: RollbackData::class)]
     #[ApiResponse(200, description: 'Rolled back to the named version.')]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'Principal lacks the `lemma.entries.publish` permission.')]
     #[ApiResponse(422, description: 'Missing or invalid version_uuid (or it does not belong to this entry+locale).')]
-    public function rollback(Request $request, string $uuid, string $locale): Response
+    public function rollback(RollbackData $input, Request $request, string $uuid, string $locale): Response
     {
-        $body = json_decode((string) $request->getContent(), true);
-        $versionUuid = is_array($body) ? (string) ($body['version_uuid'] ?? '') : '';
-        if ($versionUuid === '') {
-            return Response::validation(['version_uuid' => 'required']);
-        }
+        // Structural validation (version_uuid present + non-blank) is done by the hydrated DTO.
+        // Whether the version belongs to this entry+locale is a domain rule and stays here.
         try {
-            $this->publisher->rollback($uuid, $locale, $versionUuid, $this->actor($request));
+            $this->publisher->rollback($uuid, $locale, $input->version_uuid, $this->actor($request));
         } catch (\RuntimeException $e) {
             return Response::validation(['version_uuid' => $e->getMessage()]);
         }
-        return Response::success(['version_uuid' => $versionUuid], 'Rolled back to version.');
+        return Response::success(['version_uuid' => $input->version_uuid], 'Rolled back to version.');
     }
 
     /**

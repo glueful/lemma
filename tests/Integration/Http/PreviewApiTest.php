@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Http;
 
 use App\Content\Http\Controllers\PreviewController;
+use App\Content\Http\DTOs\MintPreviewData;
 use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
@@ -16,6 +17,8 @@ use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use App\Tests\Support\LemmaTestCase;
+use Glueful\Validation\Contracts\RequestData;
+use Glueful\Validation\RequestDataHydrator;
 use Symfony\Component\HttpFoundation\Request;
 
 final class PreviewApiTest extends LemmaTestCase
@@ -66,10 +69,16 @@ final class PreviewApiTest extends LemmaTestCase
         return new Request();
     }
 
-    /** A POST request carrying the given JSON body. */
-    private function json(array $body): Request
+    /**
+     * Hydrate a request DTO exactly as the router would, so DTO validation is exercised
+     * before the controller sees it.
+     *
+     * @param  class-string<RequestData> $dtoClass
+     * @param  array<string,mixed>       $body
+     */
+    private function hydrate(string $dtoClass, array $body): RequestData
     {
-        return new Request([], [], [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode($body));
+        return (new RequestDataHydrator())->hydrate($dtoClass, $body);
     }
 
     /** Seed an entry + a draft carrying the given title; return the entry uuid. */
@@ -208,7 +217,7 @@ final class PreviewApiTest extends LemmaTestCase
     {
         $uuid = $this->seedDraft('Mint Me');
 
-        $resp = $this->controller()->mint($this->json([]), $uuid, 'en');
+        $resp = $this->controller()->mint($this->hydrate(MintPreviewData::class, []), new Request(), $uuid, 'en');
 
         self::assertSame(200, $resp->getStatusCode());
         $data = json_decode($resp->getContent(), true)['data'];
@@ -233,7 +242,12 @@ final class PreviewApiTest extends LemmaTestCase
         $versionUuid = $publish->publish($uuid, 'en', 'tester');
         $this->entries()->saveDraft($uuid, 'en', ['title' => 'Moved On'], 1, 1, 'tester');
 
-        $resp = $this->controller()->mint($this->json(['version_uuid' => $versionUuid]), $uuid, 'en');
+        $resp = $this->controller()->mint(
+            $this->hydrate(MintPreviewData::class, ['version_uuid' => $versionUuid]),
+            new Request(),
+            $uuid,
+            'en',
+        );
         $token = json_decode($resp->getContent(), true)['data']['token'];
 
         // The minted token must resolve to the PINNED version, not the moved-on draft.

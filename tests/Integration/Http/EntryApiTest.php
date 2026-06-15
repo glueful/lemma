@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Http;
 
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\DTOs\CreateEntryData;
+use App\Content\Http\DTOs\SaveDraftData;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Validation\FieldValidator;
 use App\Tests\Support\LemmaTestCase;
+use Glueful\Validation\Contracts\RequestData;
+use Glueful\Validation\RequestDataHydrator;
 use Symfony\Component\HttpFoundation\Request;
 
 final class EntryApiTest extends LemmaTestCase
@@ -38,21 +42,34 @@ final class EntryApiTest extends LemmaTestCase
         );
     }
 
-    private function json(array $b): Request
+    /**
+     * Hydrate a request DTO exactly as the router would, so DTO validation is exercised
+     * before the controller sees it. (Lemma DTOs use only built-in rules, so no registry.)
+     *
+     * @param  class-string<RequestData> $dtoClass
+     * @param  array<string,mixed>       $body
+     */
+    private function hydrate(string $dtoClass, array $body): RequestData
     {
-        return new Request([], [], [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode($b));
+        return (new RequestDataHydrator())->hydrate($dtoClass, $body);
     }
 
     private function createEntryUuid(): string
     {
-        $resp = $this->controller()->store($this->json(['content_type' => 'post', 'locale' => 'en']));
+        $resp = $this->controller()->store(
+            $this->hydrate(CreateEntryData::class, ['content_type' => 'post', 'locale' => 'en']),
+            new Request(),
+        );
 
         return json_decode($resp->getContent(), true)['data']['entry']['uuid'];
     }
 
     public function testCreateEntryReturnsEntryWithEmptyDraft(): void
     {
-        $resp = $this->controller()->store($this->json(['content_type' => 'post', 'locale' => 'en']));
+        $resp = $this->controller()->store(
+            $this->hydrate(CreateEntryData::class, ['content_type' => 'post', 'locale' => 'en']),
+            new Request(),
+        );
         self::assertSame(201, $resp->getStatusCode());
     }
 
@@ -60,12 +77,14 @@ final class EntryApiTest extends LemmaTestCase
     {
         $uuid = $this->createEntryUuid();
         $this->controller()->saveDraft(
-            $this->json(['fields' => ['title' => 'A'], 'lock_version' => 0]),
+            $this->hydrate(SaveDraftData::class, ['fields' => ['title' => 'A'], 'lock_version' => 0]),
+            new Request(),
             $uuid,
             'en',
         );
         $resp = $this->controller()->saveDraft(
-            $this->json(['fields' => ['title' => 'B'], 'lock_version' => 0]),
+            $this->hydrate(SaveDraftData::class, ['fields' => ['title' => 'B'], 'lock_version' => 0]),
+            new Request(),
             $uuid,
             'en',
         );
@@ -76,7 +95,8 @@ final class EntryApiTest extends LemmaTestCase
     {
         $uuid = $this->createEntryUuid();
         $resp = $this->controller()->saveDraft(
-            $this->json(['fields' => ['title' => 123], 'lock_version' => 0]),
+            $this->hydrate(SaveDraftData::class, ['fields' => ['title' => 123], 'lock_version' => 0]),
+            new Request(),
             $uuid,
             'en',
         );

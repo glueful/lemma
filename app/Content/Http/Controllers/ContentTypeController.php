@@ -17,6 +17,18 @@ use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
+/**
+ * The admin API for content types (models) — the schema-definition CRUD surface that the
+ * entry and delivery layers read from. Persistence and schema parsing live in
+ * {@see ContentTypeRepository}; this controller validates request input, maps a
+ * {@see SchemaParseException} to a 422, and emits {@see ModelCreated}/{@see ModelUpdated}
+ * after commit.
+ *
+ * Writes that change the filterable-field set don't build indexes inline: both store() and
+ * updateSchema() enqueue an {@see EnsureFilterIndexesJob} so the DDL runs out-of-band. Read
+ * routes require `lemma.entries.read`; mutating routes require `lemma.models.manage`
+ * (enforced by route middleware, surfacing as 401/403 before these methods run).
+ */
 final class ContentTypeController
 {
     public function __construct(
@@ -26,6 +38,10 @@ final class ContentTypeController
     ) {
     }
 
+    /**
+     * List every content type defined in this Lemma instance, including each one's field
+     * schema, straight from {@see ContentTypeRepository::all()}.
+     */
     #[ApiOperation(
         summary: 'List content types',
         description: 'Lists every content type (model) defined in this Lemma instance. '
@@ -40,6 +56,13 @@ final class ContentTypeController
         return Response::success(['content_types' => $this->types->all()], 'Content types retrieved.');
     }
 
+    /**
+     * Create a content type from the request body. Guards the slug (lowercase identifier,
+     * 1–160 chars) and a non-empty name up front, then rejects a duplicate slug — both as
+     * 422 — before persisting. An invalid field schema surfaces as a caught
+     * {@see SchemaParseException} (also 422). On success the filter-index reconciliation is
+     * enqueued and a {@see ModelCreated} event is emitted after commit.
+     */
     #[ApiOperation(
         summary: 'Create a content type',
         description: 'Defines a new content type (model) with a field schema. The slug must be a unique '
@@ -79,6 +102,11 @@ final class ContentTypeController
         return Response::created(['content_type' => $this->types->findByUuid($uuid)], 'Content type created.');
     }
 
+    /**
+     * Return one content type (with its field schema) by slug, or 404 if no such slug exists.
+     *
+     * @param string $slug Content type slug
+     */
     #[ApiOperation(
         summary: 'Get a content type by slug',
         description: 'Returns one content type (model) by its slug, including its field schema. '
@@ -97,6 +125,15 @@ final class ContentTypeController
             : Response::success(['content_type' => $row], 'Content type retrieved.');
     }
 
+    /**
+     * Replace the field schema of an existing content type (looked up by slug; 404 if absent).
+     * Delegates to {@see ContentTypeRepository::updateSchema()}, which bumps the schema version;
+     * a malformed schema is caught as a {@see SchemaParseException} and returned as 422. On
+     * success the filter-index reconciliation is re-enqueued and a {@see ModelUpdated} event is
+     * emitted after commit.
+     *
+     * @param string $slug Content type slug
+     */
     #[ApiOperation(
         summary: 'Update a content type\'s field schema',
         description: 'Replaces the field schema of an existing content type and bumps its schema version. '
@@ -142,6 +179,10 @@ final class ContentTypeController
         return is_array($data) ? $data : [];
     }
 
+    /**
+     * The authenticated principal's id for audit attribution (created_by / event actor),
+     * or null when the request carries no resolved {@see UserIdentity}.
+     */
     private function actor(Request $request): ?string
     {
         $user = $request->attributes->get('auth.user');

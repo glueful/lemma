@@ -36,6 +36,10 @@ use Symfony\Component\HttpFoundation\Request;
  */
 final class PreviewController
 {
+    /**
+     * @param PreviewMinter $minter issues signed, expiring tokens (mint side)
+     * @param PreviewReader $reader verifies a token and resolves its target (read side)
+     */
     public function __construct(
         private readonly PreviewMinter $minter,
         private readonly PreviewReader $reader,

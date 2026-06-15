@@ -36,6 +36,15 @@ use Symfony\Component\HttpFoundation\Request;
  */
 final class DeliveryController
 {
+    /**
+     * @param DeliveryRepository    $delivery publication-spine reads (published-only)
+     * @param ContentTypeRepository $types    resolves the {type} slug to its schema
+     * @param FilterCompiler        $filters  compiles `filter[...]` against filterable fields
+     * @param SortCompiler          $sorts    compiles `sort` against filterable fields
+     * @param ReferenceResolver     $references batch-expands reference/asset fields (no N+1)
+     * @param Projector             $projector applies `fields`/`expand` to the `fields` object
+     * @param DeliveryEtag          $etags    ETag/Cache-Control/Cache-Tag validators
+     */
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly DeliveryRepository $delivery,
@@ -48,6 +57,15 @@ final class DeliveryController
     ) {
     }
 
+    /**
+     * List published entries of the {type} content type. Resolves the slug (404 if unknown),
+     * compiles filter+sort against the schema (a non-filterable field or bad operator → 422),
+     * then branches on pagination mode: explicit `?page`/`?perPage` uses the framework offset
+     * envelope, otherwise a keyset cursor list returning `items` + `next_cursor`. Either way
+     * rows are shaped (reference-expanded + field-projected) and decorated with cache headers.
+     *
+     * @param string $type Content type slug
+     */
     #[ApiOperation(
         summary: 'List published entries of a content type',
         description: 'Returns a page of PUBLISHED entries for the content type identified by the {type} '
@@ -72,7 +90,11 @@ final class DeliveryController
         description: 'Sort by a filterable field, `sort=field:asc` or `sort=field:desc`. '
             . 'Defaults to `published_at:desc`.',
     )]
-    #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to lemma.default_locale, e.g. `en`).')]
+    #[QueryParam(
+        'locale',
+        'string',
+        description: 'Content locale to read (defaults to lemma.default_locale, e.g. `en`).',
+    )]
     #[QueryParam(
         'cursor',
         'string',
@@ -85,7 +107,11 @@ final class DeliveryController
         description: 'Page number. Supplying `page` or `perPage` switches the response to the '
             . 'offset-pagination envelope.',
     )]
-    #[QueryParam('perPage', 'integer', description: 'Items per page for offset pagination (clamped to delivery.max_per_page).')]
+    #[QueryParam(
+        'perPage',
+        'integer',
+        description: 'Items per page for offset pagination (clamped to delivery.max_per_page).',
+    )]
     #[ApiResponse(
         200,
         description: 'A page of published entries (cursor mode by default; offset mode replaces `data` '
@@ -148,6 +174,15 @@ final class DeliveryController
         return $this->withCacheHeaders($request, $response, $shaped, $type);
     }
 
+    /**
+     * Return one published entry of {type}, resolved by route slug first and falling back to a
+     * UUID lookup only when the value looks like a 12-char nanoid. A draft-only/unpublished
+     * target yields 404 (the publication spine hides it). Emits an ETag keyed to the published
+     * version + selection; a matching `If-None-Match` short-circuits to 304 Not Modified.
+     *
+     * @param string $type       Content type slug
+     * @param string $slugOrUuid Route slug, or the entry's 12-char UUID
+     */
     #[ApiOperation(
         summary: 'Get a single published entry by slug or UUID',
         description: 'Returns one PUBLISHED entry of the {type} content type, resolved by its route slug or '
@@ -159,7 +194,10 @@ final class DeliveryController
     )]
     #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to lemma.default_locale).')]
     #[ApiResponse(200, description: 'The published entry.')]
-    #[ApiResponse(304, description: 'Not Modified — the supplied If-None-Match ETag still matches the published version.')]
+    #[ApiResponse(
+        304,
+        description: 'Not Modified — the supplied If-None-Match ETag still matches the published version.',
+    )]
     #[ApiResponse(401, description: 'Missing or invalid authentication.')]
     #[ApiResponse(403, description: 'API key lacks the required `read:content` scope.')]
     #[ApiResponse(404, description: 'Unknown content type, or no published entry for the given slug/UUID.')]
@@ -285,6 +323,10 @@ final class DeliveryController
         return $this->filters->compile($schema, $raw);
     }
 
+    /**
+     * Whether the request opts into offset pagination. Presence of either `page` or `perPage`
+     * switches index() from the default keyset-cursor list to the framework offset envelope.
+     */
     private function wantsPagination(Request $request): bool
     {
         return $request->query->has('page') || $request->query->has('perPage');
@@ -298,6 +340,11 @@ final class DeliveryController
         return [$page, $this->clampPerPage($perPage)];
     }
 
+    /**
+     * The page size for the cursor list path: the requested `perPage` (clamped) or the
+     * configured default. Doubles as the "is there a next page?" probe in index(), which asks
+     * for exactly this many rows and emits a cursor only when the result is full.
+     */
     private function limit(Request $request): int
     {
         $perPage = $request->query->has('perPage')
@@ -306,6 +353,11 @@ final class DeliveryController
         return $this->clampPerPage($perPage);
     }
 
+    /**
+     * Clamp a requested page size into the safe range: a non-positive value falls back to the
+     * default, and the result is capped at `lemma.delivery.max_per_page` so a client cannot
+     * request an unbounded page.
+     */
     private function clampPerPage(int $perPage): int
     {
         $max = (int) config($this->context, 'lemma.delivery.max_per_page', 100);
@@ -315,16 +367,25 @@ final class DeliveryController
         return min($perPage, $max);
     }
 
+    /** The configured default page size (`lemma.delivery.default_per_page`, fallback 20). */
     private function defaultPerPage(): int
     {
         return (int) config($this->context, 'lemma.delivery.default_per_page', 20);
     }
 
+    /**
+     * The Cache-Control max-age (seconds) advertised on delivery responses, from
+     * `lemma.delivery.cache_ttl` (fallback 60).
+     */
     private function ttl(): int
     {
         return (int) config($this->context, 'lemma.delivery.cache_ttl', 60);
     }
 
+    /**
+     * The locale to read: the `locale` query param when present and non-empty, otherwise the
+     * configured `lemma.default_locale`.
+     */
     private function locale(Request $request): string
     {
         $locale = $this->stringQuery($request, 'locale');
@@ -334,6 +395,10 @@ final class DeliveryController
         return (string) config($this->context, 'lemma.default_locale', 'en');
     }
 
+    /**
+     * Read a query param as a string, or null when it is absent or an array (e.g. `key[]=`),
+     * so callers can treat it as a plain optional scalar without type juggling.
+     */
     private function stringQuery(Request $request, string $key): ?string
     {
         $value = $request->query->get($key);
@@ -356,6 +421,10 @@ final class DeliveryController
         return implode('&', $parts);
     }
 
+    /**
+     * Whether the value has the shape of a 12-char entry nanoid (the alphabet show() falls
+     * back to a UUID lookup on). A cheap shape check only — it does not assert the id exists.
+     */
     private function looksLikeNanoid(string $value): bool
     {
         return preg_match('/\A[A-Za-z0-9_-]{12}\z/', $value) === 1;

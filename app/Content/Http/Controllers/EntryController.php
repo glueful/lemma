@@ -16,6 +16,18 @@ use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
+/**
+ * The admin API for entries and their working drafts — create an entry, read its identity
+ * record, and read/save the per-locale draft. Identity and draft persistence (including the
+ * optimistic-lock CAS and the reference projection) live in {@see EntryRepository}; field
+ * validation against the content type schema is delegated to {@see FieldValidator}.
+ *
+ * The interesting path is {@see EntryController::saveDraft()}: it validates first (a
+ * {@see ValidationException} → 422) and then catches the repository's
+ * {@see OptimisticLockException} to return a 409 with the current draft so the client can
+ * rebase. Routes are permission-gated (`lemma.entries.read` / `lemma.entries.write`) by
+ * middleware, so authz failures surface as 401/403 before these methods run.
+ */
 final class EntryController
 {
     public function __construct(
@@ -26,6 +38,11 @@ final class EntryController
     ) {
     }
 
+    /**
+     * Create a new entry of the content type named by `content_type` (slug; unknown → 422),
+     * seeding an empty draft in the requested locale (defaulting to `lemma.default_locale`).
+     * Returns the fresh entry identity record plus the empty draft.
+     */
     #[ApiOperation(
         summary: 'Create an entry',
         description: 'Creates a new entry of a content type with an empty draft in the given locale. '
@@ -57,6 +74,12 @@ final class EntryController
         ], 'Entry created.');
     }
 
+    /**
+     * Return the entry's identity/status record (NOT its field content — use getDraft() for
+     * field values), or 404 if no entry has that UUID.
+     *
+     * @param string $uuid Entry UUID
+     */
     #[ApiOperation(
         summary: 'Get an entry',
         description: 'Returns the entry record (identity + status), not its field content. '
@@ -75,6 +98,14 @@ final class EntryController
             : Response::success(['entry' => $entry], 'Entry retrieved.');
     }
 
+    /**
+     * Return the current working draft for the entry+locale — field values plus the
+     * `lock_version` the client must echo back on save — or 404 if no draft exists for that
+     * entry/locale pair.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
     #[ApiOperation(
         summary: 'Get an entry\'s draft for a locale',
         description: 'Returns the current working draft (field values + optimistic-lock version) for the '
@@ -93,6 +124,18 @@ final class EntryController
             : Response::success(['draft' => $draft], 'Draft retrieved.');
     }
 
+    /**
+     * Validate and persist the draft field values for the entry+locale under optimistic
+     * concurrency. The flow is: resolve the entry (404 if gone) → validate the submitted
+     * `fields` against the content type schema (a {@see ValidationException} → 422) → call
+     * {@see EntryRepository::saveDraft()} passing the client's `lock_version`. A stale
+     * lock_version trips the repository's {@see OptimisticLockException}, which is caught here
+     * and returned as 409 carrying the current draft (code `STALE_DRAFT`) so the client can
+     * rebase and retry. On success the reloaded, version-bumped draft is returned.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
     #[ApiOperation(
         summary: 'Save an entry\'s draft (optimistic-locked)',
         description: 'Validates and stores the entry\'s draft field values for the locale. Pass the '
@@ -148,6 +191,10 @@ final class EntryController
         return is_array($data) ? $data : [];
     }
 
+    /**
+     * The authenticated principal's id for audit attribution (created_by / updated_by /
+     * event actor), or null when the request carries no resolved {@see UserIdentity}.
+     */
     private function actor(Request $request): ?string
     {
         $user = $request->attributes->get('auth.user');

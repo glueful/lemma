@@ -28,6 +28,7 @@
           so the var MUST be DB_PGSQL_DATABASE (not DB_DATABASE).
         -->
         <env name="APP_ENV" value="testing"/>
+        <env name="DB_DRIVER" value="pgsql"/>
         <env name="DB_PGSQL_DATABASE" value="lemma_test"/>
     </php>
 </phpunit>

@@ -6,6 +6,7 @@ namespace App\Tests\Integration\Content;
 
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
@@ -47,6 +48,7 @@ final class PublishServiceTest extends LemmaTestCase
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         );
     }
 
@@ -116,5 +118,54 @@ final class PublishServiceTest extends LemmaTestCase
         $this->service()->rollback($this->entry, 'en', $v1, 'user00000001');
         self::assertSame($v1, (new VersionRepository($this->connection()))
             ->findPublication($this->entry, 'en')['version_uuid']);
+    }
+
+    public function testReferenceProjectionTracksPublishedSnapshotOnly(): void
+    {
+        $types = new ContentTypeRepository($this->connection());
+        $type = $types->create([
+            'slug' => 'linked',
+            'name' => 'Linked',
+            'schema' => [
+                ['name' => 'title', 'type' => 'string', 'required' => true],
+                ['name' => 'related', 'type' => 'reference'],
+            ],
+        ]);
+        $entries = new EntryRepository($this->connection(), $this->appContext(), $types);
+        $targetA = $entries->createEntry($type, 'en', 1, 'user00000001');
+        $targetB = $entries->createEntry($type, 'en', 1, 'user00000001');
+        $source = $entries->createEntry($type, 'en', 1, 'user00000001');
+
+        $entries->saveDraft($source, 'en', ['title' => 'Source', 'related' => $targetA], 1, 0, 'user00000001');
+        $references = new ReferenceProjectionRepository($this->connection());
+        self::assertSame([], $references->referencesTo($targetA), 'draft saves must not affect published references');
+
+        (new PublishService(
+            $this->appContext(),
+            $entries,
+            new VersionRepository($this->connection()),
+            $types,
+            new FieldValidator(),
+            $references,
+        ))->publish($source, 'en', 'user00000001');
+        self::assertNotSame([], $references->referencesTo($targetA), 'publish indexes the published snapshot');
+
+        $draft = $entries->findDraft($source, 'en');
+        self::assertIsArray($draft);
+        $entries->saveDraft(
+            $source,
+            'en',
+            ['title' => 'Source', 'related' => $targetB],
+            1,
+            (int) $draft['lock_version'],
+            'user00000001'
+        );
+
+        self::assertNotSame(
+            [],
+            $references->referencesTo($targetA),
+            'unpublished draft edits keep the old published index'
+        );
+        self::assertSame([], $references->referencesTo($targetB), 'new draft references are not indexed until publish');
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Http\Controllers;
 
 use App\Content\Events\ModelCreated;
+use App\Content\Events\ModelDeleted;
 use App\Content\Events\ModelUpdated;
 use App\Content\Indexing\EnsureFilterIndexesJob;
 use App\Content\Pipeline\PublishEventEmitter;
@@ -216,6 +217,30 @@ final class ContentTypeController
         $this->ensureFilterIndexes($row['uuid']);
         $this->events?->emitAfterCommit(new ModelUpdated(type: (string) $row['slug'], actor: $this->actor($request)));
         return Response::success(['content_type' => $this->types->findByUuid($row['uuid'])], 'Schema updated.');
+    }
+
+    /**
+     * Soft-delete a content type. Existing entries remain in storage, but the model is hidden
+     * from admin listing and delivery lookups.
+     *
+     * @param string $slug Content type slug
+     */
+    #[ApiOperation(
+        summary: 'Delete a content type',
+        description: 'Soft-deletes a content type (model). Requires the `lemma.models.manage` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Content type deleted.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No content type with that slug.')]
+    public function destroy(Request $request, string $slug): Response
+    {
+        $row = $this->types->findBySlug($slug);
+        if ($row === null) {
+            return Response::notFound('Content type not found.');
+        }
+        $this->types->softDelete((string) $row['uuid']);
+        $this->events?->emitAfterCommit(new ModelDeleted(type: (string) $row['slug'], actor: $this->actor($request)));
+        return Response::success([], 'Content type deleted.');
     }
 
     /**

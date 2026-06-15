@@ -49,4 +49,21 @@ final class RouteRepository
             ->where('slug', '=', $slug)
             ->first() ?: null;
     }
+
+    /** @return list<array<string,mixed>> */
+    public function forEntry(string $entryUuid): array
+    {
+        return $this->db->table('entry_routes')
+            ->where('entry_uuid', '=', $entryUuid)
+            ->orderBy('locale', 'ASC')
+            ->get();
+    }
+
+    public function remove(string $entryUuid, string $locale): void
+    {
+        $this->db->table('entry_routes')
+            ->where('entry_uuid', '=', $entryUuid)
+            ->where('locale', '=', $locale)
+            ->delete();
+    }
 }

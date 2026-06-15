@@ -8,6 +8,7 @@ use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\ReferenceResolver;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Schema\ContentTypeSchema;
@@ -56,7 +57,8 @@ final class ReferenceResolverTest extends LemmaTestCase
             $entries,
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
-            new FieldValidator()
+            new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         ))->publish($uuid, 'en', 'user00000001');
         return $uuid;
     }
@@ -148,7 +150,8 @@ final class ReferenceResolverTest extends LemmaTestCase
             $this->entries(),
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
-            new FieldValidator()
+            new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         ))->publish($a, 'en', 'user00000001');
 
         $rootA = $this->repo()->findPublishedByUuid($this->type, 'en', $a);

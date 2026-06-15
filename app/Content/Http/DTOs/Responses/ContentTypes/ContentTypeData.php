@@ -25,6 +25,7 @@ final class ContentTypeData implements ResponseData
         public readonly string $slug,
         public readonly string $name,
         public readonly ?string $description,
+        public readonly string $status,
         #[ArrayOf(FieldSchemaData::class)]
         public readonly array $schema,
         public readonly int $schema_version,

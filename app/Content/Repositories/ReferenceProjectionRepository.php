@@ -23,9 +23,7 @@ final class ReferenceProjectionRepository
     /** @param array<string,mixed> $fields the cleaned draft fields */
     public function rebuildForEntry(string $sourceEntryUuid, ContentTypeSchema $schema, array $fields): void
     {
-        $this->db->table('entry_references')
-            ->where('source_entry_uuid', '=', $sourceEntryUuid)
-            ->delete();
+        $this->clearForEntry($sourceEntryUuid);
 
         $rows = [];
         foreach ($schema->fields() as $f) {
@@ -44,6 +42,13 @@ final class ReferenceProjectionRepository
         foreach ($this->dedupe($rows) as $r) {
             $this->db->table('entry_references')->insert($r);
         }
+    }
+
+    public function clearForEntry(string $sourceEntryUuid): void
+    {
+        $this->db->table('entry_references')
+            ->where('source_entry_uuid', '=', $sourceEntryUuid)
+            ->delete();
     }
 
     /**

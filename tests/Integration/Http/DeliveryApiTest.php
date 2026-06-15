@@ -12,6 +12,7 @@ use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use App\Content\Repositories\VersionRepository;
@@ -76,6 +77,7 @@ final class DeliveryApiTest extends LemmaTestCase
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         );
     }
 

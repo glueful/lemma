@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Http;
 
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\DTOs\AssignRouteData;
 use App\Content\Http\DTOs\CreateEntryData;
 use App\Content\Http\DTOs\SaveDraftData;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
+use App\Content\Repositories\RouteRepository;
+use App\Content\Schema\ContentTypeSchema;
 use App\Content\Validation\FieldValidator;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Validation\Contracts\RequestData;
@@ -39,6 +43,8 @@ final class EntryApiTest extends LemmaTestCase
             ),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
+            new RouteRepository($this->connection()),
+            new ReferenceProjectionRepository($this->connection()),
         );
     }
 
@@ -148,5 +154,72 @@ final class EntryApiTest extends LemmaTestCase
             'en',
         );
         self::assertSame(422, $resp->getStatusCode());
+    }
+
+    public function testDiscardDraftDeletesWorkingCopy(): void
+    {
+        $uuid = $this->createEntryUuid();
+
+        $resp = $this->controller()->discardDraft(new Request(), $uuid, 'en');
+
+        self::assertSame(200, $resp->getStatusCode());
+        self::assertNull((new EntryRepository(
+            $this->connection(),
+            $this->appContext(),
+            new ContentTypeRepository($this->connection()),
+        ))->findDraft($uuid, 'en'));
+    }
+
+    public function testDestroySoftDeletesEntryAndBlocksReferencedDeletes(): void
+    {
+        $target = $this->createEntryUuid();
+        $source = $this->createEntryUuid();
+        $projection = new ReferenceProjectionRepository($this->connection());
+        $projection->rebuildForEntry(
+            $source,
+            ContentTypeSchema::fromArray([['name' => 'related', 'type' => 'reference']]),
+            ['related' => $target],
+        );
+
+        $blocked = $this->controller()->destroy(new Request(), $target);
+        self::assertSame(409, $blocked->getStatusCode());
+
+        $ok = $this->controller()->destroy(new Request(), $source);
+        self::assertSame(200, $ok->getStatusCode());
+        self::assertSame('deleted', $this->controllerEntryRepo()->findEntry($source)['status']);
+    }
+
+    public function testAssignListAndRemoveRoute(): void
+    {
+        $uuid = $this->createEntryUuid();
+
+        $assign = $this->controller()->assignRoute(
+            $this->hydrate(AssignRouteData::class, ['slug' => 'hello-world']),
+            new Request(),
+            $uuid,
+            'en',
+        );
+        self::assertSame(200, $assign->getStatusCode());
+
+        $routes = $this->controller()->routes(new Request(), $uuid);
+        $data = json_decode((string) $routes->getContent(), true)['data'];
+        self::assertSame('hello-world', $data['routes'][0]['slug']);
+
+        $remove = $this->controller()->removeRoute(new Request(), $uuid, 'en');
+        self::assertSame(200, $remove->getStatusCode());
+        $afterRemove = json_decode(
+            (string) $this->controller()->routes(new Request(), $uuid)->getContent(),
+            true
+        );
+        self::assertSame([], $afterRemove['data']['routes']);
+    }
+
+    private function controllerEntryRepo(): EntryRepository
+    {
+        return new EntryRepository(
+            $this->connection(),
+            $this->appContext(),
+            new ContentTypeRepository($this->connection()),
+        );
     }
 }

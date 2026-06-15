@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Content\Http\Controllers;
 
 use App\Content\Http\DTOs\CreateEntryData;
+use App\Content\Http\DTOs\AssignRouteData;
 use App\Content\Http\DTOs\SaveDraftData;
 use App\Content\Http\DTOs\Responses\Entries\DraftResultData;
 use App\Content\Http\DTOs\Responses\Entries\EntryCreateResultData;
 use App\Content\Http\DTOs\Responses\Entries\EntryResultData;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
+use App\Content\Repositories\RouteRepository;
 use App\Content\Support\OptimisticLockException;
 use App\Content\Validation\FieldValidator;
 use App\Content\Validation\ValidationException;
@@ -41,6 +44,8 @@ final class EntryController
         private readonly EntryRepository $entries,
         private readonly ContentTypeRepository $types,
         private readonly FieldValidator $validator,
+        private readonly RouteRepository $routes,
+        private readonly ReferenceProjectionRepository $references,
     ) {
     }
 
@@ -242,6 +247,134 @@ final class EntryController
             ]);
         }
         return Response::success(['draft' => $this->entries->findDraft($uuid, $locale)], 'Draft saved.');
+    }
+
+    /**
+     * Discard the mutable working draft for an entry+locale. Published content and version
+     * history are untouched.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'Discard an entry draft',
+        description: 'Deletes the mutable draft row for the entry+locale. Published content is untouched. '
+            . 'Requires the `lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Draft discarded.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No draft for that entry/locale.')]
+    public function discardDraft(Request $request, string $uuid, string $locale): Response
+    {
+        if ($this->entries->findDraft($uuid, $locale) === null) {
+            return Response::notFound('Draft not found.');
+        }
+        $this->entries->discardDraft($uuid, $locale);
+        return Response::success([], 'Draft discarded.');
+    }
+
+    /**
+     * Soft-delete an entry after checking reverse references.
+     *
+     * @param string $uuid Entry UUID
+     */
+    #[ApiOperation(
+        summary: 'Delete an entry',
+        description: 'Soft-deletes an entry unless another published entry references it. Requires the '
+            . '`lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Entry deleted.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(
+        409,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Entry is referenced by published content.',
+    )]
+    public function destroy(Request $request, string $uuid): Response
+    {
+        if ($this->entries->findEntry($uuid) === null) {
+            return Response::notFound('Entry not found.');
+        }
+        $sources = $this->references->referencesTo($uuid);
+        if ($sources !== []) {
+            return Response::error('Entry is referenced by other content.', Response::HTTP_CONFLICT, [
+                'code' => 'ENTRY_REFERENCED',
+                'references' => $sources,
+            ]);
+        }
+        $this->entries->softDelete($uuid);
+        return Response::success([], 'Entry deleted.');
+    }
+
+    /**
+     * List delivery routes assigned to an entry.
+     *
+     * @param string $uuid Entry UUID
+     */
+    #[ApiOperation(
+        summary: 'List entry routes',
+        description: 'Lists route slugs assigned to an entry. Requires the `lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Entry routes.')]
+    public function routes(Request $request, string $uuid): Response
+    {
+        return Response::success(['routes' => $this->routes->forEntry($uuid)], 'Routes retrieved.');
+    }
+
+    /**
+     * Assign or replace the route slug for an entry+locale.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'Assign an entry route',
+        description: 'Assigns or replaces the delivery route slug for an entry+locale. Requires the '
+            . '`lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Route assigned.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(409, schema: ErrorResponse::class, envelope: false, description: 'Slug already in use.')]
+    public function assignRoute(AssignRouteData $input, Request $request, string $uuid, string $locale): Response
+    {
+        $entry = $this->entries->findEntry($uuid);
+        if ($entry === null) {
+            return Response::notFound('Entry not found.');
+        }
+        $typeUuid = (string) $entry['content_type_uuid'];
+        $existing = $this->routes->findBySlug($typeUuid, $locale, $input->slug);
+        if ($existing !== null && (string) $existing['entry_uuid'] !== $uuid) {
+            return Response::error(
+                'Route slug already in use.',
+                Response::HTTP_CONFLICT,
+                ['code' => 'ROUTE_TAKEN']
+            );
+        }
+        $this->routes->assign($uuid, $typeUuid, $locale, $input->slug);
+        return Response::success(['routes' => $this->routes->forEntry($uuid)], 'Route assigned.');
+    }
+
+    /**
+     * Remove the route slug for an entry+locale.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'Remove an entry route',
+        description: 'Removes the delivery route slug for an entry+locale. Requires the '
+            . '`lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Route removed.')]
+    public function removeRoute(Request $request, string $uuid, string $locale): Response
+    {
+        $this->routes->remove($uuid, $locale);
+        return Response::success([], 'Route removed.');
     }
 
     /**

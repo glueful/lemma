@@ -12,6 +12,8 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - Public, read-only delivery of **published content only**. `DeliveryRepository` reads
   exclusively through `entry_publications ⋈ entry_versions ⋈ entries[status=active]` — there is
   no draft/status column on the read path, so drafts physically cannot leak.
+- Admin deletion and routing endpoints for content types and entries: discard working drafts,
+  soft-delete content types/entries, list published versions, and assign/list/remove entry routes.
 - `require_content_scope` middleware: a fail-closed API-key scope gate (`read:content`) — unlike
   core's attribute-only `require_scope`, it reads its route param and denies when the scope is
   absent or unsatisfied.
@@ -57,15 +59,19 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - `FieldValidator` normalizes `datetime` field values to canonical ISO-8601 UTC
   (`YYYY-MM-DDTHH:MM:SSZ`) on write, keeping stored values lexicographically comparable
   as text for the datetime expression index and filter range comparisons.
-- `EntryRepository::saveDraft` now rebuilds the `entry_references` projection and emits content
-  events inside the same transaction (CAS-safe; a stale-lock 409 emits nothing).
+- `PublishService` now rebuilds the `entry_references` projection from the published version
+  snapshot on publish/rollback, so draft edits never affect delete protection or delivery-time
+  reference resolution until they are actually published.
+- `FieldValidator` validates `asset` fields against active core `blobs` on the configured
+  `lemma.media_disk`, instead of accepting any non-empty UUID-shaped string.
 - `RequireLemmaPermission` resolves the authenticated principal from the post-auth `user` request
   attribute set by `AuthMiddleware` (falling back from the optional `auth.user` enricher), so every
   `lemma_permission`-gated admin route authorizes correctly in a lean install — still fail-closed
   (no principal or missing grant → 403).
+- PHPUnit now pins `DB_DRIVER=pgsql`, and the repository ships a GitHub Actions CI workflow that
+  runs the Composer CI gate against Postgres.
 
 ### Known limitations / tech-debt
-- `ModelDeleted` is wired but has no producer (no content-type delete endpoint yet).
 - `EntryRepository::softDelete` emits `EntryDeleted` but not `AssetDetached` for the entry's assets.
 - `ReindexSearchListener` references the meilisearch reindex job by a placeholder FQCN (the search
   extension owns the real class); reconcile when `glueful/meilisearch` lands.

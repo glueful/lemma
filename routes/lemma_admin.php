@@ -30,6 +30,9 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
     $router->patch('/content-types/{slug}/schema', [ContentTypeController::class, 'updateSchema'])
         ->middleware('lemma_permission:lemma.models.manage');
 
+    $router->delete('/content-types/{slug}', [ContentTypeController::class, 'destroy'])
+        ->middleware('lemma_permission:lemma.models.manage');
+
     // Entry authoring (identity, drafts, preview).
     $router->post('/entries', [EntryController::class, 'store'])
         ->middleware('lemma_permission:lemma.entries.write');
@@ -41,6 +44,24 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
         ->middleware('lemma_permission:lemma.entries.read');
 
     $router->put('/entries/{uuid}/draft/{locale}', [EntryController::class, 'saveDraft'])
+        ->middleware('lemma_permission:lemma.entries.write');
+
+    $router->delete('/entries/{uuid}/draft/{locale}', [EntryController::class, 'discardDraft'])
+        ->middleware('lemma_permission:lemma.entries.write');
+
+    $router->delete('/entries/{uuid}', [EntryController::class, 'destroy'])
+        ->middleware('lemma_permission:lemma.entries.write');
+
+    $router->get('/entries/{uuid}/versions/{locale}', [PublicationController::class, 'versions'])
+        ->middleware('lemma_permission:lemma.entries.read');
+
+    $router->get('/entries/{uuid}/routes', [EntryController::class, 'routes'])
+        ->middleware('lemma_permission:lemma.entries.read');
+
+    $router->put('/entries/{uuid}/routes/{locale}', [EntryController::class, 'assignRoute'])
+        ->middleware('lemma_permission:lemma.entries.write');
+
+    $router->delete('/entries/{uuid}/routes/{locale}', [EntryController::class, 'removeRoute'])
         ->middleware('lemma_permission:lemma.entries.write');
 
     $router->post('/entries/{uuid}/preview/{locale}', [PreviewController::class, 'mint'])

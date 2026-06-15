@@ -9,6 +9,7 @@ use App\Content\Events\EntryUnpublished;
 use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
@@ -21,6 +22,7 @@ final class PublishService
         private readonly VersionRepository $versions,
         private readonly ContentTypeRepository $types,
         private readonly FieldValidator $validator,
+        private readonly ReferenceProjectionRepository $references,
         private readonly ?PublishEventEmitter $events = null,
     ) {
     }
@@ -45,7 +47,7 @@ final class PublishService
 
         $version = 0;
         $versionUuid = db($this->context)->transaction(
-            function () use ($entryUuid, $locale, $clean, $draft, $actor, &$version): string {
+            function () use ($entryUuid, $locale, $clean, $draft, $actor, $schema, &$version): string {
                 $version = $this->versions->nextVersionNumber($entryUuid, $locale);
                 $versionUuid = $this->versions->appendVersion(
                     $entryUuid,
@@ -56,6 +58,7 @@ final class PublishService
                     $actor,
                 );
                 $this->versions->pin($entryUuid, $locale, $versionUuid, $actor);
+                $this->references->rebuildForEntry($entryUuid, $schema, $clean);
                 return $versionUuid;
             }
         );
@@ -80,6 +83,7 @@ final class PublishService
         $entry = $this->entries->findEntry($entryUuid);
         db($this->context)->transaction(function () use ($entryUuid, $locale): void {
             $this->versions->unpin($entryUuid, $locale);
+            $this->references->clearForEntry($entryUuid);
         });
         $this->events?->emitAfterCommit(new EntryUnpublished(
             entry: $entryUuid,
@@ -101,8 +105,21 @@ final class PublishService
             throw new \RuntimeException('version does not belong to this entry/locale');
         }
         $entry = $this->entries->findEntry($entryUuid);
-        db($this->context)->transaction(function () use ($entryUuid, $locale, $versionUuid, $actor): void {
+        $schema = $entry === null
+            ? null
+            : $this->types->schemaFor((string) $entry['content_type_uuid']);
+        db($this->context)->transaction(function () use (
+            $entryUuid,
+            $locale,
+            $versionUuid,
+            $actor,
+            $schema,
+            $version
+        ): void {
             $this->versions->pin($entryUuid, $locale, $versionUuid, $actor);
+            if ($schema !== null) {
+                $this->references->rebuildForEntry($entryUuid, $schema, (array) $version['fields']);
+            }
         });
         // Re-publishing a prior version is a publish for downstream consumers (V1_DESIGN §5).
         $this->events?->emitAfterCommit(new EntryPublished(

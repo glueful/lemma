@@ -36,6 +36,7 @@ use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewReader;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
@@ -106,6 +107,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             RouteRepository::class => [
                 'class' => RouteRepository::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ReferenceProjectionRepository::class => [
+                'class' => ReferenceProjectionRepository::class,
                 'shared' => true,
                 'autowire' => true,
             ],

@@ -8,6 +8,7 @@ use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\DTOs\RollbackData;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
@@ -44,13 +45,15 @@ final class PublicationApiTest extends LemmaTestCase
 
     private function controller(): PublicationController
     {
+        $versions = new VersionRepository($this->connection());
         return new PublicationController(new PublishService(
             $this->appContext(),
             $this->entries(),
-            new VersionRepository($this->connection()),
+            $versions,
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
-        ));
+            new ReferenceProjectionRepository($this->connection()),
+        ), $versions);
     }
 
     /**
@@ -116,5 +119,24 @@ final class PublicationApiTest extends LemmaTestCase
             'en',
         );
         self::assertSame(422, $resp->getStatusCode());
+    }
+
+    public function testVersionsListsPublishedHistoryNewestFirst(): void
+    {
+        $first = json_decode(
+            (string) $this->controller()->publish(new Request(), $this->entry, 'en')->getContent(),
+            true
+        )['data']['version_uuid'];
+        $this->entries()->saveDraft($this->entry, 'en', ['title' => 'Second'], 1, 1, 'user00000001');
+        $second = json_decode(
+            (string) $this->controller()->publish(new Request(), $this->entry, 'en')->getContent(),
+            true
+        )['data']['version_uuid'];
+
+        $resp = $this->controller()->versions(new Request(), $this->entry, 'en');
+
+        self::assertSame(200, $resp->getStatusCode());
+        $versions = json_decode((string) $resp->getContent(), true)['data']['versions'];
+        self::assertSame([$second, $first], array_column($versions, 'uuid'));
     }
 }

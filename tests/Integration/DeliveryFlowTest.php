@@ -6,6 +6,7 @@ namespace App\Tests\Integration;
 
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
@@ -310,6 +311,7 @@ final class DeliveryFlowTest extends LemmaTestCase
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         );
     }
 

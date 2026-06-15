@@ -46,7 +46,7 @@ final class ReferenceProjectionTest extends LemmaTestCase
             ->get();
     }
 
-    public function testDraftSaveProjectsReferenceRow(): void
+    public function testDraftSaveDoesNotProjectReferenceRow(): void
     {
         $entries = $this->entries();
         $source = $entries->createEntry($this->type, 'en', 1, 'user00000001');
@@ -54,21 +54,21 @@ final class ReferenceProjectionTest extends LemmaTestCase
 
         $entries->saveDraft($source, 'en', ['title' => 'A', 'author' => $target], 1, 0, 'user00000001');
 
-        $rows = $this->referenceRows($source);
-        self::assertCount(1, $rows);
-        self::assertSame('author', $rows[0]['source_field']);
-        self::assertSame($target, $rows[0]['target_entry_uuid']);
+        self::assertSame([], $this->referenceRows($source));
     }
 
-    public function testReSaveReplacesProjectionRatherThanDuplicating(): void
+    public function testRebuildReplacesProjectionRatherThanDuplicating(): void
     {
         $entries = $this->entries();
         $source = $entries->createEntry($this->type, 'en', 1, 'user00000001');
         $first = $entries->createEntry($this->type, 'en', 1, 'user00000001');
         $second = $entries->createEntry($this->type, 'en', 1, 'user00000001');
+        $schema = ContentTypeSchema::fromArray([
+            ['name' => 'author', 'type' => 'reference'],
+        ]);
 
-        $entries->saveDraft($source, 'en', ['title' => 'A', 'author' => $first], 1, 0, 'user00000001');
-        $entries->saveDraft($source, 'en', ['title' => 'A', 'author' => $second], 1, 1, 'user00000001');
+        $this->projection()->rebuildForEntry($source, $schema, ['author' => $first]);
+        $this->projection()->rebuildForEntry($source, $schema, ['author' => $second]);
 
         $rows = $this->referenceRows($source);
         self::assertCount(1, $rows);
@@ -80,8 +80,11 @@ final class ReferenceProjectionTest extends LemmaTestCase
         $entries = $this->entries();
         $source = $entries->createEntry($this->type, 'en', 1, 'user00000001');
         $target = $entries->createEntry($this->type, 'en', 1, 'user00000001');
+        $schema = ContentTypeSchema::fromArray([
+            ['name' => 'author', 'type' => 'reference'],
+        ]);
 
-        $entries->saveDraft($source, 'en', ['title' => 'A', 'author' => $target], 1, 0, 'user00000001');
+        $this->projection()->rebuildForEntry($source, $schema, ['author' => $target]);
 
         self::assertSame([$source], $this->projection()->referencesTo($target));
     }

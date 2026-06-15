@@ -6,6 +6,7 @@ namespace App\Content\Http\Controllers;
 
 use App\Content\Http\DTOs\RollbackData;
 use App\Content\Http\DTOs\Responses\Publication\VersionResultData;
+use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\ValidationException;
 use App\Http\DTOs\ErrorResponse;
@@ -29,8 +30,10 @@ use Symfony\Component\HttpFoundation\Request;
  */
 final class PublicationController
 {
-    public function __construct(private readonly PublishService $publisher)
-    {
+    public function __construct(
+        private readonly PublishService $publisher,
+        private readonly VersionRepository $versions,
+    ) {
     }
 
     /**
@@ -165,6 +168,24 @@ final class PublicationController
             return Response::validation(['version_uuid' => $e->getMessage()]);
         }
         return Response::success(['version_uuid' => $input->version_uuid], 'Rolled back to version.');
+    }
+
+    /**
+     * List every immutable published version for an entry+locale, newest first.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'List entry versions',
+        description: 'Lists immutable published versions for the entry+locale, newest first. Requires the '
+            . '`lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Entry versions.')]
+    public function versions(Request $request, string $uuid, string $locale): Response
+    {
+        return Response::success(['versions' => $this->versions->versionsFor($uuid, $locale)], 'Versions retrieved.');
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Repositories;
 
 use App\Content\Schema\ContentTypeSchema;
+use App\Content\Schema\SchemaParseException;
 use Glueful\Database\Connection;
 use Glueful\Helpers\Utils;
 
@@ -24,6 +25,7 @@ final class ContentTypeRepository
             'slug' => (string) $data['slug'],
             'name' => (string) $data['name'],
             'description' => isset($data['description']) ? (string) $data['description'] : null,
+            'status' => 'active',
             'schema' => json_encode($schema->toArray(), JSON_THROW_ON_ERROR),
             'schema_version' => 1,
             'created_by' => isset($data['created_by']) ? (string) $data['created_by'] : null,
@@ -38,6 +40,15 @@ final class ContentTypeRepository
     {
         $parsed = ContentTypeSchema::fromArray($schema);
         $current = $this->findByUuid($uuid);
+        if ($current === null) {
+            throw new SchemaParseException("content type {$uuid} not found");
+        }
+        $destructive = $this->destructiveChanges((array) $current['schema'], $parsed->toArray());
+        if ($destructive !== []) {
+            throw new SchemaParseException(
+                'destructive schema changes require an explicit backfill: ' . implode(', ', $destructive)
+            );
+        }
         $this->db->table('content_types')->where('uuid', '=', $uuid)->update([
             'schema' => json_encode($parsed->toArray(), JSON_THROW_ON_ERROR),
             'schema_version' => (int) $current['schema_version'] + 1,
@@ -48,13 +59,19 @@ final class ContentTypeRepository
     /** @return array<string,mixed>|null */
     public function findByUuid(string $uuid): ?array
     {
-        return $this->hydrate($this->db->table('content_types')->where('uuid', '=', $uuid)->first());
+        return $this->hydrate($this->db->table('content_types')
+            ->where('uuid', '=', $uuid)
+            ->where('status', '!=', 'deleted')
+            ->first());
     }
 
     /** @return array<string,mixed>|null */
     public function findBySlug(string $slug): ?array
     {
-        return $this->hydrate($this->db->table('content_types')->where('slug', '=', $slug)->first());
+        return $this->hydrate($this->db->table('content_types')
+            ->where('slug', '=', $slug)
+            ->where('status', '!=', 'deleted')
+            ->first());
     }
 
     /** @return list<array<string,mixed>> */
@@ -62,8 +79,19 @@ final class ContentTypeRepository
     {
         return array_map(
             fn(array $r): array => (array) $this->hydrate($r),
-            $this->db->table('content_types')->orderBy('slug', 'ASC')->get()
+            $this->db->table('content_types')
+                ->where('status', '!=', 'deleted')
+                ->orderBy('slug', 'ASC')
+                ->get()
         );
+    }
+
+    public function softDelete(string $uuid): void
+    {
+        $this->db->table('content_types')->where('uuid', '=', $uuid)->update([
+            'status' => 'deleted',
+            'updated_at' => $this->now(),
+        ]);
     }
 
     public function schemaFor(string $uuid): ContentTypeSchema
@@ -91,5 +119,38 @@ final class ContentTypeRepository
     private function now(): string
     {
         return date('Y-m-d H:i:s');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $old
+     * @param list<array<string,mixed>> $new
+     * @return list<string>
+     */
+    private function destructiveChanges(array $old, array $new): array
+    {
+        $oldByName = [];
+        foreach ($old as $field) {
+            if (isset($field['name']) && is_string($field['name'])) {
+                $oldByName[$field['name']] = $field;
+            }
+        }
+        $newByName = [];
+        foreach ($new as $field) {
+            if (isset($field['name']) && is_string($field['name'])) {
+                $newByName[$field['name']] = $field;
+            }
+        }
+
+        $changes = [];
+        foreach ($oldByName as $name => $field) {
+            if (!isset($newByName[$name])) {
+                $changes[] = "deleted field {$name}";
+                continue;
+            }
+            if (($field['type'] ?? null) !== ($newByName[$name]['type'] ?? null)) {
+                $changes[] = "retyped field {$name}";
+            }
+        }
+        return $changes;
     }
 }

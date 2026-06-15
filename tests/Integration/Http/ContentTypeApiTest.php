@@ -185,4 +185,47 @@ final class ContentTypeApiTest extends LemmaTestCase
             );
         }
     }
+
+    public function testUpdateSchemaRejectsDestructiveChangesUntilBackfilled(): void
+    {
+        $this->controller()->store(
+            $this->hydrate(CreateContentTypeData::class, [
+                'slug' => 'product',
+                'name' => 'Product',
+                'schema' => [
+                    ['name' => 'title', 'type' => 'string', 'required' => true],
+                    ['name' => 'price', 'type' => 'number'],
+                ],
+            ]),
+            new Request(),
+        );
+
+        $resp = $this->controller()->updateSchema(
+            $this->hydrate(UpdateContentTypeSchemaData::class, [
+                'schema' => [
+                    ['name' => 'title', 'type' => 'text', 'required' => true],
+                ],
+            ]),
+            new Request(),
+            'product',
+        );
+
+        self::assertSame(422, $resp->getStatusCode());
+        self::assertStringContainsString('destructive', (string) $resp->getContent());
+    }
+
+    public function testDestroySoftDeletesContentType(): void
+    {
+        $this->controller()->store(
+            $this->hydrate(CreateContentTypeData::class, [
+                'slug' => 'old_page', 'name' => 'Old Page', 'schema' => [],
+            ]),
+            new Request(),
+        );
+
+        $resp = $this->controller()->destroy(new Request(), 'old_page');
+
+        self::assertSame(200, $resp->getStatusCode());
+        self::assertNull((new ContentTypeRepository($this->connection()))->findBySlug('old_page'));
+    }
 }

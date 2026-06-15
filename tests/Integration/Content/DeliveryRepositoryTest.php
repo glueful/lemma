@@ -10,6 +10,7 @@ use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\SortCompiler;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
@@ -50,7 +51,8 @@ final class DeliveryRepositoryTest extends LemmaTestCase
             $entries,
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
-            new FieldValidator()
+            new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         ))->publish($uuid, 'en', 'user00000001');
         return $uuid;
     }
@@ -384,7 +386,8 @@ final class DeliveryRepositoryTest extends LemmaTestCase
             $entries,
             new VersionRepository($this->connection()),
             new ContentTypeRepository($this->connection()),
-            new FieldValidator()
+            new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         ))->publish($uuid, 'en', 'user00000001');
         return $uuid;
     }

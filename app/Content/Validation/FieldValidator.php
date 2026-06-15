@@ -6,9 +6,17 @@ namespace App\Content\Validation;
 
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Schema\FieldDefinition;
+use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Database\Connection;
 
 final class FieldValidator
 {
+    public function __construct(
+        private readonly ?Connection $db = null,
+        private readonly ?ApplicationContext $context = null,
+    ) {
+    }
+
     /**
      * Validate a fields payload against a content type schema.
      * Returns the cleaned payload (known fields only, in schema order).
@@ -36,6 +44,10 @@ final class FieldValidator
             $error = $this->checkType($field, $value);
             if ($error !== null) {
                 $errors[$field->name] = $error;
+                continue;
+            }
+            if ($field->type === 'asset' && is_string($value) && !$this->assetExistsOnMediaDisk($value)) {
+                $errors[$field->name] = 'must reference an active blob on the configured media disk';
                 continue;
             }
             // Normalize datetime values to canonical ISO-8601 UTC so stored values are
@@ -82,5 +94,23 @@ final class FieldValidator
             'json' => (is_array($value)) ? null : 'must be an object/array',
             default => 'unknown field type',
         };
+    }
+
+    private function assetExistsOnMediaDisk(string $uuid): bool
+    {
+        if ($this->db === null || $this->context === null) {
+            return true;
+        }
+
+        $disk = (string) config($this->context, 'lemma.media_disk', 'local');
+        try {
+            return $this->db->table('blobs')
+                ->where('uuid', '=', $uuid)
+                ->where('storage_type', '=', $disk)
+                ->where('status', '=', 'active')
+                ->first() !== null;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

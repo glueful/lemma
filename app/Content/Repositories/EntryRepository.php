@@ -110,7 +110,8 @@ final class EntryRepository
                 throw new OptimisticLockException();
             }
 
-            $this->rebuildReferenceProjection($entryUuid, $fields);
+            // Reference projection is a published-content index. Draft saves deliberately
+            // do not update it; publish rebuilds it from the immutable version snapshot.
         });
 
         // Reached only if the CAS succeeded (a stale save throws inside the transaction
@@ -189,28 +190,6 @@ final class EntryRepository
         return $draft === null ? [] : (array) $draft['fields'];
     }
 
-    /**
-     * Rebuild the entry_references projection for the saved draft. Resolves the content
-     * type's schema so we know which fields are reference/asset. If the content type is
-     * unresolvable (e.g. a synthetic uuid in a unit-style test), there are no schema fields
-     * to project, so the projection is simply cleared for this entry.
-     *
-     * @param array<string,mixed> $fields
-     */
-    private function rebuildReferenceProjection(string $entryUuid, array $fields): void
-    {
-        $entry = $this->findEntry($entryUuid);
-        $type = $entry === null
-            ? null
-            : $this->types->findByUuid((string) $entry['content_type_uuid']);
-        $schema = $type === null
-            ? ContentTypeSchema::fromArray([])
-            : ContentTypeSchema::fromArray($type['schema']);
-
-        (new ReferenceProjectionRepository($this->db))
-            ->rebuildForEntry($entryUuid, $schema, $fields);
-    }
-
     /** @return array<string,mixed>|null */
     public function findEntry(string $uuid): ?array
     {
@@ -238,6 +217,7 @@ final class EntryRepository
         $entry = $this->findEntry($uuid);
         $this->db->table('entries')->where('uuid', '=', $uuid)
             ->update(['status' => 'deleted', 'updated_at' => $this->now()]);
+        (new ReferenceProjectionRepository($this->db))->clearForEntry($uuid);
         $this->events?->emitAfterCommit(new EntryDeleted(
             entry: $uuid,
             type: $entry === null ? '' : (string) $entry['content_type_uuid'],
@@ -245,6 +225,14 @@ final class EntryRepository
             version: null,
             actor: null,
         ));
+    }
+
+    public function discardDraft(string $entryUuid, string $locale): void
+    {
+        $this->db->table('entry_drafts')
+            ->where('entry_uuid', '=', $entryUuid)
+            ->where('locale', '=', $locale)
+            ->delete();
     }
 
     private function now(): string

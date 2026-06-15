@@ -16,6 +16,7 @@ use App\Content\Preview\PreviewToken;
 use App\Content\Preview\PreviewTokenException;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
@@ -123,6 +124,7 @@ final class PreviewApiTest extends LemmaTestCase
             $this->versions(),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         );
         $versionUuid = $publish->publish($uuid, 'en', 'tester');
 
@@ -181,6 +183,7 @@ final class PreviewApiTest extends LemmaTestCase
             $this->versions(),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         );
         $versionA = $publish->publish($entryA, 'en', 'tester');
 
@@ -205,6 +208,7 @@ final class PreviewApiTest extends LemmaTestCase
             $this->versions(),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         );
         $versionEn = $publish->publish($entry, 'en', 'tester');
 
@@ -241,6 +245,7 @@ final class PreviewApiTest extends LemmaTestCase
             $this->versions(),
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
         );
         $versionUuid = $publish->publish($uuid, 'en', 'tester');
         $this->entries()->saveDraft($uuid, 'en', ['title' => 'Moved On'], 1, 1, 'tester');

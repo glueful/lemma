@@ -45,6 +45,48 @@ final class ContentTypeApiTest extends LemmaTestCase
         );
         self::assertSame(201, $resp->getStatusCode());
         self::assertNotNull((new ContentTypeRepository($this->connection()))->findBySlug('post'));
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape(
+            $data,
+            \App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeResultData::class
+        );
+        self::assertDataMatchesDtoShape(
+            $data['content_type'],
+            \App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeData::class
+        );
+        foreach ($data['content_type']['schema'] as $field) {
+            self::assertDataMatchesDtoShape(
+                $field,
+                \App\Content\Http\DTOs\Responses\ContentTypes\FieldSchemaData::class,
+                exact: false   // toArray() omits falsy keys
+            );
+        }
+    }
+
+    public function testIndexListsTypes(): void
+    {
+        // Seed one content type so the schema loop has data.
+        $this->controller()->store(
+            $this->hydrate(CreateContentTypeData::class, [
+                'slug' => 'article', 'name' => 'Article',
+                'schema' => [['name' => 'headline', 'type' => 'string', 'required' => true]],
+            ]),
+            new Request(),
+        );
+        $resp = $this->controller()->index(new Request());
+        self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape(
+            $data,
+            \App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeListData::class
+        );
+        self::assertNotEmpty($data['content_types']);
+        foreach ($data['content_types'] as $item) {
+            self::assertDataMatchesDtoShape(
+                $item,
+                \App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeData::class
+            );
+        }
     }
 
     public function testStoreRejectsBadSchema(): void

@@ -13,6 +13,8 @@ use App\Content\Http\DTOs\CreateContentTypeData;
 use App\Content\Http\DTOs\FieldDefinitionData;
 use App\Content\Http\DTOs\UpdateContentTypeSchemaData;
 use App\Content\Schema\SchemaParseException;
+use App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeListData;
+use App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeResultData;
 use App\Http\DTOs\ErrorResponse;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
@@ -52,7 +54,7 @@ final class ContentTypeController
             . 'Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'All content types.')]
+    #[ApiResponse(200, ContentTypeListData::class, description: 'All content types.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -86,7 +88,7 @@ final class ContentTypeController
             . 'Requires the `lemma.models.manage` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(201, description: 'Content type created.')]
+    #[ApiResponse(201, ContentTypeResultData::class, description: 'Content type created.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -141,7 +143,7 @@ final class ContentTypeController
             . 'Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'The content type.')]
+    #[ApiResponse(200, ContentTypeResultData::class, description: 'The content type.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,
@@ -181,7 +183,7 @@ final class ContentTypeController
             . 'Requires the `lemma.models.manage` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[ApiResponse(200, description: 'Schema updated.')]
+    #[ApiResponse(200, ContentTypeResultData::class, description: 'Schema updated.')]
     #[ApiResponse(
         401,
         schema: ErrorResponse::class,

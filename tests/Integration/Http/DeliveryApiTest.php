@@ -215,4 +215,37 @@ final class DeliveryApiTest extends LemmaTestCase
         self::assertSame(1, $body['per_page']);
         self::assertCount(1, $body['data']);
     }
+
+    /**
+     * Drift guard: cursor-mode list payload matches DeliveryListData; each item
+     * matches DeliveryItemData. No page/perPage — exercises the documented DTO shape.
+     */
+    public function testIndexCursorModeDtoShape(): void
+    {
+        $this->publish(['title' => 'Drift item', 'priority' => 1]);
+
+        // Cursor mode: no page/perPage query params.
+        $resp = $this->controller()->index($this->get(), 'post');
+        self::assertSame(200, $resp->getStatusCode());
+
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Delivery\DeliveryListData::class);
+        foreach ($data['items'] as $item) {
+            self::assertDataMatchesDtoShape($item, \App\Content\Http\DTOs\Responses\Delivery\DeliveryItemData::class);
+        }
+    }
+
+    /**
+     * Drift guard: the single-entry show payload matches DeliveryItemData.
+     */
+    public function testShowDtoShape(): void
+    {
+        $uuid = $this->publish(['title' => 'Drift show', 'priority' => 2]);
+
+        $resp = $this->controller()->show($this->get(), 'post', $uuid);
+        self::assertSame(200, $resp->getStatusCode());
+
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Delivery\DeliveryItemData::class);
+    }
 }

@@ -14,6 +14,8 @@ use App\Content\Delivery\InvalidFilterException;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Schema\ContentTypeSchema;
+use App\Content\Http\DTOs\Responses\Delivery\DeliveryItemData;
+use App\Content\Http\DTOs\Responses\Delivery\DeliveryListData;
 use App\Http\DTOs\ErrorResponse;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
@@ -115,6 +117,7 @@ final class DeliveryController
     )]
     #[ApiResponse(
         200,
+        schema: DeliveryListData::class,
         description: 'A page of published entries (cursor mode by default; offset mode replaces `data` '
             . 'with the item array plus top-level pagination keys).',
     )]
@@ -215,7 +218,7 @@ final class DeliveryController
         tags: ['Lemma Delivery'],
     )]
     #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to lemma.default_locale).')]
-    #[ApiResponse(200, description: 'The published entry.')]
+    #[ApiResponse(200, schema: DeliveryItemData::class, description: 'The published entry.')]
     #[ApiResponse(
         304,
         description: 'Not Modified — the supplied If-None-Match ETag still matches the published version.',

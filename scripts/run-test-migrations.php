@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Dotenv\Dotenv;
 use Glueful\Database\Migrations\MigrationManager;
+use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Framework;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -39,8 +40,47 @@ $context = Framework::create($root)
     ->boot()
     ->getContext();
 
-/** @var MigrationManager $manager */
-$manager = $context->getContainer()->get(MigrationManager::class);
+$manager = new MigrationManager($root . '/database/migrations', null, $context);
+$frameworkMigrations = $root . '/vendor/glueful/framework/migrations';
+$frameworkSources = [
+    'auth' => 'glueful/framework',
+    'uploads' => 'glueful/framework:uploads',
+    'queue' => 'glueful/framework:queue',
+    'scheduler' => 'glueful/framework:scheduler',
+    'notifications' => 'glueful/framework:notifications',
+    'metrics' => 'glueful/framework:metrics',
+];
+
+foreach ($frameworkSources as $dir => $source) {
+    $manager->addMigrationPath($frameworkMigrations . '/' . $dir, MigrationPriority::FOUNDATION, $source);
+}
+
+$manager->addMigrationPath(
+    $root . '/vendor/glueful/users/migrations',
+    MigrationPriority::IDENTITY,
+    'glueful/users'
+);
+$manager->addMigrationPath(
+    $root . '/vendor/glueful/i18n/migrations',
+    MigrationPriority::DEFAULT,
+    'glueful/i18n'
+);
+$manager->addMigrationPath(
+    $root . '/vendor/glueful/import-export/migrations',
+    MigrationPriority::DEFAULT,
+    'glueful/import-export'
+);
+$manager->addMigrationPath(
+    $root . '/vendor/glueful/aegis/migrations',
+    MigrationPriority::DEPENDENT,
+    'glueful/aegis'
+);
+$manager->addMigrationPath(
+    $root . '/database/dependent-migrations',
+    MigrationPriority::DEPENDENT,
+    'app:dependent'
+);
+
 $pending = $manager->getPendingMigrations();
 
 if ($pending === []) {
@@ -64,8 +104,6 @@ if ($pending === []) {
     }
 }
 
-$connection = $context->getContainer()->get(Glueful\Database\Connection::class);
-$schema = $connection->getSchemaBuilder();
 $requiredTables = [
     'users',
     'roles',
@@ -78,12 +116,23 @@ $requiredTables = [
     'entries',
 ];
 
-$missing = [];
-foreach ($requiredTables as $table) {
-    if (!$schema->hasTable($table)) {
-        $missing[] = $table;
-    }
-}
+$dsn = sprintf(
+    'pgsql:host=%s;port=%s;dbname=%s',
+    $envValue('DB_PGSQL_HOST', '127.0.0.1'),
+    $envValue('DB_PGSQL_PORT', '5432'),
+    $database
+);
+$pdo = new PDO($dsn, (string) $envValue('DB_PGSQL_USERNAME', 'postgres'), (string) $envValue('DB_PGSQL_PASSWORD', ''), [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+]);
+$schema = $envValue('DB_PGSQL_SCHEMA', 'public');
+$placeholders = implode(', ', array_fill(0, count($requiredTables), '?'));
+$statement = $pdo->prepare(
+    "select table_name from information_schema.tables where table_schema = ? and table_name in ({$placeholders})"
+);
+$statement->execute(array_merge([(string) $schema], $requiredTables));
+$existing = $statement->fetchAll(PDO::FETCH_COLUMN);
+$missing = array_values(array_diff($requiredTables, array_map('strval', $existing)));
 
 if ($missing !== []) {
     $fail('Missing required test tables after migrations: ' . implode(', ', $missing));

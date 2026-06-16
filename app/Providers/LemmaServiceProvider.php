@@ -47,6 +47,7 @@ use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Support\FieldSelection\Projector;
@@ -289,6 +290,15 @@ final class LemmaServiceProvider extends ServiceProvider
         // Routes: routes/lemma_admin.php is auto-discovered by RouteManifest. Do NOT
         // call loadRoutesFrom() here — it would double-register the routes and the
         // Router throws on duplicate static paths.
+
+        // These seed rows depend on Aegis' RBAC tables, whose extension migrations run
+        // at DEPENDENT priority. Register the seeder in the same tier so it runs after
+        // Aegis' lower-numbered migrations instead of before them as an app migration.
+        $this->loadMigrationsFrom(
+            dirname(__DIR__, 2) . '/database/dependent-migrations',
+            MigrationPriority::DEPENDENT,
+            'app:dependent'
+        );
 
         $this->registerEventListeners($context);
 

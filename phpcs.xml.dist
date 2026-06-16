@@ -18,10 +18,11 @@
       Lemma migrations are intentionally GLOBAL (unnamespaced): the framework's
       MigrationManager include()s each file and instantiates the bare class name,
       and framework-core + every Glueful extension ships migrations this way.
-      Exclude only the missing-namespace sniff, and only for the migrations dir.
+      Exclude only the missing-namespace sniff, and only for migration dirs.
     -->
     <rule ref="PSR1.Classes.ClassDeclaration.MissingNamespace">
         <exclude-pattern>database/migrations/*</exclude-pattern>
+        <exclude-pattern>database/dependent-migrations/*</exclude-pattern>
     </rule>
 
     <!--

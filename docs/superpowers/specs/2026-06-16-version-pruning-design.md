@@ -180,8 +180,10 @@ concern, not an editor action. (A future admin "retention settings" UI can call 
 
 ## Events
 
-No change to the §5 frozen taxonomy. Pruning emits no content event. It writes a
-structured log line per pass (counts + policy) for observability.
+No change to the §5 frozen taxonomy. Pruning emits no content event. It writes one
+structured log line per **enabled** prune pass (counts + policy) for observability; a
+disabled policy is a silent no-op (the command separately reports "pruning disabled" to
+the operator).
 
 ## Testing (Postgres, `LemmaTestCase`)
 

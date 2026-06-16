@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
          cacheDirectory=".phpunit.cache">
     <testsuites>
@@ -21,14 +21,12 @@
         </include>
     </source>
     <php>
-        <!--
-          Override only the environment and the Postgres database name. Host, user
-          and (crucially) the password come from .env so the real password never
-          lives in this committed file. The framework pgsql block reads DB_PGSQL_*,
-          so the var MUST be DB_PGSQL_DATABASE (not DB_DATABASE).
-        -->
         <env name="APP_ENV" value="testing"/>
         <env name="DB_DRIVER" value="pgsql"/>
         <env name="DB_PGSQL_DATABASE" value="lemma_test"/>
+        <env name="CACHE_DRIVER" value="array"/>
+        <env name="CACHE_TAGS" value="false"/>
+        <env name="QUERY_CACHE_ENABLED" value="false"/>
+        <env name="QUERY_CACHE_STORE" value="array"/>
     </php>
 </phpunit>

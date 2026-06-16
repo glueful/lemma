@@ -299,8 +299,14 @@ GET /v1/content/{type}/{slug-or-uuid}  -- single published entry
   scope; per-type scopes (`read:content:{type}`) when a real consumer needs
   them. Public/anonymous access is a per-content-type opt-in.
 - **Field selection & expansion:** the framework's `?fields=` / `?expand=`
-  (REST and GraphQL-style syntaxes) with `#[Fields]` whitelists per route.
-  This is the product's answer to GraphQL — stated, deliberate.
+  (REST and GraphQL-style syntaxes) with the **content-type schema as the
+  whitelist** — not the framework's static `#[Fields]` route attribute.
+  Delivery is intentionally dynamic: the allowed fields are derived per request
+  from the model definition (`schema->fields()`), so the whitelist tracks the
+  model and rejects any undeclared field. `#[Fields]` suits fixed DTO/controller
+  shapes; it cannot express a per-model dynamic surface, so Lemma deliberately
+  uses the schema-derived allow-list instead. This is the product's answer to
+  GraphQL — stated, deliberate.
 - **Filtering/sorting:** `?filter[field]=` / `?sort=` restricted to the
   model's `filterable` fields (§1); cursor pagination (stable under
   publish churn), page/perPage also supported for convenience.

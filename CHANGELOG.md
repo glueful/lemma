@@ -50,6 +50,9 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   creates a target-locale draft, optionally copied from a source locale draft.
 - Field-level localization automation: source-locale copy now preserves non-localized/shared fields
   by key presence while leaving `localized: true` fields empty for translation.
+- Per-locale RBAC support through Aegis resource-filtered grants: locale-targeted admin routes
+  now authorize against `locale:<code>` while locale-agnostic routes keep the coarse `lemma`
+  resource. Seeded unscoped roles remain backward compatible.
 
 #### Publishing pipeline
 - A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,

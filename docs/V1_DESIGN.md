@@ -224,17 +224,19 @@ API/CLI. The division of labor:
   fallback chain for route slugs and entry UUIDs, while preserving the actual
   served locale in the response payload.
 
-V1 deliberately does not add per-locale RBAC rules or UI-only translation
-assignment state. Those are admin-interface/workflow concerns layered on top of
-the backend contract above. **Settled design (per-locale RBAC):**
+V1 supports backend per-locale RBAC through Aegis resource-filtered grants: locale-targeted
+admin routes authorize against `locale:<code>` while locale-agnostic routes keep the coarse
+`lemma` resource. Lemma does not add a UI/API for assigning per-locale grants; that remains an
+admin-interface workflow layered on top of Aegis. **Implemented design:**
 [`docs/superpowers/specs/2026-06-16-per-locale-rbac-design.md`](superpowers/specs/2026-06-16-per-locale-rbac-design.md)
-(via Aegis resource filters; per-content-type deferred) — not yet implemented.
+(via Aegis resource filters; per-content-type deferred).
 
 Field-level localization (`localized: true` in the field schema) is already
 representable. V1 keeps whole-entry locale variants as the persisted unit; a
-future editor can use the flag to automate copy behavior for non-localized fields.
-**Settled design:** [`docs/superpowers/specs/2026-06-16-field-localization-design.md`](superpowers/specs/2026-06-16-field-localization-design.md)
-(flag-aware copy-on-create; copy-on-change deferred) — not yet implemented.
+future editor can use the flag to identify translated fields. Lemma now automates
+flag-aware copy-on-create for locale drafts; copy-on-change remains deferred.
+**Implemented design:** [`docs/superpowers/specs/2026-06-16-field-localization-design.md`](superpowers/specs/2026-06-16-field-localization-design.md)
+(flag-aware copy-on-create; copy-on-change deferred).
 
 ---
 

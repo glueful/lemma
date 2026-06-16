@@ -6,12 +6,14 @@ namespace App\Tests\Integration\Http;
 
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\DTOs\RollbackData;
+use App\Content\Localization\ContentLocaleService;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
+use App\Tests\Support\FakeLocaleManager;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Validation\Contracts\RequestData;
 use Glueful\Validation\RequestDataHydrator;
@@ -53,7 +55,7 @@ final class PublicationApiTest extends LemmaTestCase
             new ContentTypeRepository($this->connection()),
             new FieldValidator(),
             new ReferenceProjectionRepository($this->connection()),
-        ), $versions);
+        ), $versions, new ContentLocaleService($this->appContext(), new FakeLocaleManager()));
     }
 
     /**
@@ -75,6 +77,14 @@ final class PublicationApiTest extends LemmaTestCase
         self::assertNotNull((new VersionRepository($this->connection()))->findPublication($this->entry, 'en'));
         $data = json_decode((string) $resp->getContent(), true)['data'];
         self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Publication\VersionResultData::class);
+    }
+
+    public function testPublishRejectsDisabledLocale(): void
+    {
+        $resp = $this->controller()->publish(new Request(), $this->entry, 'de');
+
+        self::assertSame(422, $resp->getStatusCode());
+        self::assertNull((new VersionRepository($this->connection()))->findPublication($this->entry, 'de'));
     }
 
     public function testUnpublishRemovesPin(): void

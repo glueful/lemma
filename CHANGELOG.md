@@ -40,6 +40,14 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   `import_export.importer`. It supports dry-run validation and commit-mode idempotent upserts of
   Lemma content NDJSON bundles by each record kind's natural key.
 
+#### Localization
+- i18n-backed content locale validation through `ContentLocaleService`: when `glueful/i18n` is
+  installed, authoring, publishing, routing, and preview-mint locale params must be enabled i18n
+  locales; without i18n, Lemma falls back to `lemma.default_locale`.
+- Entry locale variant workflow endpoints: `GET /v1/admin/entries/{uuid}/locales` summarizes each
+  locale's draft/publication/route state, and `POST /v1/admin/entries/{uuid}/locales/{locale}`
+  creates a target-locale draft, optionally copied from a source locale draft.
+
 #### Publishing pipeline
 - A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,
   `model.created/updated/deleted`, `asset.attached/detached`) with identity-only payloads

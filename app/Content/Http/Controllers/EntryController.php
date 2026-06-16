@@ -6,10 +6,13 @@ namespace App\Content\Http\Controllers;
 
 use App\Content\Http\DTOs\CreateEntryData;
 use App\Content\Http\DTOs\AssignRouteData;
+use App\Content\Http\DTOs\CopyLocaleData;
 use App\Content\Http\DTOs\SaveDraftData;
 use App\Content\Http\DTOs\Responses\Entries\DraftResultData;
 use App\Content\Http\DTOs\Responses\Entries\EntryCreateResultData;
+use App\Content\Http\DTOs\Responses\Entries\EntryLocalesResultData;
 use App\Content\Http\DTOs\Responses\Entries\EntryResultData;
+use App\Content\Localization\ContentLocaleService;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
@@ -46,6 +49,7 @@ final class EntryController
         private readonly FieldValidator $validator,
         private readonly RouteRepository $routes,
         private readonly ReferenceProjectionRepository $references,
+        private readonly ContentLocaleService $locales,
     ) {
     }
 
@@ -84,7 +88,10 @@ final class EntryController
         if ($type === null) {
             return Response::validation(['content_type' => 'unknown content type']);
         }
-        $locale = $input->locale ?? (string) config($this->context, 'lemma.default_locale', 'en');
+        $locale = $input->locale ?? $this->locales->default();
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         $uuid = $this->entries->createEntry(
             (string) $type['uuid'],
             $locale,
@@ -163,6 +170,9 @@ final class EntryController
     #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function getDraft(Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         $draft = $this->entries->findDraft($uuid, $locale);
         return $draft === null
             ? Response::notFound('Draft not found.')
@@ -220,6 +230,9 @@ final class EntryController
     #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function saveDraft(SaveDraftData $input, Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         $entry = $this->entries->findEntry($uuid);
         if ($entry === null) {
             return Response::notFound('Entry not found.');
@@ -266,6 +279,9 @@ final class EntryController
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No draft for that entry/locale.')]
     public function discardDraft(Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         if ($this->entries->findDraft($uuid, $locale) === null) {
             return Response::notFound('Draft not found.');
         }
@@ -325,6 +341,89 @@ final class EntryController
     }
 
     /**
+     * List the locales that currently have an editable draft, published pin, or route for
+     * an entry. This is the backend contract the admin UI uses to show translation state.
+     *
+     * @param string $uuid Entry UUID
+     */
+    #[ApiOperation(
+        summary: 'List entry locale variants',
+        description: 'Lists per-locale draft, publication, and route state for an entry. Requires the '
+            . '`lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, schema: EntryLocalesResultData::class, description: 'Entry locale variants.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    public function locales(Request $request, string $uuid): Response
+    {
+        if ($this->entries->findEntry($uuid) === null) {
+            return Response::notFound('Entry not found.');
+        }
+
+        return Response::success(['locales' => $this->entries->localeSummary($uuid)], 'Locales retrieved.');
+    }
+
+    /**
+     * Create a mutable draft for a target locale, optionally copying fields from an
+     * existing source-locale draft. Published content is not changed until publish.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale Target BCP-47 locale, e.g. "fr"
+     */
+    #[ApiOperation(
+        summary: 'Create an entry locale draft',
+        description: 'Creates a draft for the target locale, optionally copying the current draft from '
+            . '`source_locale`. Requires the `lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(201, schema: DraftResultData::class, description: 'Locale draft created.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(409, schema: ErrorResponse::class, envelope: false, description: 'Draft already exists.')]
+    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Invalid locale or source locale.')]
+    public function createLocaleDraft(
+        CopyLocaleData $input,
+        Request $request,
+        string $uuid,
+        string $locale,
+    ): Response {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
+        if ($input->source_locale !== null) {
+            $sourceErrors = $this->locales->validate($input->source_locale, 'source_locale');
+            if ($sourceErrors !== []) {
+                return Response::validation($sourceErrors);
+            }
+        }
+
+        $entry = $this->entries->findEntry($uuid);
+        if ($entry === null) {
+            return Response::notFound('Entry not found.');
+        }
+        $type = $this->types->findByUuid((string) $entry['content_type_uuid']);
+        if ($type === null) {
+            return Response::validation(['content_type' => 'unknown content type']);
+        }
+
+        try {
+            $draft = $this->entries->createLocaleDraft(
+                $uuid,
+                $locale,
+                (int) $type['schema_version'],
+                $this->actor($request),
+                $input->source_locale,
+                $input->overwrite,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return Response::validation(['source_locale' => $e->getMessage()]);
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), Response::HTTP_CONFLICT, ['code' => 'DRAFT_EXISTS']);
+        }
+
+        return Response::created(['draft' => $draft], 'Locale draft created.');
+    }
+
+    /**
      * Assign or replace the route slug for an entry+locale.
      *
      * @param string $uuid   Entry UUID
@@ -341,6 +440,9 @@ final class EntryController
     #[ApiResponse(409, schema: ErrorResponse::class, envelope: false, description: 'Slug already in use.')]
     public function assignRoute(AssignRouteData $input, Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         $entry = $this->entries->findEntry($uuid);
         if ($entry === null) {
             return Response::notFound('Entry not found.');
@@ -373,6 +475,9 @@ final class EntryController
     #[ApiResponse(200, description: 'Route removed.')]
     public function removeRoute(Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         $this->routes->remove($uuid, $locale);
         return Response::success([], 'Route removed.');
     }

@@ -27,6 +27,7 @@ use App\Content\Events\ModelDeleted;
 use App\Content\Events\ModelUpdated;
 use App\Content\Http\RequireContentScope;
 use App\Content\Http\RequireLemmaPermission;
+use App\Content\Localization\ContentLocaleService;
 use App\Content\Events\AssetAttached;
 use App\Content\Events\AssetDetached;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
@@ -119,6 +120,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             FieldValidator::class => [
                 'class' => FieldValidator::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ContentLocaleService::class => [
+                'class' => ContentLocaleService::class,
                 'shared' => true,
                 'autowire' => true,
             ],

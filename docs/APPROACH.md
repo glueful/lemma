@@ -179,7 +179,9 @@ These should be Lemma core or Lemma-owned modules/extensions:
 - SEO metadata, redirects, sitemap;
 - publishing pipeline integrating core webhooks, scheduler, CDN, search, and queues;
 - content migrations/importers for WordPress, Markdown/MDX, and CSV;
-- localization for content, built on the `glueful/i18n` extension's base layer (locales, catalogs, fallback rules);
+- localization for content: backend/API support is in v1 via `glueful/i18n` locale validation,
+  per-locale drafts/publishing/routes, locale-variant status, copy-to-locale drafts, and
+  single-entry delivery fallback; the first-party admin UI still needs the visual locale workflow;
 - forms;
 - navigation/menu builder;
 - ecommerce content integration;

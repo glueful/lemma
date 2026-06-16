@@ -216,6 +216,117 @@ final class EntryRepository
         return $row;
     }
 
+    /**
+     * Create a draft row for a locale that does not yet have one. When a source locale
+     * is supplied, copy its current draft fields; otherwise create an empty working copy.
+     *
+     * @return array<string,mixed>
+     */
+    public function createLocaleDraft(
+        string $entryUuid,
+        string $locale,
+        int $schemaVersion,
+        ?string $actor,
+        ?string $sourceLocale = null,
+        bool $overwrite = false,
+    ): array {
+        $existing = $this->findDraft($entryUuid, $locale);
+        if ($existing !== null && !$overwrite) {
+            throw new \RuntimeException('Draft already exists for locale.');
+        }
+
+        $fields = [];
+        if ($sourceLocale !== null) {
+            $source = $this->findDraft($entryUuid, $sourceLocale);
+            if ($source === null) {
+                throw new \InvalidArgumentException('Source draft not found.');
+            }
+            $fields = (array) $source['fields'];
+        }
+
+        $data = [
+            'entry_uuid' => $entryUuid,
+            'locale' => $locale,
+            'fields' => json_encode($fields, JSON_THROW_ON_ERROR),
+            'schema_version' => $schemaVersion,
+            'lock_version' => 0,
+            'updated_by' => $actor,
+            'updated_at' => $this->now(),
+        ];
+
+        if ($existing === null) {
+            $this->db->table('entry_drafts')->insert($data);
+        } else {
+            $this->db->table('entry_drafts')
+                ->where('entry_uuid', '=', $entryUuid)
+                ->where('locale', '=', $locale)
+                ->update($data);
+        }
+
+        return $this->findDraft($entryUuid, $locale) ?? [];
+    }
+
+    /**
+     * Summarize the localized working/publication state for an entry, sorted by locale.
+     *
+     * @return list<array{
+     *   locale:string,
+     *   has_draft:bool,
+     *   is_published:bool,
+     *   route_slug:?string,
+     *   draft_updated_at:?string,
+     *   published_at:?string
+     * }>
+     */
+    public function localeSummary(string $entryUuid): array
+    {
+        $locales = [];
+
+        foreach ($this->db->table('entry_drafts')->where('entry_uuid', '=', $entryUuid)->get() as $row) {
+            $locale = (string) $row['locale'];
+            $locales[$locale] ??= [
+                'locale' => $locale,
+                'has_draft' => false,
+                'is_published' => false,
+                'route_slug' => null,
+                'draft_updated_at' => null,
+                'published_at' => null,
+            ];
+            $locales[$locale]['has_draft'] = true;
+            $locales[$locale]['draft_updated_at'] = $row['updated_at'] ?? null;
+        }
+
+        foreach ($this->db->table('entry_publications')->where('entry_uuid', '=', $entryUuid)->get() as $row) {
+            $locale = (string) $row['locale'];
+            $locales[$locale] ??= [
+                'locale' => $locale,
+                'has_draft' => false,
+                'is_published' => false,
+                'route_slug' => null,
+                'draft_updated_at' => null,
+                'published_at' => null,
+            ];
+            $locales[$locale]['is_published'] = true;
+            $locales[$locale]['published_at'] = $row['published_at'] ?? null;
+        }
+
+        foreach ($this->db->table('entry_routes')->where('entry_uuid', '=', $entryUuid)->get() as $row) {
+            $locale = (string) $row['locale'];
+            $locales[$locale] ??= [
+                'locale' => $locale,
+                'has_draft' => false,
+                'is_published' => false,
+                'route_slug' => null,
+                'draft_updated_at' => null,
+                'published_at' => null,
+            ];
+            $locales[$locale]['route_slug'] = $row['slug'] ?? null;
+        }
+
+        ksort($locales);
+        return array_values($locales);
+    }
+
     public function softDelete(string $uuid): void
     {
         $entry = $this->findEntry($uuid);

@@ -52,6 +52,12 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
     $router->delete('/entries/{uuid}', [EntryController::class, 'destroy'])
         ->middleware('lemma_permission:lemma.entries.write');
 
+    $router->get('/entries/{uuid}/locales', [EntryController::class, 'locales'])
+        ->middleware('lemma_permission:lemma.entries.read');
+
+    $router->post('/entries/{uuid}/locales/{locale}', [EntryController::class, 'createLocaleDraft'])
+        ->middleware('lemma_permission:lemma.entries.write');
+
     $router->get('/entries/{uuid}/versions/{locale}', [PublicationController::class, 'versions'])
         ->middleware('lemma_permission:lemma.entries.read');
 

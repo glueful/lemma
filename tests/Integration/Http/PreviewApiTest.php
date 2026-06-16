@@ -9,6 +9,7 @@ use App\Content\Http\DTOs\MintPreviewData;
 use App\Content\Http\DTOs\Responses\Preview\PreviewData;
 use App\Content\Http\DTOs\Responses\Preview\PreviewMintData;
 use App\Content\Http\DTOs\Responses\Preview\PreviewResultData;
+use App\Content\Localization\ContentLocaleService;
 use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
@@ -20,6 +21,7 @@ use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
+use App\Tests\Support\FakeLocaleManager;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Validation\Contracts\RequestData;
 use Glueful\Validation\RequestDataHydrator;
@@ -64,7 +66,11 @@ final class PreviewApiTest extends LemmaTestCase
 
     private function controller(): PreviewController
     {
-        return new PreviewController($this->minter(), $this->reader());
+        return new PreviewController(
+            $this->minter(),
+            $this->reader(),
+            new ContentLocaleService($this->appContext(), new FakeLocaleManager()),
+        );
     }
 
     /** A GET request whose `{token}` path param is supplied directly to show(). */
@@ -234,6 +240,15 @@ final class PreviewApiTest extends LemmaTestCase
         self::assertIsString($data['token']);
         self::assertStringContainsString('.', $data['token']);
         self::assertSame($this->minter()->ttlSeconds(), $data['expires_in']);
+    }
+
+    public function testMintEndpointRejectsDisabledLocale(): void
+    {
+        $uuid = $this->seedDraft('Mint Me');
+
+        $resp = $this->controller()->mint($this->hydrate(MintPreviewData::class, []), new Request(), $uuid, 'de');
+
+        self::assertSame(422, $resp->getStatusCode());
     }
 
     public function testMintEndpointPinsVersionFromBody(): void

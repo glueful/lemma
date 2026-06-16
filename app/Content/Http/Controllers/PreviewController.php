@@ -7,6 +7,7 @@ namespace App\Content\Http\Controllers;
 use App\Content\Http\DTOs\MintPreviewData;
 use App\Content\Http\DTOs\Responses\Preview\PreviewMintData;
 use App\Content\Http\DTOs\Responses\Preview\PreviewResultData;
+use App\Content\Localization\ContentLocaleService;
 use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
@@ -47,6 +48,7 @@ final class PreviewController
     public function __construct(
         private readonly PreviewMinter $minter,
         private readonly PreviewReader $reader,
+        private readonly ContentLocaleService $locales,
     ) {
     }
 
@@ -78,6 +80,9 @@ final class PreviewController
     #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function mint(MintPreviewData $input, Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         // version_uuid is optional: absent means "mint from the current draft". Existence /
         // ownership of a pinned version is validated by the reader at read time (domain rule).
         $token = $this->minter->mint($uuid, $locale, $input->version_uuid);

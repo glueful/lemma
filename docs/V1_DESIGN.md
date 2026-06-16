@@ -162,12 +162,14 @@ Draft reads (admin + preview) go through a separate repository over
 
 ---
 
-## 3. Locale dimension: in the schema now, single-locale in the product
+## 3. Locale dimension: i18n-backed content localization
 
 **Decision:** `locale` is a column on `entry_drafts`, `entry_versions`,
-`entry_publications`, and `entry_routes` from the first migration. The v1 *product* operates with a
-single default locale; there is no locale UI, no fallback resolution, no
-per-locale permissions.
+`entry_publications`, and `entry_routes` from the first migration. V1 supports
+localized content at the backend/API layer: enabled-locale validation, per-locale
+drafts, per-locale publishing state, per-locale routes, locale-variant summary,
+copy-to-locale draft creation, preview tokens bound to `{entry, locale}`, and
+single-entry delivery fallback through the configured i18n fallback chain.
 
 **Rationale:** retrofitting a locale dimension onto live content tables is the
 single most painful CMS migration there is. Carrying the column costs one
@@ -181,22 +183,27 @@ single-parent fallback chains (loop-protected), a request locale resolver
 tenant → app locale), catalogs, pluralization, and a locale management
 API/CLI. The division of labor:
 
-- **v1 (i18n optional, per APPROACH.md's "don't require every extension"
-  rule):** Lemma's default content locale comes from config
-  (`i18n.default_locale` when the extension is installed, an app-level
-  default otherwise). The locale value written to content rows is a plain
-  code; nothing resolves or falls back.
-- **Localization phase (i18n becomes a dependency of the feature):** locale
-  validity, the available-locales list, fallback-chain resolution for content
-  reads ("no `de-CH` version published → serve `de`"), and request locale
-  detection all bind to the i18n extension's contracts. Lemma owns only what
-  is genuinely content-domain: per-locale publishing state, per-locale
-  routes, localized-field copying, and the translation-status UI.
+- `ContentLocaleService` is Lemma's local seam over i18n. When `glueful/i18n`
+  is installed, it reads enabled/default/fallback locales from
+  `LocaleManagerInterface`; without i18n, Lemma falls back to
+  `lemma.default_locale`.
+- Admin authoring, route assignment, publishing, rollback/version listing, and
+  preview-token minting validate locale params against the enabled locale set.
+- `GET /v1/admin/entries/{uuid}/locales` lists the per-locale draft,
+  publication, and route state that the admin UI needs for translation status.
+- `POST /v1/admin/entries/{uuid}/locales/{locale}` creates a target-locale
+  draft, optionally copying field values from a source-locale draft.
+- Single-entry delivery reads (`/v1/content/{type}/{slugOrUuid}`) walk the i18n
+  fallback chain for route slugs and entry UUIDs, while preserving the actual
+  served locale in the response payload.
+
+V1 deliberately does not add per-locale RBAC rules or UI-only translation
+assignment state. Those are admin-interface/workflow concerns layered on top of
+the backend contract above.
 
 Field-level localization (`localized: true` in the field schema) is already
-representable: non-localized fields are simply copied into each locale's
-version rows when localization arrives. The field schema flag exists in v1 but
-is inert.
+representable. V1 keeps whole-entry locale variants as the persisted unit; a
+future editor can use the flag to automate copy behavior for non-localized fields.
 
 ---
 

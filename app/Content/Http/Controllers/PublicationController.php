@@ -6,6 +6,7 @@ namespace App\Content\Http\Controllers;
 
 use App\Content\Http\DTOs\RollbackData;
 use App\Content\Http\DTOs\Responses\Publication\VersionResultData;
+use App\Content\Localization\ContentLocaleService;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\ValidationException;
@@ -33,6 +34,7 @@ final class PublicationController
     public function __construct(
         private readonly PublishService $publisher,
         private readonly VersionRepository $versions,
+        private readonly ContentLocaleService $locales,
     ) {
     }
 
@@ -76,6 +78,9 @@ final class PublicationController
     #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function publish(Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         try {
             $versionUuid = $this->publisher->publish($uuid, $locale, $this->actor($request));
         } catch (ValidationException $e) {
@@ -117,6 +122,9 @@ final class PublicationController
     #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function unpublish(Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         $this->publisher->unpublish($uuid, $locale);
         return Response::success([], 'Entry unpublished.');
     }
@@ -160,6 +168,9 @@ final class PublicationController
     #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
     public function rollback(RollbackData $input, Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         // Structural validation (version_uuid present + non-blank) is done by the hydrated DTO.
         // Whether the version belongs to this entry+locale is a domain rule and stays here.
         try {
@@ -185,6 +196,9 @@ final class PublicationController
     #[ApiResponse(200, description: 'Entry versions.')]
     public function versions(Request $request, string $uuid, string $locale): Response
     {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
         return Response::success(['versions' => $this->versions->versionsFor($uuid, $locale)], 'Versions retrieved.');
     }
 

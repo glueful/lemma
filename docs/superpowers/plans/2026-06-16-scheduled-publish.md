@@ -683,7 +683,9 @@ declare(strict_types=1);
 namespace App\Content\Console;
 
 use App\Content\Scheduling\ScheduleRunner;
+use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Console\BaseCommand;
+use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -695,9 +697,12 @@ use Symfony\Component\Console\Output\OutputInterface;
 )]
 final class RunDueSchedulesCommand extends BaseCommand
 {
-    public function __construct(private readonly ScheduleRunner $runner)
-    {
-        parent::__construct();
+    public function __construct(
+        ?ContainerInterface $container = null,
+        ?ApplicationContext $context = null,
+        private readonly ?ScheduleRunner $runner = null,
+    ) {
+        parent::__construct($container, $context);
     }
 
     protected function configure(): void
@@ -707,7 +712,8 @@ final class RunDueSchedulesCommand extends BaseCommand
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $fired = $this->runner->run(max(1, (int) $input->getOption('limit')));
+        $runner = $this->runner ?? $this->container->get(ScheduleRunner::class);
+        $fired = $runner->run(max(1, (int) $input->getOption('limit')));
         $output->writeln(sprintf('Fired %d scheduled action(s).', $fired));
         return self::SUCCESS;
     }

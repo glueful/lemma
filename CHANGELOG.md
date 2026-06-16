@@ -31,6 +31,12 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - Field selection / `ETag` / `Cache-Tag` (`lemma:entry:{uuid}`, `lemma:type:{slug}`) /
   `Cache-Control` on delivery responses.
 
+#### Import/export
+- `lemma.content` export adapter for `glueful/import-export`, registered through
+  `import_export.exporter`. It writes deterministic NDJSON batch files containing content types,
+  entries, drafts, versions, publications, routes, and reference/asset projections as
+  `{kind, data}` records.
+
 #### Publishing pipeline
 - A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,
   `model.created/updated/deleted`, `asset.attached/detached`) with identity-only payloads

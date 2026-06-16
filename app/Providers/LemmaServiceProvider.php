@@ -14,6 +14,7 @@ use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
+use App\Content\ImportExport\LemmaContentExporter;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Events\EntryCreated;
 use App\Content\Events\EntryDeleted;
@@ -213,6 +214,12 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
                 'alias' => ['require_content_scope'],
+            ],
+            LemmaContentExporter::class => [
+                'class' => LemmaContentExporter::class,
+                'shared' => true,
+                'autowire' => true,
+                'tags' => ['import_export.exporter'],
             ],
 
             // `api_key` middleware alias: an AuthMiddleware restricted to the api_key provider

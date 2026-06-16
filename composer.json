@@ -1,0 +1,79 @@
+{
+  "name": "glueful/api-skeleton",
+  "description": "Glueful API Application Skeleton — Create high-performance APIs",
+  "type": "project",
+  "keywords": ["api", "skeleton", "glueful", "rest", "php"],
+  "homepage": "https://glueful.com/",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Michael Tawiah Sowah",
+      "email": "michael@glueful.dev"
+    }
+  ],
+  "require": {
+    "php": "^8.3",
+    "glueful/aegis": "^1.8.0",
+    "glueful/email-notification": "^1.10.0",
+    "glueful/framework": "^1.58.1",
+    "glueful/i18n": "^1.1.1",
+    "glueful/import-export": "^1.1.1",
+    "glueful/media": "^1.1.0",
+    "glueful/users": "^1.1.1",
+    "symfony/brevo-mailer": "^8.1"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.5",
+    "squizlabs/php_codesniffer": "^3.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "App\\Tests\\": "tests/"
+    }
+  },
+  "bin": [
+    "glueful"
+  ],
+  "scripts": {
+    "glueful": "php glueful",
+    "serve": "php glueful serve",
+    "migrate": "php glueful migrate:run",
+    "key:generate": "php glueful generate:key",
+    "test:reset-db": "DB_PGSQL_DATABASE=lemma_test APP_ENV=testing php scripts/reset-test-db.php",
+    "test:migrate": "DB_PGSQL_DATABASE=lemma_test APP_ENV=testing php scripts/run-test-migrations.php",
+    "test:phpunit": "vendor/bin/phpunit",
+    "test": [
+      "@test:reset-db",
+      "@test:migrate",
+      "@test:phpunit"
+    ],
+    "test:unit": "vendor/bin/phpunit --testsuite Unit",
+    "test:integration": "vendor/bin/phpunit --testsuite Integration",
+    "phpcs": "vendor/bin/phpcs",
+    "phpcbf": "vendor/bin/phpcbf",
+    "docs:openapi": "php glueful generate:openapi -f --clean",
+    "ci": [
+      "@phpcs",
+      "@test"
+    ],
+    "post-create-project-cmd": [
+      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+      "@php -r \"is_dir('storage/database') || mkdir('storage/database', 0775, true); file_exists('storage/database/glueful.sqlite') || touch('storage/database/glueful.sqlite');\"",
+      "@php glueful install --force"
+    ]
+  },
+  "config": {
+    "allow-plugins": {
+      "php-http/discovery": true
+    },
+    "sort-packages": true,
+    "optimize-autoloader": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

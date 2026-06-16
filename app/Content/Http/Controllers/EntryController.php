@@ -1,0 +1,494 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Content\Http\Controllers;
+
+use App\Content\Http\DTOs\CreateEntryData;
+use App\Content\Http\DTOs\AssignRouteData;
+use App\Content\Http\DTOs\CopyLocaleData;
+use App\Content\Http\DTOs\SaveDraftData;
+use App\Content\Http\DTOs\Responses\Entries\DraftResultData;
+use App\Content\Http\DTOs\Responses\Entries\EntryCreateResultData;
+use App\Content\Http\DTOs\Responses\Entries\EntryLocalesResultData;
+use App\Content\Http\DTOs\Responses\Entries\EntryResultData;
+use App\Content\Localization\ContentLocaleService;
+use App\Content\Repositories\ContentTypeRepository;
+use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\ReferenceProjectionRepository;
+use App\Content\Repositories\RouteRepository;
+use App\Content\Support\OptimisticLockException;
+use App\Content\Validation\FieldValidator;
+use App\Content\Validation\ValidationException;
+use App\Http\DTOs\ErrorResponse;
+use Glueful\Auth\UserIdentity;
+use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Http\Response;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
+use Symfony\Component\HttpFoundation\Request;
+
+/**
+ * The admin API for entries and their working drafts — create an entry, read its identity
+ * record, and read/save the per-locale draft. Identity and draft persistence (including the
+ * optimistic-lock CAS and the reference projection) live in {@see EntryRepository}; field
+ * validation against the content type schema is delegated to {@see FieldValidator}.
+ *
+ * The interesting path is {@see EntryController::saveDraft()}: it validates first (a
+ * {@see ValidationException} → 422) and then catches the repository's
+ * {@see OptimisticLockException} to return a 409 with the current draft so the client can
+ * rebase. Routes are permission-gated (`lemma.entries.read` / `lemma.entries.write`) by
+ * middleware, so authz failures surface as 401/403 before these methods run.
+ */
+final class EntryController
+{
+    public function __construct(
+        private readonly ApplicationContext $context,
+        private readonly EntryRepository $entries,
+        private readonly ContentTypeRepository $types,
+        private readonly FieldValidator $validator,
+        private readonly RouteRepository $routes,
+        private readonly ReferenceProjectionRepository $references,
+        private readonly ContentLocaleService $locales,
+    ) {
+    }
+
+    /**
+     * Create a new entry of the content type named by `content_type` (slug; unknown → 422),
+     * seeding an empty draft in the requested locale (defaulting to the i18n default locale).
+     * Returns the fresh entry identity record plus the empty draft.
+     */
+    #[ApiOperation(
+        summary: 'Create an entry',
+        description: 'Creates a new entry of a content type with an empty draft in the given locale. '
+            . 'Body: `content_type` (required; content type slug), `locale` (defaults to '
+            . 'the i18n default locale). Requires the `lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(201, schema: EntryCreateResultData::class, description: 'Entry created with an empty draft.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.write` permission.',
+    )]
+    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type.')]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    public function store(CreateEntryData $input, Request $request): Response
+    {
+        // Structural validation (content_type/locale are strings) is done by the hydrated DTO.
+        // The content-type-exists check is a domain rule and stays here.
+        $type = $this->types->findBySlug($input->content_type);
+        if ($type === null) {
+            return Response::validation(['content_type' => 'unknown content type']);
+        }
+        $locale = $input->locale ?? $this->locales->default();
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
+        $uuid = $this->entries->createEntry(
+            (string) $type['uuid'],
+            $locale,
+            (int) $type['schema_version'],
+            $this->actor($request),
+        );
+        return Response::created([
+            'entry' => $this->entries->findEntry($uuid),
+            'draft' => $this->entries->findDraft($uuid, $locale),
+        ], 'Entry created.');
+    }
+
+    /**
+     * Return the entry's identity/status record (NOT its field content — use getDraft() for
+     * field values), or 404 if no entry has that UUID.
+     *
+     * @param string $uuid Entry UUID
+     */
+    #[ApiOperation(
+        summary: 'Get an entry',
+        description: 'Returns the entry record (identity + status), not its field content. '
+            . 'Requires the `lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, schema: EntryResultData::class, description: 'The entry.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.read` permission.',
+    )]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    public function show(Request $request, string $uuid): Response
+    {
+        $entry = $this->entries->findEntry($uuid);
+        return $entry === null
+            ? Response::notFound('Entry not found.')
+            : Response::success(['entry' => $entry], 'Entry retrieved.');
+    }
+
+    /**
+     * Return the current working draft for the entry+locale — field values plus the
+     * `lock_version` the client must echo back on save — or 404 if no draft exists for that
+     * entry/locale pair.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'Get an entry\'s draft for a locale',
+        description: 'Returns the current working draft (field values + optimistic-lock version) for the '
+            . 'entry in the given locale. Requires the `lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, schema: DraftResultData::class, description: 'The draft.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.read` permission.',
+    )]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No draft for that entry/locale.')]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    public function getDraft(Request $request, string $uuid, string $locale): Response
+    {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
+        $draft = $this->entries->findDraft($uuid, $locale);
+        return $draft === null
+            ? Response::notFound('Draft not found.')
+            : Response::success(['draft' => $draft], 'Draft retrieved.');
+    }
+
+    /**
+     * Validate and persist the draft field values for the entry+locale under optimistic
+     * concurrency. The flow is: resolve the entry (404 if gone) → validate the submitted
+     * `fields` against the content type schema (a {@see ValidationException} → 422) → call
+     * {@see EntryRepository::saveDraft()} passing the client's `lock_version`. A stale
+     * lock_version trips the repository's {@see OptimisticLockException}, which is caught here
+     * and returned as 409 carrying the current draft (code `STALE_DRAFT`) so the client can
+     * rebase and retry. On success the reloaded, version-bumped draft is returned.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'Save an entry\'s draft (optimistic-locked)',
+        description: 'Validates and stores the entry\'s draft field values for the locale. Pass the '
+            . '`lock_version` returned by the last read; a stale value yields 409 Conflict with the '
+            . 'current draft so the client can rebase. Field values are validated against the content '
+            . 'type schema. Body: `fields` (required; field values keyed by field name), `lock_version` '
+            . '(required; optimistic-lock counter from the last read). '
+            . 'Requires the `lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, schema: DraftResultData::class, description: 'Draft saved.')]
+    #[ApiResponse(
+        401,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Missing or invalid authentication.',
+    )]
+    #[ApiResponse(
+        403,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Principal lacks the `lemma.entries.write` permission.',
+    )]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(
+        409,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Stale lock_version — the draft was modified by another writer.',
+    )]
+    #[ApiResponse(
+        422,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Field validation failed against the content type schema.',
+    )]
+    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    public function saveDraft(SaveDraftData $input, Request $request, string $uuid, string $locale): Response
+    {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
+        $entry = $this->entries->findEntry($uuid);
+        if ($entry === null) {
+            return Response::notFound('Entry not found.');
+        }
+        $schema = $this->types->schemaFor((string) $entry['content_type_uuid']);
+        try {
+            $clean = $this->validator->validate($schema, $input->fields);
+        } catch (ValidationException $e) {
+            return Response::validation($e->errors());
+        }
+        $type = $this->types->findByUuid((string) $entry['content_type_uuid']);
+        try {
+            $this->entries->saveDraft(
+                $uuid,
+                $locale,
+                $clean,
+                (int) $type['schema_version'],
+                $input->lock_version ?? -1,
+                $this->actor($request),
+            );
+        } catch (OptimisticLockException) {
+            return Response::error('Draft was modified by another writer.', Response::HTTP_CONFLICT, [
+                'code' => 'STALE_DRAFT',
+                'current' => $this->entries->findDraft($uuid, $locale),
+            ]);
+        }
+        return Response::success(['draft' => $this->entries->findDraft($uuid, $locale)], 'Draft saved.');
+    }
+
+    /**
+     * Discard the mutable working draft for an entry+locale. Published content and version
+     * history are untouched.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'Discard an entry draft',
+        description: 'Deletes the mutable draft row for the entry+locale. Published content is untouched. '
+            . 'Requires the `lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Draft discarded.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No draft for that entry/locale.')]
+    public function discardDraft(Request $request, string $uuid, string $locale): Response
+    {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
+        if ($this->entries->findDraft($uuid, $locale) === null) {
+            return Response::notFound('Draft not found.');
+        }
+        $this->entries->discardDraft($uuid, $locale);
+        return Response::success([], 'Draft discarded.');
+    }
+
+    /**
+     * Soft-delete an entry after checking reverse references.
+     *
+     * @param string $uuid Entry UUID
+     */
+    #[ApiOperation(
+        summary: 'Delete an entry',
+        description: 'Soft-deletes an entry unless another published entry references it. Requires the '
+            . '`lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Entry deleted.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(
+        409,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Entry is referenced by published content.',
+    )]
+    public function destroy(Request $request, string $uuid): Response
+    {
+        if ($this->entries->findEntry($uuid) === null) {
+            return Response::notFound('Entry not found.');
+        }
+        $sources = $this->references->referencesTo($uuid);
+        if ($sources !== []) {
+            return Response::error('Entry is referenced by other content.', Response::HTTP_CONFLICT, [
+                'code' => 'ENTRY_REFERENCED',
+                'references' => $sources,
+            ]);
+        }
+        $this->entries->softDelete($uuid);
+        return Response::success([], 'Entry deleted.');
+    }
+
+    /**
+     * List delivery routes assigned to an entry.
+     *
+     * @param string $uuid Entry UUID
+     */
+    #[ApiOperation(
+        summary: 'List entry routes',
+        description: 'Lists route slugs assigned to an entry. Requires the `lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Entry routes.')]
+    public function routes(Request $request, string $uuid): Response
+    {
+        return Response::success(['routes' => $this->routes->forEntry($uuid)], 'Routes retrieved.');
+    }
+
+    /**
+     * List the locales that currently have an editable draft, published pin, or route for
+     * an entry. This is the backend contract the admin UI uses to show translation state.
+     *
+     * @param string $uuid Entry UUID
+     */
+    #[ApiOperation(
+        summary: 'List entry locale variants',
+        description: 'Lists per-locale draft, publication, and route state for an entry. Requires the '
+            . '`lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, schema: EntryLocalesResultData::class, description: 'Entry locale variants.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    public function locales(Request $request, string $uuid): Response
+    {
+        if ($this->entries->findEntry($uuid) === null) {
+            return Response::notFound('Entry not found.');
+        }
+
+        return Response::success(['locales' => $this->entries->localeSummary($uuid)], 'Locales retrieved.');
+    }
+
+    /**
+     * Create a mutable draft for a target locale, optionally copying fields from an
+     * existing source-locale draft. Published content is not changed until publish.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale Target BCP-47 locale, e.g. "fr"
+     */
+    #[ApiOperation(
+        summary: 'Create an entry locale draft',
+        description: 'Creates a draft for the target locale, optionally copying the current draft from '
+            . '`source_locale`. Requires the `lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(201, schema: DraftResultData::class, description: 'Locale draft created.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(409, schema: ErrorResponse::class, envelope: false, description: 'Draft already exists.')]
+    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Invalid locale or source locale.')]
+    public function createLocaleDraft(
+        CopyLocaleData $input,
+        Request $request,
+        string $uuid,
+        string $locale,
+    ): Response {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
+        if ($input->source_locale !== null) {
+            $sourceErrors = $this->locales->validate($input->source_locale, 'source_locale');
+            if ($sourceErrors !== []) {
+                return Response::validation($sourceErrors);
+            }
+        }
+
+        $entry = $this->entries->findEntry($uuid);
+        if ($entry === null) {
+            return Response::notFound('Entry not found.');
+        }
+        $type = $this->types->findByUuid((string) $entry['content_type_uuid']);
+        if ($type === null) {
+            return Response::validation(['content_type' => 'unknown content type']);
+        }
+
+        try {
+            $draft = $this->entries->createLocaleDraft(
+                $uuid,
+                $locale,
+                (int) $type['schema_version'],
+                $this->actor($request),
+                $input->source_locale,
+                $input->overwrite,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return Response::validation(['source_locale' => $e->getMessage()]);
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), Response::HTTP_CONFLICT, ['code' => 'DRAFT_EXISTS']);
+        }
+
+        return Response::created(['draft' => $draft], 'Locale draft created.');
+    }
+
+    /**
+     * Assign or replace the route slug for an entry+locale.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'Assign an entry route',
+        description: 'Assigns or replaces the delivery route slug for an entry+locale. Requires the '
+            . '`lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Route assigned.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
+    #[ApiResponse(409, schema: ErrorResponse::class, envelope: false, description: 'Slug already in use.')]
+    public function assignRoute(AssignRouteData $input, Request $request, string $uuid, string $locale): Response
+    {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
+        $entry = $this->entries->findEntry($uuid);
+        if ($entry === null) {
+            return Response::notFound('Entry not found.');
+        }
+        $typeUuid = (string) $entry['content_type_uuid'];
+        $existing = $this->routes->findBySlug($typeUuid, $locale, $input->slug);
+        if ($existing !== null && (string) $existing['entry_uuid'] !== $uuid) {
+            return Response::error(
+                'Route slug already in use.',
+                Response::HTTP_CONFLICT,
+                ['code' => 'ROUTE_TAKEN']
+            );
+        }
+        $this->routes->assign($uuid, $typeUuid, $locale, $input->slug);
+        return Response::success(['routes' => $this->routes->forEntry($uuid)], 'Route assigned.');
+    }
+
+    /**
+     * Remove the route slug for an entry+locale.
+     *
+     * @param string $uuid   Entry UUID
+     * @param string $locale BCP-47 locale, e.g. "en"
+     */
+    #[ApiOperation(
+        summary: 'Remove an entry route',
+        description: 'Removes the delivery route slug for an entry+locale. Requires the '
+            . '`lemma.entries.write` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Route removed.')]
+    public function removeRoute(Request $request, string $uuid, string $locale): Response
+    {
+        if (($errors = $this->locales->validate($locale)) !== []) {
+            return Response::validation($errors);
+        }
+        $this->routes->remove($uuid, $locale);
+        return Response::success([], 'Route removed.');
+    }
+
+    /**
+     * The authenticated principal's id for audit attribution (created_by / updated_by /
+     * event actor), or null when the request carries no resolved {@see UserIdentity}.
+     */
+    private function actor(Request $request): ?string
+    {
+        $user = $request->attributes->get('auth.user');
+        return $user instanceof UserIdentity ? $user->id() : null;
+    }
+}

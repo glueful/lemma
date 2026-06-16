@@ -1,0 +1,34 @@
+# --- Composer ---
+/vendor/
+/composer.phar
+
+# --- Environment files ---
+/.env
+/.env.*
+!.env.example
+
+# --- IDE / Editor ---
+/.idea/
+/.vscode/
+/*.code-workspace
+
+# --- PHPUnit / QA caches ---
+/.phpunit.result.cache
+.phpunit.cache/
+/.php-cs-fixer.cache
+
+# --- OS / Misc ---
+.DS_Store
+*.log
+bootstrap/cache/
+
+# --- Runtime artifacts ---
+/:memory:
+/storage/cache/*
+!/storage/cache/.gitkeep
+/storage/database/*.sqlite
+!/storage/database/glueful.sqlite
+/storage/import-export/exports/*
+!/storage/import-export/exports/.gitkeep
+/storage/import-export/imports/*
+!/storage/import-export/imports/.gitkeep

@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<ruleset name="Lemma">
+    <description>Lemma coding standard — PSR-12 (matches the Glueful framework and extensions).</description>
+
+    <!-- Paths checked when phpcs/phpcbf run with no explicit argument. -->
+    <file>app</file>
+    <file>config</file>
+    <file>database</file>
+    <file>routes</file>
+    <file>scripts</file>
+    <file>tests</file>
+
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <rule ref="PSR12"/>
+
+    <!--
+      Lemma migrations are intentionally GLOBAL (unnamespaced): the framework's
+      MigrationManager include()s each file and instantiates the bare class name,
+      and framework-core + every Glueful extension ships migrations this way.
+      Exclude only the missing-namespace sniff, and only for migration dirs.
+    -->
+    <rule ref="PSR1.Classes.ClassDeclaration.MissingNamespace">
+        <exclude-pattern>database/migrations/*</exclude-pattern>
+        <exclude-pattern>database/dependent-migrations/*</exclude-pattern>
+    </rule>
+
+    <!--
+      Route files carry OpenAPI annotations (@description / @response / @queryParam /
+      @requestBody) inside PHPDoc blocks. The doc generator parses these line-by-line,
+      so each annotation must be a single line — which legitimately exceeds 120 chars.
+      Relax only the line-length sniff, and only for route files.
+    -->
+    <rule ref="Generic.Files.LineLength">
+        <exclude-pattern>routes/*</exclude-pattern>
+    </rule>
+</ruleset>

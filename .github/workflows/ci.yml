@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: lemma_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_ENV: testing
+      DB_DRIVER: pgsql
+      DB_PGSQL_HOST: 127.0.0.1
+      DB_PGSQL_PORT: 5432
+      DB_PGSQL_DATABASE: lemma_test
+      DB_PGSQL_USERNAME: postgres
+      DB_PGSQL_PASSWORD: postgres
+      # Sequential test run gets no benefit from pooling and the pool's acquire
+      # path deadlocks the CLI migration bootstrap (1 active / 0 available / 30s
+      # timeout). Matches the .env.example default.
+      DB_POOLING_ENABLED: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Create test environment
+        run: |
+          cat > .env <<'EOF'
+          APP_NAME=Lemma
+          APP_ENV=testing
+          APP_DEBUG=true
+          APP_KEY=0123456789abcdef0123456789abcdef
+          JWT_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          TOKEN_SALT=0123456789abcdef0123456789abcdef
+          DB_DRIVER=pgsql
+          DB_PGSQL_HOST=127.0.0.1
+          DB_PGSQL_PORT=5432
+          DB_PGSQL_DATABASE=lemma_test
+          DB_PGSQL_USERNAME=postgres
+          DB_PGSQL_PASSWORD=postgres
+          DB_PGSQL_SCHEMA=public
+          DB_POOLING_ENABLED=false
+          CACHE_DRIVER=array
+          CACHE_TAGS=false
+          QUERY_CACHE_ENABLED=false
+          QUERY_CACHE_STORE=array
+          QUEUE_CONNECTION=database
+          EOF
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Cache extension discovery
+        run: php glueful extensions:cache
+
+      - name: Run CI
+        run: composer ci

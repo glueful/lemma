@@ -65,6 +65,12 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   webhooks opt-in via `--webhooks`) for an entry, a type, or everything — published content only,
   bounded/keyset-paged.
 
+#### Version retention
+- `lemma:versions:prune` operator command for manual, opt-in pruning of non-pinned
+  `entry_versions` history, with `--dry-run`, `--keep`, and `--max-age-days` controls. Pinned
+  publications are protected by a delete-time guard, and unset retention config preserves
+  unlimited history.
+
 #### Preview tokens
 - HMAC-signed (`APP_KEY`) `PreviewToken` bound to `{entry, locale, version?}` with a minutes-scale
   TTL — signature verified constant-time before any payload is trusted; `exp` is inside the signed

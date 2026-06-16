@@ -37,4 +37,13 @@ return [
         // events that have an active subscription, so this is safe to leave on.
         'webhooks_enabled' => (bool) env('LEMMA_WEBHOOKS_ENABLED', true),
     ],
+
+    // Version retention / pruning. Raw env pass-through: do not cast here.
+    // RetentionPolicy::fromValues() validates positive integers and treats null/'' as off.
+    'versions' => [
+        'retention' => [
+            'keep' => env('LEMMA_VERSION_KEEP'),
+            'max_age_days' => env('LEMMA_VERSION_MAX_AGE_DAYS'),
+        ],
+    ],
 ];

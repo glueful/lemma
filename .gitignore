@@ -30,3 +30,7 @@ bootstrap/cache/
 !/storage/cache/.gitkeep
 /storage/database/*.sqlite
 !/storage/database/glueful.sqlite
+/storage/import-export/exports/*
+!/storage/import-export/exports/.gitkeep
+/storage/import-export/imports/*
+!/storage/import-export/imports/.gitkeep

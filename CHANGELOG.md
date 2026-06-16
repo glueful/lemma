@@ -36,6 +36,9 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   `import_export.exporter`. It writes deterministic NDJSON batch files containing content types,
   entries, drafts, versions, publications, routes, and reference/asset projections as
   `{kind, data}` records.
+- `lemma.content` import adapter for `glueful/import-export`, registered through
+  `import_export.importer`. It supports dry-run validation and commit-mode idempotent upserts of
+  Lemma content NDJSON bundles by each record kind's natural key.
 
 #### Publishing pipeline
 - A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,

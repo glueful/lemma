@@ -1,0 +1,98 @@
+# Lemma Post‑V1 Backend Backlog
+
+The V1 headless backend is complete (see [V1_DESIGN.md](V1_DESIGN.md), §§1–10).
+This document consolidates the backend features V1 **deliberately deferred** — each
+is already captured as an explicit deferral in V1_DESIGN; this is the single tracked
+list so they aren't scattered. It is **not** an umbrella design doc: each item gets
+its own focused spec (brainstorm → spec → plan) when it is actually scheduled.
+
+Ordering here is rough priority, not a committed sequence. The Admin SPA
+(V1_DESIGN §11 step 7) is a separate frontend deliverable and is tracked elsewhere.
+
+---
+
+## 1. Scheduled publish / unpublish
+
+- **V1 behavior:** immediate manual publish/unpublish only.
+- **Reference:** V1_DESIGN §2 ("Scheduled publish/unpublish is deferred", line ~166).
+- **Scope sketch:** a `publish_at` / `unpublish_at` time (a column on the draft, or a
+  small `entry_schedules` table) plus a core scheduler job that calls
+  `PublishService::publish()` / `unpublish()` at the due time. **No new publication
+  states and no delivery read‑path changes** — it reuses the same pin/unpin path; a
+  scheduled publish is just a deferred call to the existing one.
+- **Hard parts:** idempotency + missed‑run handling (job fires late/twice), locale
+  awareness, and cancelling/rescheduling a pending action.
+- **Depends on:** the framework scheduler (already present).
+
+## 2. Destructive schema‑change backfill
+
+- **V1 behavior:** destructive field changes (delete / retype; rename surfaces as
+  delete+add) are rejected with a `422`. Models are field‑append‑only.
+- **Reference:** V1_DESIGN §1 ("Backfill is a V1.x/V2 feature, not V1", line ~130).
+- **Scope sketch:** an explicit model‑migration step in the admin that captures
+  rename/retype/delete intent and enqueues a backfill job over **current published
+  versions only**, with a draft/version‑history policy, reference/index rebuild, and
+  failure reporting. History stays as written.
+- **Hard parts:** every sub‑part touches immutable published content — this is why it
+  must not ship half‑built. Failure reporting and partial‑backfill recovery are the
+  core design risk.
+- **Depends on:** the queue (present); the filterable‑index reconciliation job
+  (present) for index rebuild.
+
+## 3. Version retention / pruning
+
+- **V1 behavior:** unlimited published version history.
+- **Reference:** V1_DESIGN "Resolved V1 decisions → Version retention" (line ~528).
+- **Scope sketch:** configurable retention (keep‑N and/or age‑based) that prunes
+  `entry_versions` rows below the policy, never touching the currently‑pinned version.
+- **Hard parts / gate:** pruning **must not** run until the export/import bundle can
+  preserve full history as the safety net — i.e. an operator must be able to archive
+  before pruning. (Export/import is already built, so this gate is satisfiable.)
+- **Depends on:** the `glueful/import-export` adapters (present) as the backup path.
+
+## 4. SEO / redirects
+
+- **V1 behavior:** `entry_routes` carries current route rows only.
+- **Reference:** V1_DESIGN "Resolved V1 decisions → Redirects" (line ~532).
+- **Scope sketch:** redirect rows (in `entry_routes` or a dedicated `entry_redirects`
+  table) with status codes (301/302/308), redirect chains, and canonical‑URL handling.
+- **Hard parts:** deliberately **bundled with the SEO/routing module** so status
+  codes, chains, canonical URLs, and admin UX land together — not as a half‑feature in
+  core content routing. This is a module, not a column add.
+- **Depends on:** the (future) SEO/routing module.
+
+## 5. Field‑level localization automation
+
+- **V1 behavior:** the `localized: true` field‑schema flag is representable but inert;
+  the persisted unit is the whole‑entry locale variant.
+- **Reference:** V1_DESIGN §3 ("Field‑level localization … already representable", line ~229).
+- **Scope sketch:** use the existing `localized` flag to automate copy behavior — when
+  a locale variant is created or saved, copy **non‑localized** field values from the
+  source/default locale so editors only translate what's marked localized.
+- **Hard parts:** copy‑on‑create vs copy‑on‑change semantics, and not clobbering an
+  intentional per‑locale override of a non‑localized field.
+- **Depends on:** `glueful/i18n` (now Lemma core) and the locale‑variant endpoints
+  (present).
+
+## 6. Per‑locale RBAC
+
+- **V1 behavior:** coarse, namespaced permissions checked with **no resource argument**
+  (`lemma.entries.publish`, etc.); no per‑locale or per‑content‑type rules.
+- **Reference:** V1_DESIGN §3 ("does not add per‑locale RBAC", line ~225) + §7.
+- **Scope sketch:** per‑locale (and, on the same mechanism, per‑content‑type)
+  permission checks — e.g. an editor may publish `fr` but not `de` — via Aegis's
+  native resource‑level filters (`can($user, 'lemma.entries.publish', 'locale:fr')`),
+  so the V1 permission names never have to be renamed.
+- **Hard parts:** the resource‑argument convention and the admin UX for assigning
+  per‑locale grants; deciding the resource taxonomy (locale, content‑type, both).
+- **Depends on:** `glueful/aegis` resource‑level filters (the V1 permission model was
+  chosen specifically to make this additive).
+
+---
+
+## How to pick one up
+
+1. Confirm the **trigger/gate** above is met (e.g. for pruning, export/import exists).
+2. Brainstorm → write a focused spec under `docs/superpowers/specs/` → plan → implement.
+3. Update the matching V1_DESIGN deferral note to point at the spec (or mark it shipped),
+   and move the item out of this backlog.

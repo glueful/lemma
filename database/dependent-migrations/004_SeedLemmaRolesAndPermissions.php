@@ -15,12 +15,14 @@ final class SeedLemmaRolesAndPermissions implements MigrationInterface
         'lemma.entries.write' => 'Create and edit entries',
         'lemma.entries.publish' => 'Publish and unpublish entries',
         'lemma.entries.read' => 'Read entries (admin)',
+        'lemma.routes.manage' => 'Manage redirects and SEO routes',
     ];
 
     /** role slug => [name, level, granted permission slugs] */
     private const ROLES = [
         'lemma_admin' => ['Lemma Admin', 80, [
             'lemma.models.manage', 'lemma.entries.write', 'lemma.entries.publish', 'lemma.entries.read',
+            'lemma.routes.manage',
         ]],
         'lemma_editor' => ['Lemma Editor', 50, [
             'lemma.entries.write', 'lemma.entries.publish', 'lemma.entries.read',

@@ -7,6 +7,7 @@ namespace App\Tests\Integration;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\PublicationController;
+use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\RequireLemmaPermission;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
@@ -47,6 +48,7 @@ final class FoundationFlowTest extends LemmaTestCase
         self::assertInstanceOf(ContentTypeController::class, $c->get(ContentTypeController::class));
         self::assertInstanceOf(EntryController::class, $c->get(EntryController::class));
         self::assertInstanceOf(PublicationController::class, $c->get(PublicationController::class));
+        self::assertInstanceOf(RedirectController::class, $c->get(RedirectController::class));
     }
 
     public function testLemmaPermissionMiddlewareAliasResolves(): void
@@ -76,6 +78,9 @@ final class FoundationFlowTest extends LemmaTestCase
             ['GET', '/v1/admin/entries/{uuid}/routes', 'lemma_permission:lemma.entries.read'],
             ['PUT', '/v1/admin/entries/{uuid}/routes/{locale}', 'lemma_permission:lemma.entries.write'],
             ['DELETE', '/v1/admin/entries/{uuid}/routes/{locale}', 'lemma_permission:lemma.entries.write'],
+            ['POST', '/v1/admin/content-types/{slug}/redirects', 'lemma_permission:lemma.routes.manage'],
+            ['GET', '/v1/admin/content-types/{slug}/redirects', 'lemma_permission:lemma.routes.manage'],
+            ['DELETE', '/v1/admin/redirects/{uuid}', 'lemma_permission:lemma.routes.manage'],
             ['DELETE', '/v1/admin/content-types/{slug}', 'lemma_permission:lemma.models.manage'],
             ['POST', '/v1/admin/entries/{uuid}/publish/{locale}', 'lemma_permission:lemma.entries.publish'],
             ['POST', '/v1/admin/entries/{uuid}/unpublish/{locale}', 'lemma_permission:lemma.entries.publish'],
@@ -110,5 +115,22 @@ final class FoundationFlowTest extends LemmaTestCase
         ]));
 
         self::assertSame(401, $response->getStatusCode(), 'expected auth rejection, got: ' . $response->getContent());
+    }
+
+    public function testRoutesManagePermissionIsAdminOnly(): void
+    {
+        $rows = $this->connection()->getPDO()->query(
+            <<<'SQL'
+            SELECT r.slug AS role_slug
+            FROM role_permissions rp
+            JOIN roles r ON r.uuid = rp.role_uuid
+            JOIN permissions p ON p.uuid = rp.permission_uuid
+            WHERE p.slug = 'lemma.routes.manage'
+            ORDER BY r.slug
+            SQL
+        );
+        self::assertNotFalse($rows);
+
+        self::assertSame(['lemma_admin'], $rows->fetchAll(\PDO::FETCH_COLUMN));
     }
 }

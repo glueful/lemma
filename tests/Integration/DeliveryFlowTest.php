@@ -9,6 +9,7 @@ use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\VersionRepository;
+use App\Content\Seo\RedirectRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use App\Tests\Support\LemmaTestCase;
@@ -138,6 +139,41 @@ final class DeliveryFlowTest extends LemmaTestCase
         $response = $this->handle(Request::create('/v1/content/post/private', 'GET'));
 
         self::assertSame(403, $response->getStatusCode(), $response->getContent());
+    }
+
+    public function testPrivateContentTypeDeniesAnonymousRedirectAndGoneResolution(): void
+    {
+        $routes = new RouteRepository($this->connection(), new RedirectRepository($this->connection()));
+
+        $moved = $this->publish(['title' => 'Moved private'], 'old-private');
+        $routes->assign($moved, $this->type, 'en', 'new-private');
+
+        $entries = $this->entries();
+        $draftOnly = $entries->createEntry($this->type, 'en', 1, $this->userUuid);
+        $routes->assign($draftOnly, $this->type, 'en', 'draft-target');
+        (new RedirectRepository($this->connection()))->create([
+            'content_type_uuid' => $this->type,
+            'locale' => 'en',
+            'source_slug' => 'broken-private',
+            'target_content_type_uuid' => $this->type,
+            'target_locale' => 'en',
+            'target_entry_uuid' => $draftOnly,
+            'status' => 301,
+            'origin' => 'manual',
+        ]);
+
+        $anonymousMoved = $this->handle(Request::create('/v1/content/post/old-private', 'GET'));
+        $anonymousGone = $this->handle(Request::create('/v1/content/post/broken-private', 'GET'));
+        self::assertSame(403, $anonymousMoved->getStatusCode(), $anonymousMoved->getContent());
+        self::assertSame(403, $anonymousGone->getStatusCode(), $anonymousGone->getContent());
+
+        $key = $this->mintKey(['read:content:post']);
+        $authorizedMoved = $this->handle($this->scopedGet('/v1/content/post/old-private', $key));
+        $authorizedGone = $this->handle($this->scopedGet('/v1/content/post/broken-private', $key));
+
+        self::assertSame(200, $authorizedMoved->getStatusCode(), $authorizedMoved->getContent());
+        self::assertArrayHasKey('redirect', $this->json($authorizedMoved)['data']);
+        self::assertSame(404, $authorizedGone->getStatusCode(), $authorizedGone->getContent());
     }
 
     public function testInvalidApiKeyDoesNotFallThroughToPublicDelivery(): void

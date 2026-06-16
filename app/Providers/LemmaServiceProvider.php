@@ -15,6 +15,7 @@ use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
+use App\Content\Http\Controllers\RedirectController;
 use App\Content\ImportExport\LemmaContentExporter;
 use App\Content\ImportExport\LemmaContentImporter;
 use App\Content\Http\DeliveryEtag;
@@ -46,13 +47,19 @@ use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Retention\VersionPruner;
+use App\Content\Seo\CanonicalProjector;
+use App\Content\Seo\PathRenderer;
+use App\Content\Seo\RedirectRepository;
+use App\Content\Seo\RouteResolver;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Support\FieldSelection\Projector;
+use Psr\Container\ContainerInterface;
 
 /**
  * Wires the Lemma content engine into the application container.
@@ -115,7 +122,25 @@ final class LemmaServiceProvider extends ServiceProvider
             RouteRepository::class => [
                 'class' => RouteRepository::class,
                 'shared' => true,
+                'arguments' => ['@' . Connection::class, '@' . RedirectRepository::class],
+            ],
+            RedirectRepository::class => [
+                'class' => RedirectRepository::class,
+                'shared' => true,
                 'autowire' => true,
+            ],
+            PathRenderer::class => [
+                'factory' => [self::class, 'makePathRenderer'],
+                'shared' => true,
+            ],
+            RouteResolver::class => [
+                'class' => RouteResolver::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CanonicalProjector::class => [
+                'factory' => [self::class, 'makeCanonicalProjector'],
+                'shared' => true,
             ],
             ReferenceProjectionRepository::class => [
                 'class' => ReferenceProjectionRepository::class,
@@ -174,6 +199,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             PublicationController::class => [
                 'class' => PublicationController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RedirectController::class => [
+                'class' => RedirectController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -295,6 +325,30 @@ final class LemmaServiceProvider extends ServiceProvider
         // No-op: config/lemma.php is auto-loaded by the app config system, and DI
         // bindings are contributed declaratively via services(). Kept for lifecycle
         // symmetry and as the seam for future runtime registration.
+    }
+
+    public static function makePathRenderer(ContainerInterface $container): PathRenderer
+    {
+        $context = $container->get(ApplicationContext::class);
+
+        return new PathRenderer(
+            (string) config($context, 'lemma.seo.route_template', '/{locale}/{type}/{slug}'),
+            config($context, 'lemma.seo.public_url_base') === null
+                ? null
+                : (string) config($context, 'lemma.seo.public_url_base'),
+            (string) config($context, 'i18n.default_locale', 'en')
+        );
+    }
+
+    public static function makeCanonicalProjector(ContainerInterface $container): CanonicalProjector
+    {
+        return new CanonicalProjector(
+            $container->get(DeliveryRepository::class),
+            $container->get(RouteRepository::class),
+            $container->get(ContentTypeRepository::class),
+            $container->get(PathRenderer::class),
+            (string) config($container->get(ApplicationContext::class), 'i18n.default_locale', 'en')
+        );
     }
 
     public function boot(ApplicationContext $context): void

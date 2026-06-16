@@ -23,7 +23,7 @@ abstract class LemmaTestCase extends TestCase
     private const TABLES = [
         'import_export_reports', 'import_export_errors', 'import_export_files',
         'import_export_batches', 'import_export_jobs',
-        'entry_references', 'entry_routes', 'entry_publications',
+        'entry_references', 'entry_redirects', 'entry_routes', 'entry_publications',
         'entry_versions', 'entry_drafts', 'entries', 'content_types',
     ];
 

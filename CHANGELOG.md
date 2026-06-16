@@ -31,6 +31,10 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   time (unpublished/archived targets resolve to `null`; depth-bounded).
 - Field selection / `ETag` / `Cache-Tag` (`lemma:entry:{uuid}`, `lemma:type:{slug}`) /
   `Cache-Control` on delivery responses.
+- SEO/routing module: route slug changes auto-capture 301 redirects, admins can manage manual
+  internal/external redirects, single-entry delivery emits canonical/hreflang metadata, and moved
+  paths return a headless redirect descriptor (`data.redirect`) instead of serving duplicate
+  content at the old path.
 
 #### Import/export
 - `lemma.content` export adapter for `glueful/import-export`, registered through

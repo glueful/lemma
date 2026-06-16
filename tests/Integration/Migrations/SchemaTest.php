@@ -24,9 +24,69 @@ final class SchemaTest extends LemmaTestCase
             static fn(string $t): array => [$t],
             [
                 'content_types', 'entries', 'entry_drafts', 'entry_versions',
-                'entry_publications', 'entry_routes', 'entry_references',
+                'entry_publications', 'entry_routes', 'entry_redirects', 'entry_references',
             ]
         );
+    }
+
+    public function testEntryRedirectsCarryTargetAndStatusGuards(): void
+    {
+        $checks = $this->connection()->getPDO()->query(
+            "select conname from pg_constraint where conrelid = 'entry_redirects'::regclass"
+        );
+        self::assertNotFalse($checks);
+
+        $names = array_map(
+            static fn (array $row): string => (string) $row['conname'],
+            $checks->fetchAll(\PDO::FETCH_ASSOC)
+        );
+
+        self::assertContains('chk_entry_redirect_status', $names);
+        self::assertContains('chk_entry_redirect_origin', $names);
+        self::assertContains('chk_entry_redirect_exactly_one_target', $names);
+    }
+
+    public function testEntryRedirectsUniquenessIsScopedByTypeLocaleSource(): void
+    {
+        $db = $this->connection();
+
+        $db->table('entry_redirects')->insert([
+            'uuid' => 'rdaaaaaaaaaa',
+            'content_type_uuid' => 'type00000001',
+            'locale' => 'en',
+            'source_slug' => 'old',
+            'target_content_type_uuid' => 'type00000001',
+            'target_locale' => 'en',
+            'target_entry_uuid' => 'entry0000001',
+            'status' => 301,
+            'origin' => 'auto',
+        ]);
+
+        $db->table('entry_redirects')->insert([
+            'uuid' => 'rdbbbbbbbbbb',
+            'content_type_uuid' => 'type00000001',
+            'locale' => 'fr',
+            'source_slug' => 'old',
+            'target_content_type_uuid' => 'type00000001',
+            'target_locale' => 'fr',
+            'target_entry_uuid' => 'entry0000001',
+            'status' => 301,
+            'origin' => 'auto',
+        ]);
+
+        $this->expectException(\Throwable::class);
+
+        $db->table('entry_redirects')->insert([
+            'uuid' => 'rdcccccccccc',
+            'content_type_uuid' => 'type00000001',
+            'locale' => 'en',
+            'source_slug' => 'old',
+            'target_content_type_uuid' => 'type00000001',
+            'target_locale' => 'en',
+            'target_entry_uuid' => 'entry0000001',
+            'status' => 302,
+            'origin' => 'manual',
+        ]);
     }
 
     public function testFieldsColumnIsJsonb(): void

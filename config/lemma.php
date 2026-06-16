@@ -24,6 +24,15 @@ return [
         'cache_ttl' => (int) env('LEMMA_DELIVERY_CACHE_TTL', 60),
     ],
 
+    // Headless SEO/routing helpers. Paths are rendered as public-site paths, never API
+    // URLs. Leave public_url_base empty to return relative paths for the frontend to
+    // make absolute.
+    'seo' => [
+        'route_template' => env('LEMMA_SEO_ROUTE_TEMPLATE', '/{locale}/{type}/{slug}'),
+        'public_url_base' => env('LEMMA_PUBLIC_URL_BASE'),
+        'redirect_ttl' => (int) env('LEMMA_SEO_REDIRECT_TTL', 60),
+    ],
+
     // Preview tokens (see docs/V1_DESIGN.md). Drafts are only reachable through a
     // signed, short-lived preview token; this is its lifetime in seconds.
     'preview' => [

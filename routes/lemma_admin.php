@@ -6,6 +6,7 @@ use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
+use App\Content\Http\Controllers\RedirectController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -69,6 +70,17 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->delete('/entries/{uuid}/routes/{locale}', [EntryController::class, 'removeRoute'])
         ->middleware('lemma_permission:lemma.entries.write');
+
+    // SEO redirects: POST body is {locale, source_slug, target:{url|entry_uuid, content_type?, locale?}, status};
+    // responses wrap redirect rows and their computed target_state (live|broken).
+    $router->post('/content-types/{slug}/redirects', [RedirectController::class, 'store'])
+        ->middleware('lemma_permission:lemma.routes.manage');
+
+    $router->get('/content-types/{slug}/redirects', [RedirectController::class, 'index'])
+        ->middleware('lemma_permission:lemma.routes.manage');
+
+    $router->delete('/redirects/{uuid}', [RedirectController::class, 'destroy'])
+        ->middleware('lemma_permission:lemma.routes.manage');
 
     $router->post('/entries/{uuid}/preview/{locale}', [PreviewController::class, 'mint'])
         ->middleware('lemma_permission:lemma.entries.read');

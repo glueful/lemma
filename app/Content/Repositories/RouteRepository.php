@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Content\Repositories;
 
+use App\Content\Seo\RedirectRepository;
 use Glueful\Database\Connection;
 
 final class RouteRepository
 {
-    public function __construct(private readonly Connection $db)
-    {
+    public function __construct(
+        private readonly Connection $db,
+        private readonly ?RedirectRepository $redirects = null
+    ) {
     }
 
     /** Upsert the route for an entry+locale (one slug per entry+locale). */
@@ -17,6 +20,7 @@ final class RouteRepository
     {
         $existing = $this->db->table('entry_routes')
             ->where('entry_uuid', '=', $entryUuid)->where('locale', '=', $locale)->first();
+        $oldSlug = $existing === null ? null : (string) $existing['slug'];
         if ($existing === null) {
             $this->db->table('entry_routes')->insert([
                 'entry_uuid' => $entryUuid,
@@ -28,6 +32,18 @@ final class RouteRepository
             $this->db->table('entry_routes')
                 ->where('entry_uuid', '=', $entryUuid)->where('locale', '=', $locale)
                 ->update(['slug' => $slug, 'content_type_uuid' => $contentTypeUuid]);
+        }
+
+        $this->redirects?->deleteBySource($contentTypeUuid, $locale, $slug);
+        if ($oldSlug !== null && $oldSlug !== $slug) {
+            $this->redirects?->upsertAuto(
+                $contentTypeUuid,
+                $locale,
+                $oldSlug,
+                $contentTypeUuid,
+                $locale,
+                $entryUuid
+            );
         }
     }
 

@@ -14,6 +14,7 @@ use App\Content\Delivery\InvalidFilterException;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Schema\ContentTypeSchema;
+use App\Content\Schema\Migration\SchemaProjector;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryItemData;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryListData;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryShowItemData;
@@ -64,6 +65,7 @@ final class DeliveryController
         private readonly LocaleManagerInterface $locales,
         private readonly RouteResolver $resolver,
         private readonly CanonicalProjector $canonical,
+        private readonly ?SchemaProjector $schemaProjector = null,
     ) {
     }
 
@@ -179,7 +181,7 @@ final class DeliveryController
         if ($this->wantsPagination($request)) {
             [$page, $perPage] = $this->pageParams($request);
             $result = $this->delivery->paginatePublished($typeUuid, $locale, $page, $perPage, $filter, $order);
-            $rows = $this->shape($result['data'], $schema, $selector, $locale);
+            $rows = $this->shape($result['data'], $schema, $selector, $locale, $typeUuid);
             $response = Response::paginated(
                 array_map(fn(array $r): array => $this->item($r), $rows),
                 $result['total'],
@@ -193,7 +195,7 @@ final class DeliveryController
         $limit = $this->limit($request);
         $cursor = Cursor::decode($this->stringQuery($request, 'cursor') ?? '');
         $rows = $this->delivery->listPublished($typeUuid, $locale, $limit, $filter, $order, $cursor);
-        $shaped = $this->shape($rows, $schema, $selector, $locale);
+        $shaped = $this->shape($rows, $schema, $selector, $locale, $typeUuid);
 
         $nextCursor = null;
         if (count($rows) === $limit && $rows !== []) {
@@ -279,7 +281,7 @@ final class DeliveryController
         $row = $result->content();
 
         $selector = FieldSelector::fromRequest($request);
-        $shaped = $this->shape([$row], $schema, $selector, (string) $row['locale']);
+        $shaped = $this->shape([$row], $schema, $selector, (string) $row['locale'], $typeUuid);
         $item = $this->item($shaped[0]);
         $item['seo'] = $this->canonical->project(
             (string) $row['entry_uuid'],
@@ -359,10 +361,25 @@ final class DeliveryController
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private function shape(array $rows, ContentTypeSchema $schema, FieldSelector $selector, string $locale): array
-    {
+    private function shape(
+        array $rows,
+        ContentTypeSchema $schema,
+        FieldSelector $selector,
+        string $locale,
+        string $typeUuid,
+    ): array {
         if ($rows === []) {
             return [];
+        }
+
+        if ($this->schemaProjector !== null) {
+            foreach ($rows as $i => $row) {
+                $rows[$i]['fields'] = $this->schemaProjector->project(
+                    $typeUuid,
+                    (int) ($row['schema_version'] ?? 0),
+                    (array) ($row['fields'] ?? []),
+                );
+            }
         }
 
         $rows = $this->references->expand($rows, $schema, $selector->empty() ? null : $selector, $locale);

@@ -6,6 +6,7 @@ namespace App\Content\Preview;
 
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\VersionRepository;
+use App\Content\Schema\Migration\SchemaProjector;
 use Glueful\Bootstrap\ApplicationContext;
 
 /**
@@ -29,6 +30,7 @@ final class PreviewReader
         private readonly ApplicationContext $context,
         private readonly EntryRepository $entries,
         private readonly VersionRepository $versions,
+        private readonly ?SchemaProjector $projector = null,
     ) {
     }
 
@@ -75,7 +77,11 @@ final class PreviewReader
             'version_uuid' => (string) $version['uuid'],
             'version' => (int) $version['version'],
             'schema_version' => (int) $version['schema_version'],
-            'fields' => (array) $version['fields'],
+            'fields' => $this->projectFields(
+                $payload->entryUuid,
+                (int) $version['schema_version'],
+                (array) $version['fields'],
+            ),
         ];
     }
 
@@ -96,7 +102,29 @@ final class PreviewReader
             'version_uuid' => null,
             'version' => null,
             'schema_version' => (int) $draft['schema_version'],
-            'fields' => (array) $draft['fields'],
+            'fields' => $this->projectFields(
+                $payload->entryUuid,
+                (int) $draft['schema_version'],
+                (array) $draft['fields'],
+            ),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $fields
+     * @return array<string,mixed>
+     */
+    private function projectFields(string $entryUuid, int $schemaVersion, array $fields): array
+    {
+        if ($this->projector === null) {
+            return $fields;
+        }
+
+        $entry = $this->entries->findEntry($entryUuid);
+        if ($entry === null) {
+            return $fields;
+        }
+
+        return $this->projector->project((string) $entry['content_type_uuid'], $schemaVersion, $fields);
     }
 }

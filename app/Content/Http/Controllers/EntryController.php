@@ -17,6 +17,7 @@ use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
+use App\Content\Schema\Migration\SchemaProjector;
 use App\Content\Support\OptimisticLockException;
 use App\Content\Validation\FieldValidator;
 use App\Content\Validation\ValidationException;
@@ -50,6 +51,7 @@ final class EntryController
         private readonly RouteRepository $routes,
         private readonly ReferenceProjectionRepository $references,
         private readonly ContentLocaleService $locales,
+        private readonly ?SchemaProjector $schemaProjector = null,
     ) {
     }
 
@@ -174,6 +176,16 @@ final class EntryController
             return Response::validation($errors);
         }
         $draft = $this->entries->findDraft($uuid, $locale);
+        if ($draft !== null && $this->schemaProjector !== null) {
+            $entry = $this->entries->findEntry($uuid);
+            if ($entry !== null) {
+                $draft['fields'] = $this->schemaProjector->project(
+                    (string) $entry['content_type_uuid'],
+                    (int) $draft['schema_version'],
+                    (array) $draft['fields'],
+                );
+            }
+        }
         return $draft === null
             ? Response::notFound('Draft not found.')
             : Response::success(['draft' => $draft], 'Draft retrieved.');

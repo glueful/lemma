@@ -11,6 +11,7 @@ use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\VersionRepository;
+use App\Content\Schema\Migration\SchemaProjector;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
 
@@ -24,6 +25,7 @@ final class PublishService
         private readonly FieldValidator $validator,
         private readonly ReferenceProjectionRepository $references,
         private readonly ?PublishEventEmitter $events = null,
+        private readonly ?SchemaProjector $projector = null,
     ) {
     }
 
@@ -114,11 +116,20 @@ final class PublishService
             $versionUuid,
             $actor,
             $schema,
-            $version
+            $version,
+            $entry
         ): void {
             $this->versions->pin($entryUuid, $locale, $versionUuid, $actor);
             if ($schema !== null) {
-                $this->references->rebuildForEntry($entryUuid, $schema, (array) $version['fields']);
+                $fields = (array) $version['fields'];
+                if ($this->projector !== null && $entry !== null) {
+                    $fields = $this->projector->project(
+                        (string) $entry['content_type_uuid'],
+                        (int) ($version['schema_version'] ?? 0),
+                        $fields,
+                    );
+                }
+                $this->references->rebuildForEntry($entryUuid, $schema, $fields);
             }
         });
         // Re-publishing a prior version is a publish for downstream consumers (V1_DESIGN §5).

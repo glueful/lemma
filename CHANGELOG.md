@@ -78,6 +78,16 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   publications are protected by a delete-time guard, and unset retention config preserves
   unlimited history.
 
+#### Schema migrations
+- Explicit destructive schema migrations for content types: `POST /v1/admin/content-types/{slug}/migrations`
+  accepts tracked `rename` and `delete` field operations, records progress in
+  `entry_schema_migrations`, flips the canonical schema immediately, and queues
+  `lemma:schema:backfill` materialization.
+- Read-time schema projection now replays pending migration operations for lagging drafts,
+  versions, preview tokens, and delivery rows, so partially materialized catalogs still serve
+  the current schema shape. Published backfills append and re-pin new migrated versions while
+  preserving historical version rows.
+
 #### Preview tokens
 - HMAC-signed (`APP_KEY`) `PreviewToken` bound to `{entry, locale, version?}` with a minutes-scale
   TTL — signature verified constant-time before any payload is trusted; `exp` is inside the signed

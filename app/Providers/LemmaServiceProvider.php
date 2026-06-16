@@ -10,9 +10,12 @@ use App\Content\Delivery\ReferenceResolver;
 use App\Content\Delivery\SortCompiler;
 use App\Content\Console\PruneVersionsCommand;
 use App\Content\Console\ResyncCommand;
+use App\Content\Console\RunBackfillCommand;
+use App\Content\Backfill\BackfillRunner;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
@@ -43,14 +46,17 @@ use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewReader;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\MigrationRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Retention\VersionPruner;
+use App\Content\Schema\Migration\SchemaProjector;
 use App\Content\Seo\CanonicalProjector;
 use App\Content\Seo\PathRenderer;
 use App\Content\Seo\RedirectRepository;
 use App\Content\Seo\RouteResolver;
+use App\Content\Services\MigrationService;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
@@ -147,6 +153,16 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            MigrationRepository::class => [
+                'class' => MigrationRepository::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            SchemaProjector::class => [
+                'class' => SchemaProjector::class,
+                'shared' => false,
+                'autowire' => true,
+            ],
             FieldValidator::class => [
                 'class' => FieldValidator::class,
                 'shared' => true,
@@ -187,8 +203,18 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            MigrationService::class => [
+                'class' => MigrationService::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
             ContentTypeController::class => [
                 'class' => ContentTypeController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            MigrationController::class => [
+                'class' => MigrationController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -304,6 +330,11 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            BackfillRunner::class => [
+                'class' => BackfillRunner::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
 
             // Console command (resolved by commands() in boot()). Autowire fills its
             // BaseCommand (ContainerInterface, ApplicationContext) constructor.
@@ -314,6 +345,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             PruneVersionsCommand::class => [
                 'class' => PruneVersionsCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RunBackfillCommand::class => [
+                'class' => RunBackfillCommand::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -370,7 +406,7 @@ final class LemmaServiceProvider extends ServiceProvider
 
         // Console: register Lemma's app commands. commands() is a console-only no-op in
         // the HTTP phase (runningInConsole() guards it), so this is free during requests.
-        $this->commands([ResyncCommand::class, PruneVersionsCommand::class]);
+        $this->commands([ResyncCommand::class, PruneVersionsCommand::class, RunBackfillCommand::class]);
     }
 
     /**

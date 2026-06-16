@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
@@ -30,6 +31,17 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->patch('/content-types/{slug}/schema', [ContentTypeController::class, 'updateSchema'])
         ->middleware('lemma_permission:lemma.models.manage');
+
+    // Destructive schema migrations: POST body is {ops:[{op:"rename",from,to}|{op:"delete",name}]};
+    // responses wrap migration rows with status/progress/failure_report for polling.
+    $router->post('/content-types/{slug}/migrations', [MigrationController::class, 'store'])
+        ->middleware('lemma_permission:lemma.models.manage');
+
+    $router->get('/content-types/{slug}/migrations', [MigrationController::class, 'index'])
+        ->middleware('lemma_permission:lemma.entries.read');
+
+    $router->get('/content-types/{slug}/migrations/{migrationUuid}', [MigrationController::class, 'show'])
+        ->middleware('lemma_permission:lemma.entries.read');
 
     $router->delete('/content-types/{slug}', [ContentTypeController::class, 'destroy'])
         ->middleware('lemma_permission:lemma.models.manage');

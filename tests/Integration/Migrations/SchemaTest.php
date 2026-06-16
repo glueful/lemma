@@ -24,7 +24,8 @@ final class SchemaTest extends LemmaTestCase
             static fn(string $t): array => [$t],
             [
                 'content_types', 'entries', 'entry_drafts', 'entry_versions',
-                'entry_publications', 'entry_routes', 'entry_redirects', 'entry_references',
+                'entry_publications', 'entry_routes', 'entry_redirects', 'entry_schema_migrations',
+                'entry_references',
             ]
         );
     }
@@ -44,6 +45,33 @@ final class SchemaTest extends LemmaTestCase
         self::assertContains('chk_entry_redirect_status', $names);
         self::assertContains('chk_entry_redirect_origin', $names);
         self::assertContains('chk_entry_redirect_exactly_one_target', $names);
+    }
+
+    public function testEntrySchemaMigrationsCarryStatusGuardAndActiveUniqueIndex(): void
+    {
+        $checks = $this->connection()->getPDO()->query(
+            "select conname from pg_constraint where conrelid = 'entry_schema_migrations'::regclass"
+        );
+        self::assertNotFalse($checks);
+
+        $names = array_map(
+            static fn (array $row): string => (string) $row['conname'],
+            $checks->fetchAll(\PDO::FETCH_ASSOC)
+        );
+
+        self::assertContains('chk_entry_schema_migration_status', $names);
+
+        $indexes = $this->connection()->getPDO()->query(
+            "select indexname from pg_indexes where tablename = 'entry_schema_migrations'"
+        );
+        self::assertNotFalse($indexes);
+
+        $indexNames = array_map(
+            static fn (array $row): string => (string) $row['indexname'],
+            $indexes->fetchAll(\PDO::FETCH_ASSOC)
+        );
+
+        self::assertContains('uniq_entry_schema_migrations_active', $indexNames);
     }
 
     public function testEntryRedirectsUniquenessIsScopedByTypeLocaleSource(): void

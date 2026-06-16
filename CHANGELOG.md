@@ -74,6 +74,9 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   (no principal or missing grant → 403).
 - Content types now carry an optional `cache_ttl` override, and delivery responses use it for
   `Cache-Control` max-age before falling back to `lemma.delivery.cache_ttl`.
+- Single-entry delivery now uses `glueful/i18n` locale fallback chains when available: `show`
+  resolves route slugs and entry UUIDs through the requested locale's fallback chain while
+  preserving the actual served locale in the response payload.
 - `EntryRepository::softDelete` now emits `AssetDetached` for the deleted entry's current asset
   references before emitting `EntryDeleted`, keeping asset usage webhooks consistent with draft-save
   asset deltas.

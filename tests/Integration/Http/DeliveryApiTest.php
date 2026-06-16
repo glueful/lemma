@@ -16,7 +16,9 @@ use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use App\Content\Repositories\VersionRepository;
+use App\Tests\Support\FakeLocaleManager;
 use App\Tests\Support\LemmaTestCase;
+use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
 use Glueful\Support\FieldSelection\Projector;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -45,7 +47,7 @@ final class DeliveryApiTest extends LemmaTestCase
         ]);
     }
 
-    private function controller(): DeliveryController
+    private function controller(?LocaleManagerInterface $locales = null): DeliveryController
     {
         $repo = new DeliveryRepository($this->connection());
         return new DeliveryController(
@@ -57,6 +59,7 @@ final class DeliveryApiTest extends LemmaTestCase
             new ReferenceResolver($repo),
             new Projector(),
             new DeliveryEtag(),
+            $locales,
         );
     }
 
@@ -84,10 +87,16 @@ final class DeliveryApiTest extends LemmaTestCase
     /** Create + save a draft + publish an entry; returns its uuid. */
     private function publish(array $fields): string
     {
+        return $this->publishInLocale('en', $fields);
+    }
+
+    /** Create + save a draft + publish an entry in a locale; returns its uuid. */
+    private function publishInLocale(string $locale, array $fields): string
+    {
         $entries = $this->entries();
-        $uuid = $entries->createEntry($this->type, 'en', 1, 'user00000001');
-        $entries->saveDraft($uuid, 'en', $fields, 1, 0, 'user00000001');
-        $this->publishService()->publish($uuid, 'en', 'user00000001');
+        $uuid = $entries->createEntry($this->type, $locale, 1, 'user00000001');
+        $entries->saveDraft($uuid, $locale, $fields, 1, 0, 'user00000001');
+        $this->publishService()->publish($uuid, $locale, 'user00000001');
         return $uuid;
     }
 
@@ -138,6 +147,44 @@ final class DeliveryApiTest extends LemmaTestCase
 
         $data = json_decode($resp->getContent(), true)['data'];
         self::assertSame('Hello show', $data['fields']['title']);
+    }
+
+    public function testShowFallsBackThroughI18nLocaleChainByUuid(): void
+    {
+        $uuid = $this->publishInLocale('en', ['title' => 'English fallback', 'priority' => 1]);
+
+        $resp = $this->controller(new FakeLocaleManager())->show(
+            $this->get(['locale' => 'fr']),
+            'post',
+            $uuid
+        );
+
+        self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode($resp->getContent(), true)['data'];
+        self::assertSame('en', $data['locale']);
+        self::assertSame('English fallback', $data['fields']['title']);
+    }
+
+    public function testShowFallsBackThroughI18nLocaleChainByRouteSlug(): void
+    {
+        $uuid = $this->publishInLocale('en', ['title' => 'English route fallback', 'priority' => 1]);
+        $this->connection()->table('entry_routes')->insert([
+            'entry_uuid' => $uuid,
+            'content_type_uuid' => $this->type,
+            'locale' => 'en',
+            'slug' => 'hello',
+        ]);
+
+        $resp = $this->controller(new FakeLocaleManager())->show(
+            $this->get(['locale' => 'fr']),
+            'post',
+            'hello'
+        );
+
+        self::assertSame(200, $resp->getStatusCode());
+        $data = json_decode($resp->getContent(), true)['data'];
+        self::assertSame('en', $data['locale']);
+        self::assertSame('English route fallback', $data['fields']['title']);
     }
 
     public function testShowUnpublishedReturns404(): void

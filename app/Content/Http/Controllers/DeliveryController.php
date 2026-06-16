@@ -18,6 +18,7 @@ use App\Content\Http\DTOs\Responses\Delivery\DeliveryItemData;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryListData;
 use App\Http\DTOs\ErrorResponse;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
@@ -57,6 +58,7 @@ final class DeliveryController
         private readonly ReferenceResolver $references,
         private readonly Projector $projector,
         private readonly DeliveryEtag $etags,
+        private readonly ?LocaleManagerInterface $locales = null,
     ) {
     }
 
@@ -96,7 +98,8 @@ final class DeliveryController
     #[QueryParam(
         'locale',
         'string',
-        description: 'Content locale to read (defaults to lemma.default_locale, e.g. `en`).',
+        description: 'Content locale to read. When glueful/i18n is enabled, single-entry reads walk the locale '
+            . 'fallback chain; otherwise this defaults to lemma.default_locale, e.g. `en`.',
     )]
     #[QueryParam(
         'cursor',
@@ -256,19 +259,20 @@ final class DeliveryController
         }
         $schema = ContentTypeSchema::fromArray($typeRow['schema']);
         $typeUuid = (string) $typeRow['uuid'];
-        $locale = $this->locale($request);
+        $locales = $this->localeChain($request);
 
-        // Slug/route first; fall back to a uuid lookup when it looks like a nanoid.
-        $row = $this->delivery->findPublishedByRoute($typeUuid, $locale, $slugOrUuid);
+        // Slug/route first across the fallback chain; fall back to a uuid lookup when it
+        // looks like a nanoid. The row's own locale is preserved in the response.
+        $row = $this->findPublishedByRoute($typeUuid, $locales, $slugOrUuid);
         if ($row === null && $this->looksLikeNanoid($slugOrUuid)) {
-            $row = $this->delivery->findPublishedByUuid($typeUuid, $locale, $slugOrUuid);
+            $row = $this->findPublishedByUuid($typeUuid, $locales, $slugOrUuid);
         }
         if ($row === null) {
             return Response::notFound('Content not found.');
         }
 
         $selector = FieldSelector::fromRequest($request);
-        $shaped = $this->shape([$row], $schema, $selector, $locale);
+        $shaped = $this->shape([$row], $schema, $selector, (string) $row['locale']);
         $item = $this->item($shaped[0]);
 
         $etag = $this->etags->forItem((string) $row['version_uuid'], $this->selectionKey($request));
@@ -446,7 +450,66 @@ final class DeliveryController
         if ($locale !== null && $locale !== '') {
             return $locale;
         }
+        if ($this->locales !== null) {
+            return $this->locales->default();
+        }
         return (string) config($this->context, 'lemma.default_locale', 'en');
+    }
+
+    /**
+     * Requested locale plus configured i18n fallbacks, de-duplicated and never empty.
+     *
+     * @return non-empty-list<string>
+     */
+    private function localeChain(Request $request): array
+    {
+        $requested = $this->locale($request);
+        if ($this->locales === null) {
+            return [$requested];
+        }
+
+        $chain = $this->locales->fallbackChain($requested);
+        array_unshift($chain, $requested);
+        $out = [];
+        foreach ($chain as $locale) {
+            $locale = trim((string) $locale);
+            if ($locale === '') {
+                continue;
+            }
+            $out[$locale] = $locale;
+        }
+
+        return $out === [] ? [$requested] : array_values($out);
+    }
+
+    /**
+     * @param non-empty-list<string> $locales
+     * @return array<string,mixed>|null
+     */
+    private function findPublishedByRoute(string $typeUuid, array $locales, string $slug): ?array
+    {
+        foreach ($locales as $locale) {
+            $row = $this->delivery->findPublishedByRoute($typeUuid, $locale, $slug);
+            if ($row !== null) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @param non-empty-list<string> $locales
+     * @return array<string,mixed>|null
+     */
+    private function findPublishedByUuid(string $typeUuid, array $locales, string $entryUuid): ?array
+    {
+        foreach ($locales as $locale) {
+            $row = $this->delivery->findPublishedByUuid($typeUuid, $locale, $entryUuid);
+            if ($row !== null) {
+                return $row;
+            }
+        }
+        return null;
     }
 
     /**

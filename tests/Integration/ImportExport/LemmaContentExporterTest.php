@@ -25,7 +25,7 @@ final class LemmaContentExporterTest extends LemmaTestCase
 
         $plan = $this->exporter()->plan(new ExportOptions(batchSize: 2));
 
-        self::assertSame(7, $plan->totalRecords);
+        self::assertSame(8, $plan->totalRecords);
         self::assertCount(4, $plan->batches);
         self::assertFalse($plan->retryable);
         self::assertSame(0, $plan->batches[0]->offset);
@@ -43,7 +43,7 @@ final class LemmaContentExporterTest extends LemmaTestCase
             new ExportContext($this->appContext(), 'job000000001', 'ndjson')
         );
 
-        self::assertSame(7, $result->processedRecords);
+        self::assertSame(8, $result->processedRecords);
         self::assertSame(0, $result->failedRecords);
         self::assertNotNull($result->resultPath);
 
@@ -63,10 +63,13 @@ final class LemmaContentExporterTest extends LemmaTestCase
             'entry_publication',
             'entry_route',
             'entry_reference',
+            'asset_manifest',
         ], array_column($records, 'kind'));
         self::assertSame('post', $records[0]['data']['slug']);
         self::assertSame('hello-world', $records[5]['data']['slug']);
         self::assertSame('hero_image', $records[6]['data']['source_field']);
+        self::assertSame('blob00000001', $records[7]['data']['uuid']);
+        self::assertSame('/uploads/blob00000001.jpg', $records[7]['data']['fetch_path']);
     }
 
     private function exporter(): LemmaContentExporter
@@ -76,6 +79,20 @@ final class LemmaContentExporterTest extends LemmaTestCase
 
     private function seedPublishedEntry(): void
     {
+        $this->connection()->getPDO()->prepare("DELETE FROM blobs WHERE uuid = 'blob00000001'")->execute();
+        $this->connection()->table('blobs')->insert([
+            'uuid' => 'blob00000001',
+            'name' => 'hero.jpg',
+            'mime_type' => 'image/jpeg',
+            'size' => 123,
+            'url' => '/uploads/blob00000001.jpg',
+            'storage_type' => 'local',
+            'visibility' => 'private',
+            'status' => 'active',
+            'created_by' => 'user00000001',
+            'created_at' => '2026-06-16 00:00:00',
+        ]);
+
         $type = (new ContentTypeRepository($this->connection()))->create([
             'slug' => 'post',
             'name' => 'Post',

@@ -35,6 +35,7 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
             'json' => [],
             'key' => ['source_entry_uuid', 'source_field', 'target_entry_uuid'],
         ],
+        'asset_manifest' => ['table' => 'blobs', 'json' => [], 'key' => ['uuid']],
     ];
 
     public function __construct(
@@ -145,10 +146,18 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
         $spec = self::KINDS[$kind];
         $table = $spec['table'];
         unset($data['id']);
+        unset($data['fetch_path']);
         foreach ($spec['json'] as $column) {
             if (isset($data[$column]) && is_array($data[$column])) {
                 $data[$column] = json_encode($data[$column], JSON_THROW_ON_ERROR);
             }
+        }
+
+        if ($kind === 'asset_manifest') {
+            $delete = $this->db->getPDO()->prepare('DELETE FROM blobs WHERE uuid = :uuid');
+            $delete->execute(['uuid' => (string) $data['uuid']]);
+            $this->db->table($table)->insert($data);
+            return;
         }
 
         $query = $this->db->table($table);

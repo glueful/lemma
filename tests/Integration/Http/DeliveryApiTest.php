@@ -47,7 +47,7 @@ final class DeliveryApiTest extends LemmaTestCase
         ]);
     }
 
-    private function controller(?LocaleManagerInterface $locales = null): DeliveryController
+    private function controller(LocaleManagerInterface $locales = new FakeLocaleManager()): DeliveryController
     {
         $repo = new DeliveryRepository($this->connection());
         return new DeliveryController(

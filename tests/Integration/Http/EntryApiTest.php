@@ -36,7 +36,7 @@ final class EntryApiTest extends LemmaTestCase
         ]);
     }
 
-    private function controller(?LocaleManagerInterface $locales = null): EntryController
+    private function controller(LocaleManagerInterface $locales = new FakeLocaleManager()): EntryController
     {
         return new EntryController(
             $this->appContext(),

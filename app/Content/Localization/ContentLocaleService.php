@@ -11,13 +11,13 @@ final class ContentLocaleService
 {
     public function __construct(
         private readonly ApplicationContext $context,
-        private readonly ?LocaleManagerInterface $locales = null,
+        private readonly LocaleManagerInterface $locales,
     ) {
     }
 
     public function default(): string
     {
-        return $this->locales?->default() ?? (string) config($this->context, 'lemma.default_locale', 'en');
+        return $this->locales->default();
     }
 
     /**
@@ -25,10 +25,6 @@ final class ContentLocaleService
      */
     public function enabled(): array
     {
-        if ($this->locales === null) {
-            return [$this->default()];
-        }
-
         $codes = [];
         foreach ($this->locales->enabled() as $row) {
             if (is_array($row) && isset($row['code'])) {
@@ -66,7 +62,7 @@ final class ContentLocaleService
      */
     public function fallbackChain(string $locale): array
     {
-        $chain = $this->locales?->fallbackChain($locale) ?? [$locale];
+        $chain = $this->locales->fallbackChain($locale);
         $chain = array_values(array_unique(array_filter($chain, static fn (string $code): bool => $code !== '')));
         return $chain === [] ? [$locale] : $chain;
     }

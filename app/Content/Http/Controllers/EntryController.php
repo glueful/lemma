@@ -55,14 +55,14 @@ final class EntryController
 
     /**
      * Create a new entry of the content type named by `content_type` (slug; unknown → 422),
-     * seeding an empty draft in the requested locale (defaulting to `lemma.default_locale`).
+     * seeding an empty draft in the requested locale (defaulting to the i18n default locale).
      * Returns the fresh entry identity record plus the empty draft.
      */
     #[ApiOperation(
         summary: 'Create an entry',
         description: 'Creates a new entry of a content type with an empty draft in the given locale. '
             . 'Body: `content_type` (required; content type slug), `locale` (defaults to '
-            . 'lemma.default_locale). Requires the `lemma.entries.write` permission.',
+            . 'the i18n default locale). Requires the `lemma.entries.write` permission.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(201, schema: EntryCreateResultData::class, description: 'Entry created with an empty draft.')]

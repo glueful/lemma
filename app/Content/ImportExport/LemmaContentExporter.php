@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Content\ImportExport;
 
+use App\Content\Repositories\ReferenceProjectionRepository;
+use App\Content\Schema\ContentTypeSchema;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Extensions\ImportExport\Contracts\ExporterInterface;
@@ -59,7 +61,7 @@ final class LemmaContentExporter implements ExporterInterface
 
         return new ExportPlan($total, $batches, retryable: false, metadata: [
             'format' => 'ndjson',
-            'record_kinds' => array_column(self::TABLES, 'kind'),
+            'record_kinds' => [...array_column(self::TABLES, 'kind'), 'asset_manifest'],
         ]);
     }
 
@@ -90,7 +92,7 @@ final class LemmaContentExporter implements ExporterInterface
         foreach (array_keys(self::TABLES) as $table) {
             $total += $this->db->table($table)->count();
         }
-        return $total;
+        return $total + count($this->assetManifestRows());
     }
 
     /**
@@ -107,7 +109,81 @@ final class LemmaContentExporter implements ExporterInterface
                 ];
             }
         }
+        foreach ($this->assetManifestRows() as $row) {
+            $records[] = [
+                'kind' => 'asset_manifest',
+                'data' => $row,
+            ];
+        }
         return $records;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function assetManifestRows(): array
+    {
+        $uuids = $this->referencedAssetUuids();
+        if ($uuids === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('blobs')
+            ->whereIn('uuid', $uuids)
+            ->orderBy('uuid', 'ASC')
+            ->get();
+
+        return array_map(static function (array $row): array {
+            $row['fetch_path'] = (string) ($row['url'] ?? '');
+            return $row;
+        }, $rows);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function referencedAssetUuids(): array
+    {
+        $types = [];
+        foreach ($this->rows('content_types') as $row) {
+            $types[(string) $row['uuid']] = ContentTypeSchema::fromArray(
+                is_string($row['schema'] ?? null)
+                    ? (json_decode((string) $row['schema'], true) ?: [])
+                    : (array) ($row['schema'] ?? [])
+            );
+        }
+
+        $entryTypes = [];
+        foreach ($this->rows('entries') as $row) {
+            $entryTypes[(string) $row['uuid']] = (string) $row['content_type_uuid'];
+        }
+
+        $assets = [];
+        foreach (['entry_drafts', 'entry_versions'] as $table) {
+            foreach ($this->rows($table) as $row) {
+                $typeUuid = $entryTypes[(string) ($row['entry_uuid'] ?? '')] ?? '';
+                $schema = $types[$typeUuid] ?? null;
+                if ($schema === null) {
+                    continue;
+                }
+                $fields = is_string($row['fields'] ?? null)
+                    ? (json_decode((string) $row['fields'], true) ?: [])
+                    : (array) ($row['fields'] ?? []);
+
+                foreach ($schema->fields() as $field) {
+                    if ($field->type !== 'asset') {
+                        continue;
+                    }
+                    foreach (ReferenceProjectionRepository::targets($fields[$field->name] ?? null) as $asset) {
+                        $assets[$asset] = true;
+                    }
+                }
+            }
+        }
+
+        $out = array_keys($assets);
+        sort($out);
+        return $out;
     }
 
     /**

@@ -58,7 +58,7 @@ final class DeliveryController
         private readonly ReferenceResolver $references,
         private readonly Projector $projector,
         private readonly DeliveryEtag $etags,
-        private readonly ?LocaleManagerInterface $locales = null,
+        private readonly LocaleManagerInterface $locales,
     ) {
     }
 
@@ -99,8 +99,8 @@ final class DeliveryController
     #[QueryParam(
         'locale',
         'string',
-        description: 'Content locale to read. When glueful/i18n is enabled, single-entry reads walk the locale '
-            . 'fallback chain; otherwise this defaults to lemma.default_locale, e.g. `en`.',
+        description: 'Content locale to read. Single-entry reads walk the configured i18n fallback chain; '
+            . 'when omitted, this defaults to the i18n default locale.',
     )]
     #[QueryParam(
         'cursor',
@@ -222,7 +222,7 @@ final class DeliveryController
             . 'version is unchanged. Field projection and reference expansion via `fields`/`expand`.',
         tags: ['Lemma Delivery'],
     )]
-    #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to lemma.default_locale).')]
+    #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to the i18n default locale).')]
     #[ApiResponse(200, schema: DeliveryItemData::class, description: 'The published entry.')]
     #[ApiResponse(
         304,
@@ -444,7 +444,7 @@ final class DeliveryController
 
     /**
      * The locale to read: the `locale` query param when present and non-empty, otherwise the
-     * configured `lemma.default_locale`.
+     * configured i18n default locale.
      */
     private function locale(Request $request): string
     {
@@ -452,10 +452,7 @@ final class DeliveryController
         if ($locale !== null && $locale !== '') {
             return $locale;
         }
-        if ($this->locales !== null) {
-            return $this->locales->default();
-        }
-        return (string) config($this->context, 'lemma.default_locale', 'en');
+        return $this->locales->default();
     }
 
     /**
@@ -466,10 +463,6 @@ final class DeliveryController
     private function localeChain(Request $request): array
     {
         $requested = $this->locale($request);
-        if ($this->locales === null) {
-            return [$requested];
-        }
-
         $chain = $this->locales->fallbackChain($requested);
         array_unshift($chain, $requested);
         $out = [];

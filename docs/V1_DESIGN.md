@@ -7,7 +7,7 @@ published read path is, where the locale dimension lives, and what the
 publishing pipeline guarantees. Everything else in v1 can be refactored;
 these four mostly cannot.
 
-Status: **draft — for review before the first migration is written.**
+Status: **implemented — V1 headless backend closure review.**
 
 ---
 
@@ -93,10 +93,14 @@ operator validation are guesswork.
 
 For each filterable field, Lemma creates the corresponding PostgreSQL
 expression index on `entry_versions` — created by a queued job when the model
-changes (`CREATE INDEX CONCURRENTLY`), never inline in a request. Unindexed
-fields are not filterable through the public API; this is a product rule, not
-a temporary limitation, because it is the only way to keep delivery latency
-predictable.
+changes (`CREATE INDEX CONCURRENTLY`), never inline in a request. The index is a
+**latency optimization, not a filterability gate**: query validation only
+requires that a field be schema-`filterable` with a declared `filter_type`, so
+filtering works whether or not the expression index exists yet — with the index
+it seeks, without it (e.g. a managed Postgres install that cannot run
+`CREATE INDEX CONCURRENTLY`, or one created manually out-of-band) it scans but
+returns the same results. See **Resolved V1 decisions → Expression-index
+lifecycle**.
 
 **Framework note:** the Glueful query builder currently exposes
 `whereJsonContains()` only. Richer JSONB predicates (`->>` comparisons, `@>`
@@ -110,9 +114,28 @@ not a Lemma blocker.
 Field values are validated against `content_types.schema` on write. Old
 versions keep the `schema_version` they were written under and are **not**
 rewritten on schema change; the delivery layer tolerates missing/extra keys
-(additive changes are free). Destructive changes (rename/retype/delete a
-field) require an explicit model migration step in the admin that enqueues a
-backfill job over current published versions only — history stays as written.
+(additive changes are free).
+
+**V1 behavior — content models are field-append-only.** Additive changes (add a
+field, change a field's `description`/`required`/`filterable`/`filter_type`) are
+allowed. **Destructive changes — deleting or retyping a field — are rejected with
+a `422`** (`ContentTypeRepository::updateSchema()` detects them via
+`destructiveChanges()`). A **rename** is therefore not expressible in V1: it
+surfaces as a delete + add, so the rejection stands; the workaround is to add the
+new field and leave the old one (its values remain under the old key in existing
+versions, harmlessly, since delivery tolerates extra keys). This keeps every
+published `entry_versions` snapshot valid as written and avoids any read-time or
+index-cast surprise on historical rows.
+
+**Backfill is a V1.x/V2 feature, not V1.** Safely migrating existing draft and
+published content across a destructive change is a feature in its own right — it
+needs explicit rename/retype/delete intent, a queued backfill over published
+versions, a draft/version-history policy, reference/index rebuild, and failure
+reporting — none of which should ship half-built against immutable published
+content. When it lands, the admin gains an explicit model-migration step that
+enqueues a backfill job over current published versions only, with history
+staying as written; until then, the `422` is the deliberate, documented V1
+contract.
 
 ---
 
@@ -140,8 +163,10 @@ aren't even in a table the delivery repository touches.
 
 - Unpublish = delete the `entry_publications` row.
 - Rollback = re-pin an older version row.
-- Scheduled publish/unpublish = core scheduler job that performs the same
-  pin/unpin at `publish_at` — no special states.
+- **Scheduled publish/unpublish is deferred.** V1 supports immediate manual
+  publish/unpublish only. The post-v1 scheduled path should be a core scheduler
+  job that performs the same pin/unpin at `publish_at` — no special publication
+  states and no delivery read-path changes.
 
 **Product language rule:** because versions are written at publish, the UI
 and docs call this **"version history"** (or "published revisions") — never
@@ -176,17 +201,17 @@ single most painful CMS migration there is. Carrying the column costs one
 config default; adding localization later becomes feature work instead of a
 schema rewrite.
 
-**Lemma does not build locale infrastructure — `glueful/i18n` already has it.**
+**Lemma V1 requires `glueful/i18n` for locale infrastructure.**
 The extension ships a locale registry (`LocaleManagerInterface`) with
 single-parent fallback chains (loop-protected), a request locale resolver
 (`LocaleResolverInterface`: explicit → `?locale=`/`X-Locale` → user claims →
 tenant → app locale), catalogs, pluralization, and a locale management
 API/CLI. The division of labor:
 
-- `ContentLocaleService` is Lemma's local seam over i18n. When `glueful/i18n`
-  is installed, it reads enabled/default/fallback locales from
-  `LocaleManagerInterface`; without i18n, Lemma falls back to
-  `lemma.default_locale`.
+- `ContentLocaleService` is Lemma's local seam over i18n. It reads
+  enabled/default/fallback locales from `LocaleManagerInterface`; the
+  `glueful/i18n` dependency is part of Lemma's V1 product core, not an
+  optional localization mode.
 - Admin authoring, route assignment, publishing, rollback/version listing, and
   preview-token minting validate locale params against the enabled locale set.
 - `GET /v1/admin/entries/{uuid}/locales` lists the per-locale draft,
@@ -218,7 +243,7 @@ transaction, snapshotted through publish).
   target's **published** version at read time. A referenced entry that is
   unpublished resolves to null/omitted — never to a draft.
 - `entry_references` exists for the queries JSONB is bad at: reverse lookups
-  ("what links here"), orphan detection, delete-protection warnings, and
+  ("what links here"), orphan detection, delete-protection blocks, and
   cascade decisions in the admin.
 - Expansion in the delivery API uses the framework's field-selection expander
   seam with batch loading (one query per referenced type per request), not
@@ -378,10 +403,25 @@ Lemma defines what the records mean.
 
 The v1 adapters produce/consume a versioned ZIP bundle: content types, entries
 with full version history (or published-only as an adapter option), routes,
-publications, and an asset manifest (blob metadata + fetch paths). Import
-upserts by UUID and uses the engine's dry-run mode for validation previews.
-This is the portability promise behind "canonical source", the content-level
-backup story, and — not incidentally — the test fixture format.
+publications, and an asset manifest. The asset manifest is deliberately
+metadata, not binary storage: it contains the referenced `blobs` row data plus
+a `fetch_path` that tells an operator or storage sync process where the asset
+bytes should come from. Import recreates the referenced blob metadata in the
+core `blobs` table, stripping `fetch_path`, so restored content references
+resolve by UUID when the same storage backend/bucket has already been restored
+or mounted.
+
+Lemma import/export does **not** copy asset bytes. In a cross-storage restore,
+operators must transfer the files separately; otherwise the imported blob row
+can resolve while the actual `/blobs/{uuid}` fetch still 404s. This is an
+intentional boundary: Glueful core owns the blob table and configured storage
+layer, while Lemma restores only the blob metadata that its content references
+as part of a full content-bundle restore.
+
+Import upserts content records by UUID and uses the engine's dry-run mode for
+validation previews. This is the portability promise behind "canonical source",
+the content-level backup story, and — not incidentally — the test fixture
+format.
 
 The WordPress, Markdown/MDX, and CSV importers (post-v1, ADAPTER_NOTES.md)
 are additional adapters on the same engine; the bundle adapters built here
@@ -459,7 +499,7 @@ building Lemma is filed against the skeleton/framework, not worked around.
    capabilities switchboard, PostgreSQL configured); then migrations +
    models/repositories for §1's tables; validation of field values against
    `content_types.schema` (framework DTO/Validator).
-3. Admin API: content types CRUD, entries/versions, publish/unpublish
+3. Admin API: content types CRUD, entries/versions, immediate publish/unpublish
    (§2 semantics), routes.
 4. Delivery API: list/single + field selection + filterable-field indexes +
    API-key scopes + rate limits + ETag/cache tags.
@@ -477,13 +517,23 @@ correct.
 
 ---
 
-## Open questions (decide before the step that needs them, not now)
+## Resolved V1 decisions
 
-- Expression-index lifecycle on shared/managed Postgres where
-  `CREATE INDEX CONCURRENTLY` may be restricted (step 4).
-- Version retention policy — unlimited history vs configurable pruning
-  (step 8; export makes pruning safe).
-- Whether `entry_routes` carries redirect rows in v1 or redirects wait for the
-  SEO module (step 3; leaning wait).
-- License/distribution (APPROACH.md open question) — must be answered before
-  any public release (step 9 boundary).
+- **Expression-index lifecycle:** V1 keeps generated filter indexes as an
+  operational optimization, not a hard correctness dependency. Index creation
+  is queued/out-of-band where supported; managed Postgres installs that cannot
+  run `CREATE INDEX CONCURRENTLY` may create equivalent indexes manually or run
+  without them. Query validation still enforces filterable fields and typed
+  operators either way.
+- **Version retention:** V1 keeps unlimited published version history by
+  default. Configurable pruning is deferred until after export/import is
+  established as the safety net; pruning must never run before a portable
+  content bundle can preserve history.
+- **Redirects:** `entry_routes` carries current route rows only in V1.
+  Redirect rows wait for the SEO/routing module so status codes, chains,
+  canonical URLs, and admin UX land together instead of as a half-feature in
+  core content routing.
+- **License/distribution:** the backend source is distributed under the
+  repository license (`MIT` today). Product packaging, hosted/commercial tiers,
+  or admin-build distribution can be decided separately; they do not block the
+  V1 headless backend.

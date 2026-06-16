@@ -23,7 +23,7 @@ final class LemmaContentImporterTest extends LemmaTestCase
 
         $plan = $importer->plan($source, new ImportOptions(batchSize: 2));
 
-        self::assertSame(7, $plan->totalRecords);
+        self::assertSame(8, $plan->totalRecords);
         self::assertCount(4, $plan->batches);
         self::assertTrue($plan->retryable);
         self::assertSame(0, $plan->batches[0]->offset);
@@ -40,8 +40,8 @@ final class LemmaContentImporterTest extends LemmaTestCase
             new ImportContext($this->appContext(), 'job000000001', 'dry_run')
         );
 
-        self::assertSame(7, $result->processedRecords);
-        self::assertSame(0, $result->failedRecords);
+        self::assertSame(8, $result->processedRecords, json_encode($result->errors, JSON_PRETTY_PRINT));
+        self::assertSame(0, $result->failedRecords, json_encode($result->errors, JSON_PRETTY_PRINT));
         self::assertSame(0, $this->connection()->table('content_types')->count());
         self::assertSame(0, $this->connection()->table('entries')->count());
     }
@@ -56,7 +56,7 @@ final class LemmaContentImporterTest extends LemmaTestCase
             new ImportContext($this->appContext(), 'job000000001', 'commit')
         );
 
-        self::assertSame(7, $result->processedRecords);
+        self::assertSame(8, $result->processedRecords);
         self::assertSame(0, $result->failedRecords);
         self::assertSame('post', $this->connection()->table('content_types')->first()['slug']);
         self::assertSame('entry0000001', $this->connection()->table('entries')->first()['uuid']);
@@ -67,13 +67,16 @@ final class LemmaContentImporterTest extends LemmaTestCase
         )['title']);
         self::assertSame('hello-world', $this->connection()->table('entry_routes')->first()['slug']);
         self::assertSame('hero_image', $this->connection()->table('entry_references')->first()['source_field']);
+        self::assertSame('blob00000001', $this->connection()->table('blobs')
+            ->where('uuid', '=', 'blob00000001')
+            ->first()['uuid']);
 
         $second = $this->importer()->process(
             new ImportBatch('batch0000002', 'job000000001', 2, 0, 20),
             new ImportContext($this->appContext(), 'job000000001', 'commit')
         );
 
-        self::assertSame(7, $second->processedRecords);
+        self::assertSame(8, $second->processedRecords);
         self::assertSame(1, $this->connection()->table('content_types')->count());
         self::assertSame(1, $this->connection()->table('entries')->count());
         self::assertSame(1, $this->connection()->table('entry_routes')->count());
@@ -214,6 +217,25 @@ final class LemmaContentImporterTest extends LemmaTestCase
                     'source_entry_uuid' => 'entry0000001',
                     'source_field' => 'hero_image',
                     'target_entry_uuid' => 'blob00000001',
+                ],
+            ],
+            [
+                'kind' => 'asset_manifest',
+                'data' => [
+                    'uuid' => 'blob00000001',
+                    'name' => 'hero.jpg',
+                    'description' => null,
+                    'mime_type' => 'image/jpeg',
+                    'size' => 123,
+                    'url' => '/uploads/blob00000001.jpg',
+                    'fetch_path' => '/uploads/blob00000001.jpg',
+                    'storage_type' => 'local',
+                    'visibility' => 'private',
+                    'status' => 'active',
+                    'created_by' => 'user00000001',
+                    'created_at' => '2026-06-16 00:00:00',
+                    'updated_at' => null,
+                    'deleted_at' => null,
                 ],
             ],
         ];

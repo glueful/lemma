@@ -20,7 +20,7 @@ final class CreateEntryData implements RequestData
         /** @var string Slug of the content type to create an entry for. */
         #[Rule('required|string')]
         public readonly string $content_type,
-        /** @var string|null BCP-47 locale for the seeded draft, e.g. "en". Defaults to lemma.default_locale. */
+        /** @var string|null BCP-47 locale for the seeded draft, e.g. "en". Defaults to the i18n default locale. */
         #[Rule('string')]
         public readonly ?string $locale = null,
     ) {

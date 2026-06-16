@@ -11,8 +11,9 @@ use Glueful\Database\Connection;
  * Write-time projection of reference/asset fields into entry_references (V1_DESIGN §4).
  *
  * Rebuilt on every draft save inside the draft-save transaction: the source entry's
- * existing rows are deleted then re-inserted from the draft's reference/asset field
- * values, deduped on the unique (source_entry_uuid, source_field, target_entry_uuid).
+ * existing rows are deleted then re-inserted from the draft's reference field values
+ * and asset blob references, deduped on the unique
+ * (source_entry_uuid, source_field, target_entry_uuid).
  */
 final class ReferenceProjectionRepository
 {
@@ -68,9 +69,10 @@ final class ReferenceProjectionRepository
     }
 
     /**
-     * A reference/asset field value is a uuid string or a list of uuid strings.
-     * Shared with EntryRepository's asset-delta diff so target parsing is identical
-     * to this projection's.
+     * Projection parser for uuid strings or lists of uuid strings. V1 write validation
+     * currently admits single-value reference/asset fields; this parser is intentionally
+     * tolerant so projection, import/export, and future multi-value fields share one
+     * target-normalization path.
      *
      * @return list<string>
      */

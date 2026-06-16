@@ -204,6 +204,29 @@ final class DeliveryApiTest extends LemmaTestCase
         self::assertSame('', (string) $cond->getContent());
     }
 
+    public function testPerContentTypeCacheTtlOverridesGlobalDeliveryTtl(): void
+    {
+        $this->connection()->table('content_types')
+            ->where('uuid', '=', $this->type)
+            ->update(['cache_ttl' => 300]);
+
+        $uuid = $this->publish(['title' => 'Custom cache', 'priority' => 2]);
+
+        $resp = $this->controller()->show($this->get(), 'post', $uuid);
+        self::assertSame(200, $resp->getStatusCode());
+        self::assertSame('max-age=300, public', $resp->headers->get('Cache-Control'));
+
+        $etag = (string) $resp->headers->get('ETag');
+        $cond = $this->controller()->show(
+            $this->get([], ['If-None-Match' => $etag]),
+            'post',
+            $uuid
+        );
+
+        self::assertSame(304, $cond->getStatusCode());
+        self::assertSame('max-age=300, public', $cond->headers->get('Cache-Control'));
+    }
+
     public function testPaginationBranchReturnsPaginatedEnvelope(): void
     {
         $this->publish(['title' => 'P1', 'priority' => 1]);

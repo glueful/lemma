@@ -29,6 +29,9 @@ final class CreateContentTypeData implements RequestData
         /** @var string|null Optional description of the content type. */
         #[Rule('string')]
         public readonly ?string $description = null,
+        /** @var int|null Optional delivery Cache-Control max-age override in seconds. */
+        #[Rule('numeric')]
+        public readonly ?int $cache_ttl = null,
         #[ArrayOf(FieldDefinitionData::class)]
         #[Rule('array')]
         public readonly array $schema = [],

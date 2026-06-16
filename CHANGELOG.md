@@ -72,6 +72,8 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   attribute set by `AuthMiddleware` (falling back from the optional `auth.user` enricher), so every
   `lemma_permission`-gated admin route authorizes correctly in a lean install — still fail-closed
   (no principal or missing grant → 403).
+- Content types now carry an optional `cache_ttl` override, and delivery responses use it for
+  `Cache-Control` max-age before falling back to `lemma.delivery.cache_ttl`.
 - `EntryRepository::softDelete` now emits `AssetDetached` for the deleted entry's current asset
   references before emitting `EntryDeleted`, keeping asset usage webhooks consistent with draft-save
   asset deltas.

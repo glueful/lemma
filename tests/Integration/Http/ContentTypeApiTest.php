@@ -90,6 +90,28 @@ final class ContentTypeApiTest extends LemmaTestCase
         }
     }
 
+    public function testStorePersistsOptionalDeliveryCacheTtl(): void
+    {
+        $resp = $this->controller()->store(
+            $this->hydrate(CreateContentTypeData::class, [
+                'slug' => 'cached_page',
+                'name' => 'Cached Page',
+                'cache_ttl' => 300,
+                'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
+            ]),
+            new Request(),
+        );
+
+        self::assertSame(201, $resp->getStatusCode(), (string) $resp->getContent());
+
+        $data = json_decode((string) $resp->getContent(), true)['data']['content_type'];
+        self::assertSame(300, $data['cache_ttl']);
+        self::assertSame(
+            300,
+            (new ContentTypeRepository($this->connection()))->findBySlug('cached_page')['cache_ttl']
+        );
+    }
+
     public function testStoreRejectsBadSchema(): void
     {
         // Structural hydration passes (each field def has name + type); the semantic rule

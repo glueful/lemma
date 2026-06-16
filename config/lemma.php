@@ -22,8 +22,8 @@ return [
         'default_per_page' => (int) env('LEMMA_DELIVERY_DEFAULT_PER_PAGE', 20),
         // Hard cap on page size to keep latency predictable.
         'max_per_page' => (int) env('LEMMA_DELIVERY_MAX_PER_PAGE', 100),
-        // Cache-Control max-age (seconds) emitted on delivery responses; per-type
-        // overrides land in a later task.
+        // Cache-Control max-age (seconds) emitted on delivery responses when the
+        // content type has no cache_ttl override.
         'cache_ttl' => (int) env('LEMMA_DELIVERY_CACHE_TTL', 60),
     ],
 

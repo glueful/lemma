@@ -37,4 +37,16 @@ final class SchemaTest extends LemmaTestCase
             ->first();
         self::assertSame('jsonb', $col['data_type']);
     }
+
+    public function testContentTypesCarryOptionalDeliveryCacheTtl(): void
+    {
+        $col = $this->connection()->table('information_schema.columns')
+            ->where('table_name', '=', 'content_types')
+            ->where('column_name', '=', 'cache_ttl')
+            ->first();
+
+        self::assertNotNull($col, 'content_types.cache_ttl stores per-type delivery max-age overrides');
+        self::assertSame('integer', $col['data_type']);
+        self::assertSame('YES', $col['is_nullable']);
+    }
 }

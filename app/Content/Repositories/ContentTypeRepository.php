@@ -25,6 +25,7 @@ final class ContentTypeRepository
             'slug' => (string) $data['slug'],
             'name' => (string) $data['name'],
             'description' => isset($data['description']) ? (string) $data['description'] : null,
+            'cache_ttl' => isset($data['cache_ttl']) ? max(0, (int) $data['cache_ttl']) : null,
             'status' => 'active',
             'schema' => json_encode($schema->toArray(), JSON_THROW_ON_ERROR),
             'schema_version' => 1,
@@ -113,6 +114,7 @@ final class ContentTypeRepository
             ? (json_decode((string) $row['schema'], true) ?? [])
             : (array) ($row['schema'] ?? []);
         $row['schema_version'] = (int) $row['schema_version'];
+        $row['cache_ttl'] = isset($row['cache_ttl']) ? (int) $row['cache_ttl'] : null;
         return $row;
     }
 

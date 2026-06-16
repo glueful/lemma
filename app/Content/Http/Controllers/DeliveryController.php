@@ -177,7 +177,7 @@ final class DeliveryController
                 $result['current_page'],
                 $result['per_page'],
             );
-            return $this->withCacheHeaders($request, $response, $rows, $type);
+            return $this->withCacheHeaders($request, $response, $rows, $typeRow);
         }
 
         // Default: cursor/keyset list.
@@ -196,7 +196,7 @@ final class DeliveryController
             'next_cursor' => $nextCursor,
         ], 'Content retrieved.');
 
-        return $this->withCacheHeaders($request, $response, $shaped, $type);
+        return $this->withCacheHeaders($request, $response, $shaped, $typeRow);
     }
 
     /**
@@ -275,7 +275,7 @@ final class DeliveryController
         if ($this->etags->matches($request, $etag)) {
             return $this->etags->notModified(
                 $etag,
-                $this->ttl(),
+                $this->ttl($typeRow),
                 $this->etags->cacheTag([(string) $row['entry_uuid']], $type),
             );
         }
@@ -284,7 +284,7 @@ final class DeliveryController
         return $this->etags->applyHeaders(
             $response,
             $etag,
-            $this->ttl(),
+            $this->ttl($typeRow),
             $this->etags->cacheTag([(string) $row['entry_uuid']], $type),
         );
     }
@@ -344,15 +344,17 @@ final class DeliveryController
         Request $request,
         Response $response,
         array $rows,
-        string $typeSlug,
+        array $typeRow,
     ): Response {
         $versionUuids = array_map(static fn(array $r): string => (string) ($r['version_uuid'] ?? ''), $rows);
         $entryUuids = array_map(static fn(array $r): string => (string) ($r['entry_uuid'] ?? ''), $rows);
         $etag = $this->etags->forList($versionUuids, $this->selectionKey($request));
+        $typeSlug = (string) $typeRow['slug'];
+
         return $this->etags->applyHeaders(
             $response,
             $etag,
-            $this->ttl(),
+            $this->ttl($typeRow),
             $this->etags->cacheTag($entryUuids, $typeSlug),
         );
     }
@@ -420,11 +422,17 @@ final class DeliveryController
     }
 
     /**
-     * The Cache-Control max-age (seconds) advertised on delivery responses, from
-     * `lemma.delivery.cache_ttl` (fallback 60).
+     * The Cache-Control max-age (seconds) advertised on delivery responses. A content
+     * type's `cache_ttl` overrides the global `lemma.delivery.cache_ttl`; null falls back.
+     *
+     * @param array<string,mixed> $typeRow
      */
-    private function ttl(): int
+    private function ttl(array $typeRow): int
     {
+        if (isset($typeRow['cache_ttl'])) {
+            return max(0, (int) $typeRow['cache_ttl']);
+        }
+
         return (int) config($this->context, 'lemma.delivery.cache_ttl', 60);
     }
 

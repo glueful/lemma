@@ -135,7 +135,7 @@ reporting — none of which should ship half-built against immutable published
 content. When it lands, the admin gains an explicit model-migration step that
 enqueues a backfill job over current published versions only, with history
 staying as written; until then, the `422` is the deliberate, documented V1
-contract.
+contract. **Settled design:** [`docs/superpowers/specs/2026-06-16-destructive-schema-backfill-design.md`](superpowers/specs/2026-06-16-destructive-schema-backfill-design.md) (delete + rename; retype deferred) — not yet implemented.
 
 ---
 
@@ -166,7 +166,9 @@ aren't even in a table the delivery repository touches.
 - **Scheduled publish/unpublish is deferred.** V1 supports immediate manual
   publish/unpublish only. The post-v1 scheduled path should be a core scheduler
   job that performs the same pin/unpin at `publish_at` — no special publication
-  states and no delivery read-path changes.
+  states and no delivery read-path changes. **Settled design + plan:**
+  [`docs/superpowers/specs/2026-06-16-scheduled-publish-design.md`](superpowers/specs/2026-06-16-scheduled-publish-design.md)
+  (+ [implementation plan](superpowers/plans/2026-06-16-scheduled-publish.md)) — not yet implemented.
 
 **Product language rule:** because versions are written at publish, the UI
 and docs call this **"version history"** (or "published revisions") — never
@@ -224,11 +226,15 @@ API/CLI. The division of labor:
 
 V1 deliberately does not add per-locale RBAC rules or UI-only translation
 assignment state. Those are admin-interface/workflow concerns layered on top of
-the backend contract above.
+the backend contract above. **Settled design (per-locale RBAC):**
+[`docs/superpowers/specs/2026-06-16-per-locale-rbac-design.md`](superpowers/specs/2026-06-16-per-locale-rbac-design.md)
+(via Aegis resource filters; per-content-type deferred) — not yet implemented.
 
 Field-level localization (`localized: true` in the field schema) is already
 representable. V1 keeps whole-entry locale variants as the persisted unit; a
 future editor can use the flag to automate copy behavior for non-localized fields.
+**Settled design:** [`docs/superpowers/specs/2026-06-16-field-localization-design.md`](superpowers/specs/2026-06-16-field-localization-design.md)
+(flag-aware copy-on-create; copy-on-change deferred) — not yet implemented.
 
 ---
 
@@ -528,11 +534,15 @@ correct.
 - **Version retention:** V1 keeps unlimited published version history by
   default. Configurable pruning is deferred until after export/import is
   established as the safety net; pruning must never run before a portable
-  content bundle can preserve history.
+  content bundle can preserve history. **Settled design:**
+  [`docs/superpowers/specs/2026-06-16-version-pruning-design.md`](superpowers/specs/2026-06-16-version-pruning-design.md)
+  (CLI-only this iteration; scheduled pruning deferred) — not yet implemented.
 - **Redirects:** `entry_routes` carries current route rows only in V1.
   Redirect rows wait for the SEO/routing module so status codes, chains,
   canonical URLs, and admin UX land together instead of as a half-feature in
-  core content routing.
+  core content routing. **Settled design:**
+  [`docs/superpowers/specs/2026-06-16-seo-routing-module-design.md`](superpowers/specs/2026-06-16-seo-routing-module-design.md)
+  (full SEO/routing module) — not yet implemented.
 - **License/distribution:** the backend source is distributed under the
   repository license (`MIT` today). Product packaging, hosted/commercial tiers,
   or admin-build distribution can be decided separately; they do not block the

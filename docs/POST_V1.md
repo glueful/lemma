@@ -9,12 +9,17 @@ its own focused spec (brainstorm → spec → plan) when it is actually schedule
 Ordering here is rough priority, not a committed sequence. The Admin SPA
 (V1_DESIGN §11 step 7) is a separate frontend deliverable and is tracked elsewhere.
 
+**Status (2026-06-16):** all six items now have a **settled design spec** (linked per item
+below); none is implemented yet. #1 also has an implementation plan. The next step for any
+item is its implementation plan → build; items stay in this backlog until shipped.
+
 ---
 
 ## 1. Scheduled publish / unpublish
 
 - **V1 behavior:** immediate manual publish/unpublish only.
 - **Reference:** V1_DESIGN §2 ("Scheduled publish/unpublish is deferred", line ~166).
+- **Spec:** [`superpowers/specs/2026-06-16-scheduled-publish-design.md`](superpowers/specs/2026-06-16-scheduled-publish-design.md) — settled design + [implementation plan](superpowers/plans/2026-06-16-scheduled-publish.md) ready.
 - **Scope sketch:** a `publish_at` / `unpublish_at` time (a column on the draft, or a
   small `entry_schedules` table) plus a core scheduler job that calls
   `PublishService::publish()` / `unpublish()` at the due time. **No new publication
@@ -29,6 +34,7 @@ Ordering here is rough priority, not a committed sequence. The Admin SPA
 - **V1 behavior:** destructive field changes (delete / retype; rename surfaces as
   delete+add) are rejected with a `422`. Models are field‑append‑only.
 - **Reference:** V1_DESIGN §1 ("Backfill is a V1.x/V2 feature, not V1", line ~130).
+- **Spec:** [`superpowers/specs/2026-06-16-destructive-schema-backfill-design.md`](superpowers/specs/2026-06-16-destructive-schema-backfill-design.md) — settled design (delete + rename; retype deferred); ready for plan.
 - **Scope sketch:** an explicit model‑migration step in the admin that captures
   rename/retype/delete intent and enqueues a backfill job over **current published
   versions only**, with a draft/version‑history policy, reference/index rebuild, and
@@ -43,6 +49,7 @@ Ordering here is rough priority, not a committed sequence. The Admin SPA
 
 - **V1 behavior:** unlimited published version history.
 - **Reference:** V1_DESIGN "Resolved V1 decisions → Version retention" (line ~528).
+- **Spec:** [`superpowers/specs/2026-06-16-version-pruning-design.md`](superpowers/specs/2026-06-16-version-pruning-design.md) — settled design (CLI-only this iteration; scheduled pruning deferred); ready for plan.
 - **Scope sketch:** configurable retention (keep‑N and/or age‑based) that prunes
   `entry_versions` rows below the policy, never touching the currently‑pinned version.
 - **Hard parts / gate:** pruning **must not** run until the export/import bundle can
@@ -54,6 +61,7 @@ Ordering here is rough priority, not a committed sequence. The Admin SPA
 
 - **V1 behavior:** `entry_routes` carries current route rows only.
 - **Reference:** V1_DESIGN "Resolved V1 decisions → Redirects" (line ~532).
+- **Spec:** [`superpowers/specs/2026-06-16-seo-routing-module-design.md`](superpowers/specs/2026-06-16-seo-routing-module-design.md) — settled design (full SEO/routing module: redirects + 301/302/308 + canonical/hreflang); ready for plan.
 - **Scope sketch:** redirect rows (in `entry_routes` or a dedicated `entry_redirects`
   table) with status codes (301/302/308), redirect chains, and canonical‑URL handling.
 - **Hard parts:** deliberately **bundled with the SEO/routing module** so status
@@ -66,6 +74,7 @@ Ordering here is rough priority, not a committed sequence. The Admin SPA
 - **V1 behavior:** the `localized: true` field‑schema flag is representable but inert;
   the persisted unit is the whole‑entry locale variant.
 - **Reference:** V1_DESIGN §3 ("Field‑level localization … already representable", line ~229).
+- **Spec:** [`superpowers/specs/2026-06-16-field-localization-design.md`](superpowers/specs/2026-06-16-field-localization-design.md) — settled design (flag-aware copy-on-create; copy-on-change deferred); ready for plan.
 - **Scope sketch:** use the existing `localized` flag to automate copy behavior — when
   a locale variant is created or saved, copy **non‑localized** field values from the
   source/default locale so editors only translate what's marked localized.
@@ -79,6 +88,7 @@ Ordering here is rough priority, not a committed sequence. The Admin SPA
 - **V1 behavior:** coarse, namespaced permissions checked with **no resource argument**
   (`lemma.entries.publish`, etc.); no per‑locale or per‑content‑type rules.
 - **Reference:** V1_DESIGN §3 ("does not add per‑locale RBAC", line ~225) + §7.
+- **Spec:** [`superpowers/specs/2026-06-16-per-locale-rbac-design.md`](superpowers/specs/2026-06-16-per-locale-rbac-design.md) — settled design (per-locale via Aegis resource filters; per-content-type deferred); ready for plan.
 - **Scope sketch:** per‑locale (and, on the same mechanism, per‑content‑type)
   permission checks — e.g. an editor may publish `fr` but not `de` — via Aegis's
   native resource‑level filters (`can($user, 'lemma.entries.publish', 'locale:fr')`),

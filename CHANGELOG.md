@@ -48,6 +48,8 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - Entry locale variant workflow endpoints: `GET /v1/admin/entries/{uuid}/locales` summarizes each
   locale's draft/publication/route state, and `POST /v1/admin/entries/{uuid}/locales/{locale}`
   creates a target-locale draft, optionally copied from a source locale draft.
+- Field-level localization automation: source-locale copy now preserves non-localized/shared fields
+  by key presence while leaving `localized: true` fields empty for translation.
 
 #### Publishing pipeline
 - A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,

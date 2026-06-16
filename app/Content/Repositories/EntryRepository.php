@@ -9,6 +9,7 @@ use App\Content\Events\AssetDetached;
 use App\Content\Events\EntryCreated;
 use App\Content\Events\EntryDeleted;
 use App\Content\Events\EntryUpdated;
+use App\Content\Localization\LocaleFieldSeeder;
 use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Support\OptimisticLockException;
@@ -23,6 +24,7 @@ final class EntryRepository
         private readonly ApplicationContext $context,
         private readonly ContentTypeRepository $types,
         private readonly ?PublishEventEmitter $events = null,
+        private readonly LocaleFieldSeeder $seeder = new LocaleFieldSeeder(),
     ) {
     }
 
@@ -229,6 +231,7 @@ final class EntryRepository
         ?string $actor,
         ?string $sourceLocale = null,
         bool $overwrite = false,
+        ?ContentTypeSchema $schema = null,
     ): array {
         $existing = $this->findDraft($entryUuid, $locale);
         if ($existing !== null && !$overwrite) {
@@ -241,7 +244,9 @@ final class EntryRepository
             if ($source === null) {
                 throw new \InvalidArgumentException('Source draft not found.');
             }
-            $fields = (array) $source['fields'];
+            $fields = $schema === null
+                ? (array) $source['fields']
+                : $this->seeder->seed((array) $source['fields'], $schema);
         }
 
         $data = [

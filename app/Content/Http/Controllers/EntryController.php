@@ -404,6 +404,7 @@ final class EntryController
         if ($type === null) {
             return Response::validation(['content_type' => 'unknown content type']);
         }
+        $schema = $this->types->schemaFor((string) $entry['content_type_uuid']);
 
         try {
             $draft = $this->entries->createLocaleDraft(
@@ -413,6 +414,7 @@ final class EntryController
                 $this->actor($request),
                 $input->source_locale,
                 $input->overwrite,
+                $schema,
             );
         } catch (\InvalidArgumentException $e) {
             return Response::validation(['source_locale' => $e->getMessage()]);

@@ -6,6 +6,10 @@ use Dotenv\Dotenv;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+// Single-process test tooling: keep the connection pool off (it deadlocks the
+// CLI bootstraps). Force it where env() reads it ($_ENV), before .env loads.
+$_ENV['DB_POOLING_ENABLED'] = 'false';
+
 $root = dirname(__DIR__);
 if (is_file($root . '/.env')) {
     Dotenv::createImmutable($root)->safeLoad();

@@ -9,6 +9,14 @@ use Glueful\Framework;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+// The test run is single-process and sequential: the connection pool gives no
+// benefit and its acquire path deadlocks this CLI bootstrap (the boot holds one
+// connection, the migration manager needs another → "1 active, 0 available",
+// 30s timeout). Force pooling off where the framework reads it ($_ENV, via env()),
+// set BEFORE the .env load so createImmutable keeps this value. (CI env quirks —
+// variables_order without `E`, Dotenv immutable-skip — make config alone unreliable.)
+$_ENV['DB_POOLING_ENABLED'] = 'false';
+
 $root = dirname(__DIR__);
 if (is_file($root . '/.env')) {
     Dotenv::createImmutable($root)->safeLoad();

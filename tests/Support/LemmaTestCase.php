@@ -61,8 +61,29 @@ abstract class LemmaTestCase extends TestCase
         }
     }
 
+    /** Verified once per process: are the tables actually migrated? */
+    private static bool $schemaVerified = false;
+
     protected function setUp(): void
     {
+        // Fail loud and clear if the test DB isn't migrated, instead of letting every
+        // test trip over a raw "relation ... does not exist" on the first truncate
+        // (which masks the real cause — e.g. the migration bootstrap dying on a
+        // ConnectionPoolException). Checked once per process.
+        if (!self::$schemaVerified) {
+            $schema = $this->connection()->getSchemaBuilder();
+            foreach (self::TABLES as $t) {
+                if (!$schema->hasTable($t)) {
+                    self::fail(
+                        "Test database is not migrated: table '{$t}' is missing. "
+                        . "Run `composer test:migrate`. In CI, check the migration step for a "
+                        . "ConnectionPoolException (the pool must be off: DB_POOLING_ENABLED=false)."
+                    );
+                }
+            }
+            self::$schemaVerified = true;
+        }
+
         // QueryBuilder has no truncate(); delete-all via a tautological predicate
         // (every Lemma table has an integer `id`). Deletes commit immediately.
         foreach (self::TABLES as $t) {

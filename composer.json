@@ -44,9 +44,11 @@
     "serve": "php glueful serve",
     "migrate": "php glueful migrate:run",
     "key:generate": "php glueful generate:key",
+    "test:reset-db": "DB_PGSQL_DATABASE=lemma_test APP_ENV=testing php scripts/reset-test-db.php",
     "test:migrate": "DB_PGSQL_DATABASE=lemma_test APP_ENV=testing php glueful migrate:run --force",
     "test:phpunit": "vendor/bin/phpunit",
     "test": [
+      "@test:reset-db",
       "@test:migrate",
       "@test:phpunit"
     ],

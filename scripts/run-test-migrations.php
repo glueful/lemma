@@ -9,12 +9,16 @@ use Glueful\Framework;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
-// The test run is single-process and sequential: the connection pool gives no
-// benefit and its acquire path deadlocks this CLI bootstrap (the boot holds one
-// connection, the migration manager needs another → "1 active, 0 available",
-// 30s timeout). Force pooling off where the framework reads it ($_ENV, via env()),
-// set BEFORE the .env load so createImmutable keeps this value. (CI env quirks —
-// variables_order without `E`, Dotenv immutable-skip — make config alone unreliable.)
+// The framework's env() reads $_ENV only. CI supplies config (DB_PGSQL_*, etc.) via
+// the shell/job environment, which PHP's variables_order (often no `E`) and Dotenv's
+// immutable-skip can leave absent from $_ENV — so the framework silently falls back to
+// config DEFAULTS (e.g. database 'glueful' instead of lemma_test, pooling on) even
+// though getenv() has the right values. Mirror the process env into $_ENV so every
+// config value resolves, then force pooling off (a sequential test run needs no pool).
+// Done BEFORE the .env load so createImmutable keeps these values.
+foreach (getenv() as $key => $value) {
+    $_ENV[$key] ??= $value;
+}
 $_ENV['DB_POOLING_ENABLED'] = 'false';
 
 $root = dirname(__DIR__);
@@ -47,6 +51,15 @@ $context = Framework::create($root)
     ->withEnvironment('testing')
     ->boot()
     ->getContext();
+
+// Diagnostic: the framework MUST resolve the same database the verification below
+// checks. A mismatch here is the "applied but missing" symptom.
+fwrite(STDOUT, sprintf(
+    "Framework resolved: DB_PGSQL_DATABASE=%s pooling=%s (verification target=%s)\n",
+    var_export(env('DB_PGSQL_DATABASE', '(config default)'), true),
+    env('DB_POOLING_ENABLED', true) ? 'on' : 'off',
+    var_export($database, true)
+));
 
 $manager = new MigrationManager($root . '/database/migrations', null, $context);
 $frameworkMigrations = $root . '/vendor/glueful/framework/migrations';

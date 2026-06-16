@@ -6,8 +6,12 @@ use Dotenv\Dotenv;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
-// Single-process test tooling: keep the connection pool off (it deadlocks the
-// CLI bootstraps). Force it where env() reads it ($_ENV), before .env loads.
+// Mirror the process env into $_ENV (the framework's env() reads $_ENV only; CI's
+// variables_order / Dotenv immutable-skip can leave it empty), then force pooling off.
+// Before the .env load so createImmutable keeps these values.
+foreach (getenv() as $key => $value) {
+    $_ENV[$key] ??= $value;
+}
 $_ENV['DB_POOLING_ENABLED'] = 'false';
 
 $root = dirname(__DIR__);

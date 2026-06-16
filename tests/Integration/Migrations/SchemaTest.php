@@ -49,4 +49,15 @@ final class SchemaTest extends LemmaTestCase
         self::assertSame('integer', $col['data_type']);
         self::assertSame('YES', $col['is_nullable']);
     }
+
+    public function testContentTypesCarryPublicDeliveryOptIn(): void
+    {
+        $col = $this->connection()->table('information_schema.columns')
+            ->where('table_name', '=', 'content_types')
+            ->where('column_name', '=', 'public_delivery')
+            ->first();
+
+        self::assertNotNull($col, 'content_types.public_delivery opts a type into anonymous delivery reads');
+        self::assertSame('boolean', $col['data_type']);
+    }
 }

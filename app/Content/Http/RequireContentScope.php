@@ -12,8 +12,9 @@ use Symfony\Component\HttpFoundation\Request;
 /**
  * Requires the request's API key to hold a specific content scope (e.g. `read:content`).
  *
- * Registered under the `require_content_scope` alias and used on the fluent delivery
- * routes as `->middleware('require_content_scope:read:content')`.
+ * Registered under the `require_content_scope` alias for routes that need a static content
+ * scope. Delivery itself now uses DeliveryAccessMiddleware because it also supports
+ * per-type scopes and public content-type opt-in.
  *
  * Why this exists instead of the framework's RequireScopeMiddleware: that middleware is
  * attribute-only and fails OPEN for fluent file routes — it reads the route's
@@ -21,8 +22,7 @@ use Symfony\Component\HttpFoundation\Request;
  * route carries no attribute config. Lemma's delivery routes are file routes, so we read
  * the required scope from the first middleware parameter and fail CLOSED: a missing/empty
  * scope param, an unauthenticated request (no `api_key_scopes` attribute), or an
- * insufficient grant all return 403. The delivery API serves only published content, but
- * it is still always API-key gated (V1_DESIGN §6) — this is the gate.
+ * insufficient grant all return 403.
  */
 final class RequireContentScope implements RouteMiddleware
 {

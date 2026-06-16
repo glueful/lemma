@@ -15,8 +15,9 @@ return [
         'viewer' => 'lemma_viewer',
     ],
 
-    // Public delivery API defaults (see docs/V1_DESIGN.md §6). Delivery is always
-    // API-key gated in v1 — no per-type public allow-list ("public_types").
+    // Public delivery API defaults (see docs/V1_DESIGN.md §6). Delivery is private by
+    // default: clients need read:content or read:content:{type}, unless a content type sets
+    // public_delivery=true.
     'delivery' => [
         // Default page size when the request omits perPage.
         'default_per_page' => (int) env('LEMMA_DELIVERY_DEFAULT_PER_PAGE', 20),

@@ -8,24 +8,24 @@ use Glueful\Routing\Router;
 /** @var Router $router */
 
 /*
- * Public delivery API — serves ONLY published content (V1_DESIGN §6). Always API-key
- * gated: the `require_content_scope:read:content` middleware is the security gate and is
- * fail-CLOSED (see App\Content\Http\RequireContentScope — unlike the framework's
- * attribute-only RequireScopeMiddleware which fails open for file routes).
+ * Delivery API — serves ONLY published content (V1_DESIGN §6). Requests may use a valid
+ * API key with `read:content` or `read:content:{type}`. Anonymous reads are allowed only
+ * when the requested content type explicitly sets `public_delivery=true`; a supplied but
+ * invalid API key still fails 401 and never falls through to public delivery.
  *
  * Auto-discovered by RouteManifest; the provider must NOT loadRoutesFrom() this file
  * (double registration throws on duplicate static routes).
  */
-$router->group(['prefix' => '/v1/content', 'middleware' => ['api_key']], function (Router $router): void {
+$router->group(['prefix' => '/v1/content', 'middleware' => ['optional_api_key']], function (Router $router): void {
     // List published entries of a content type.
     $router->get('/{type}', [DeliveryController::class, 'index'])
-        ->middleware('require_content_scope:read:content')
+        ->middleware('lemma_delivery_access')
         ->middleware('rate_limit')
         ->rateLimit(120, 1, by: 'user');
 
     // Get a single published entry by slug or UUID.
     $router->get('/{type}/{slugOrUuid}', [DeliveryController::class, 'show'])
-        ->middleware('require_content_scope:read:content')
+        ->middleware('lemma_delivery_access')
         ->middleware('rate_limit')
         ->rateLimit(120, 1, by: 'user');
 });

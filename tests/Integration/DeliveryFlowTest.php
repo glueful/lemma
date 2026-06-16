@@ -23,10 +23,9 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  * Unlike the controller-level {@see \App\Tests\Integration\Http\DeliveryApiTest} (which
  * news up the controller with the repositories), this test drives a genuine HTTP request
  * through {@see LemmaTestCase::handle()} (the same entry point as public/index.php) so the
- * full pipeline is exercised: routing (routes/lemma_content.php), the `auth` middleware,
- * the API-key authentication provider (which sets the `api_key_scopes` attribute), and the
- * fail-closed `require_content_scope:read:content` gate — none of which the controller test
- * touches.
+ * full pipeline is exercised: routing (routes/lemma_content.php), optional API-key
+ * authentication (which sets the `api_key_scopes` attribute when a key is present), and the
+ * fail-closed delivery access gate — none of which the controller test touches.
  *
  * The data layer is seeded with the same real repositories/PublishService the admin path
  * uses, so the leak-proof publication spine is genuinely published-through, not faked.
@@ -93,7 +92,7 @@ final class DeliveryFlowTest extends LemmaTestCase
         self::assertNotContains('Draft leak', $titles);
     }
 
-    // ── 3. KERNEL SCOPE GATE: a key without read:content is rejected (403) ────
+    // ── 3. KERNEL ACCESS GATE: scopes + public opt-in ────────────────────────
 
     public function testRequestWithoutReadContentScopeIsForbidden(): void
     {
@@ -106,6 +105,49 @@ final class DeliveryFlowTest extends LemmaTestCase
         $response = $this->handle($this->scopedGet('/v1/content/post/gated', $plain));
 
         self::assertSame(403, $response->getStatusCode(), $response->getContent());
+    }
+
+    public function testTypeScopedApiKeyCanReadOnlyThatContentType(): void
+    {
+        $this->publish(['title' => 'Typed'], 'typed');
+        $key = $this->mintKey(['read:content:post']);
+
+        $allowed = $this->handle($this->scopedGet('/v1/content/post/typed', $key));
+        self::assertSame(200, $allowed->getStatusCode(), $allowed->getContent());
+
+        $this->createContentType('page', 'Page');
+        $blocked = $this->handle($this->scopedGet('/v1/content/page', $key));
+        self::assertSame(403, $blocked->getStatusCode(), $blocked->getContent());
+    }
+
+    public function testPublicContentTypeCanBeReadWithoutApiKey(): void
+    {
+        $this->setPublicDelivery('post', true);
+        $this->publish(['title' => 'Public'], 'public');
+
+        $response = $this->handle(Request::create('/v1/content/post/public', 'GET'));
+
+        self::assertSame(200, $response->getStatusCode(), $response->getContent());
+        self::assertSame('Public', $this->json($response)['data']['fields']['title']);
+    }
+
+    public function testPrivateContentTypeStillRejectsAnonymousDelivery(): void
+    {
+        $this->publish(['title' => 'Private'], 'private');
+
+        $response = $this->handle(Request::create('/v1/content/post/private', 'GET'));
+
+        self::assertSame(403, $response->getStatusCode(), $response->getContent());
+    }
+
+    public function testInvalidApiKeyDoesNotFallThroughToPublicDelivery(): void
+    {
+        $this->setPublicDelivery('post', true);
+        $this->publish(['title' => 'Public'], 'public');
+
+        $response = $this->handle($this->scopedGet('/v1/content/post/public', 'not-a-real-key'));
+
+        self::assertSame(401, $response->getStatusCode(), $response->getContent());
     }
 
     // ── 4. CONDITIONAL GET: matching If-None-Match returns 304 ────────────────
@@ -292,6 +334,24 @@ final class DeliveryFlowTest extends LemmaTestCase
     {
         $this->connection()->table('api_keys')->where('id', '>', 0)->delete();
         $this->connection()->table('users')->where('id', '>', 0)->delete();
+    }
+
+    private function createContentType(string $slug, string $name): string
+    {
+        return (new ContentTypeRepository($this->connection()))->create([
+            'slug' => $slug,
+            'name' => $name,
+            'schema' => [
+                ['name' => 'title', 'type' => 'string', 'required' => true],
+            ],
+        ]);
+    }
+
+    private function setPublicDelivery(string $slug, bool $public): void
+    {
+        $this->connection()->table('content_types')
+            ->where('slug', '=', $slug)
+            ->update(['public_delivery' => $public]);
     }
 
     private function entries(): EntryRepository

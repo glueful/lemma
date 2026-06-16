@@ -123,6 +123,7 @@ final class ContentTypeController
                 'name' => trim($input->name),
                 'description' => $input->description,
                 'cache_ttl' => $input->cache_ttl,
+                'public_delivery' => $input->public_delivery,
                 'schema' => array_map(static fn (FieldDefinitionData $f): array => $f->toArray(), $input->schema),
                 'created_by' => $this->actor($request),
             ]);

@@ -19,6 +19,7 @@ final class CreateContentTypesTable implements MigrationInterface
             $table->string('name', 200);
             $table->text('description')->nullable();
             $table->integer('cache_ttl')->nullable();
+            $table->boolean('public_delivery')->default(false);
             $table->enum('status', ['active', 'archived', 'deleted'], 'active');
             $table->json('schema');                 // field definitions (JSONB)
             $table->integer('schema_version')->default(1);

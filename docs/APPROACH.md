@@ -223,7 +223,7 @@ Storage provider packs (`glueful/storage-s3`, `storage-gcs`, `storage-azure`) bu
 
 ## Delivery, Auth, And Positioning Notes
 
-- **Delivery API auth:** Glueful core's `api_keys` system (scopes, IP allowlists, expiration, rotation grace, `gf_live_*`/`gf_test_*` environment prefixes) is the delivery-token mechanism. Lemma should not build its own token store; it defines content scopes on top (e.g. `read:content`) and applies rate limiting to public delivery endpoints.
+- **Delivery API auth:** Glueful core's `api_keys` system (scopes, IP allowlists, expiration, rotation grace, `gf_live_*`/`gf_test_*` environment prefixes) is the delivery-token mechanism. Lemma should not build its own token store; it defines content scopes on top (`read:content`, `read:content:{type}`) and supports anonymous reads only for content types that explicitly opt into `public_delivery`.
 - **GraphQL:** deliberate position — Lemma ships REST with Glueful's GraphQL-style field selection (`?fields=entry(title,author(name))`) and expansion instead of a GraphQL endpoint. This answers the sparse-fieldset/nested-fetch need without a second query engine. Revisit only on real demand.
 - **Content portability:** "canonical source" implies content can leave. A full export (content models + entries + asset manifest) ships v1-adjacent as a CLI command and produces a re-importable bundle. This is a trust requirement and doubles as the content-level backup story.
 - **Admin auth:** the bundled admin SPA authenticates against the same auth as the admin API (JWT bearer via `glueful/users`). Token storage posture, stated explicitly: the **access token lives in memory only** (never `localStorage`/`sessionStorage` — an XSS must not be able to exfiltrate a reusable credential), short-lived; the **refresh token lives in an `httpOnly` `SameSite=Strict` cookie path-scoped to the refresh endpoint**. That cookie reintroduces exactly one narrow CSRF surface (the refresh call itself), accepted because refresh-token rotation with reuse detection bounds it and the alternative (refresh token readable by JS) is strictly worse. All other admin API calls are pure bearer — no cookie, no CSRF surface. The typed API client carries the bearer token and handles the refresh dance. Social sign-in via `glueful/entrada` (when enabled) is just another way to establish the same session — the provider buttons on the login screen are driven by which entrada providers are configured, and the token posture is identical from that point on.
@@ -239,15 +239,17 @@ V1 focus:
 2. entries with draft/published state;
 3. version history (immutable versions written at publish — see V1_DESIGN.md §2);
 4. media attachment through Glueful blobs;
-5. headless read APIs (with field selection, filtering, pagination);
+5. headless read APIs (with field selection, filtering, pagination, per-type
+   Cache-Control, per-type API-key scopes, and public opt-in);
 6. preview system (draft access for frontends via short-lived tokens);
 7. PostgreSQL migrations;
 8. user roles and permissions (coarse roles in v1);
 9. admin/editor UI;
 10. OpenAPI docs;
-11. content export bundle (portability).
+11. content import/export adapters over `glueful/import-export`;
+12. backend content localization over `glueful/i18n`.
 
-Rendered pages, the block/page builder, approval workflows, localization UI, forms, navigation, and SEO modules are post-v1 (the schema still carries the locale dimension from day one — see the design doc).
+Rendered pages, the block/page builder, approval workflows, localization UI, forms, navigation, SEO modules, scheduled publish, and native multi-tenant content partitioning are post-v1. The backend already carries the locale dimension and i18n-backed locale workflow; the deferred localization item is the editor-facing UI polish, not the content API/storage model.
 
 It should integrate with core webhooks, scheduler, OpenAPI, storage, queues, CDN, and search from the start where useful. Avoid overbuilding early: the product should prove the content model, editorial workflow, and delivery model first.
 

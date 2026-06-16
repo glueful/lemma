@@ -32,6 +32,9 @@ final class CreateContentTypeData implements RequestData
         /** @var int|null Optional delivery Cache-Control max-age override in seconds. */
         #[Rule('numeric')]
         public readonly ?int $cache_ttl = null,
+        /** @var bool Whether published delivery routes may be read without an API key. */
+        #[Rule('boolean')]
+        public readonly bool $public_delivery = false,
         #[ArrayOf(FieldDefinitionData::class)]
         #[Rule('array')]
         public readonly array $schema = [],

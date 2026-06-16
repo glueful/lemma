@@ -63,7 +63,8 @@ return [
             '## Authentication',
             '',
             '- **Delivery API** (`/v1/content/*`) — send an API key in the `X-API-Key` header. '
-                . 'The key must carry the `read:content` scope. Keys are environment-prefixed '
+                . 'The key must carry `read:content` or `read:content:{type}` unless the content '
+                . 'type explicitly opts into public delivery. Keys are environment-prefixed '
                 . '(`gf_live_*` / `gf_test_*`) and provisioned out of band.',
             '- **Admin API** (`/v1/admin/*`) — send a bearer JWT in the `Authorization` header '
                 . '(`Authorization: Bearer <token>`). Each route also enforces a `lemma.*` '
@@ -167,8 +168,9 @@ return [
         |
         */
         'route_prefixes' => [
-            // Lemma route files already carry absolute /v1/... paths in their
-            // @route tags, so they take no prefix injection.
+            // Lemma route files register absolute /v1/... paths directly in the router.
+            // The reflect generator reads those live route paths, so no prefix injection
+            // is needed here.
             'lemma_content.php' => '',
             'lemma_admin.php' => '',
             'lemma_preview.php' => '',
@@ -218,14 +220,14 @@ return [
     |
     | Maps route middleware names to the security schemes above. Each route
     | resolves its security from the middleware it carries: the admin API uses
-    | `auth` (BearerAuth) and the delivery API uses `api_key` (ApiKeyAuth), so
-    | per-operation security is emitted natively. scripts/openapi-finalize-
-    | security.php only refines the public preview route's explicit no-auth.
+    | `auth` (BearerAuth) and the delivery API uses `optional_api_key` (ApiKeyAuth),
+    | so per-operation security is emitted natively for the key path. OpenAPI cannot
+    | express Lemma's per-content-type anonymous opt-in; operation text documents it.
     |
     */
     'middleware_map' => [
         'auth' => ['BearerAuth'],
-        'api_key' => ['ApiKeyAuth'],
+        'optional_api_key' => ['ApiKeyAuth'],
     ],
 
     /*

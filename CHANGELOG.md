@@ -14,9 +14,10 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   no draft/status column on the read path, so drafts physically cannot leak.
 - Admin deletion and routing endpoints for content types and entries: discard working drafts,
   soft-delete content types/entries, list published versions, and assign/list/remove entry routes.
-- `require_content_scope` middleware: a fail-closed API-key scope gate (`read:content`) — unlike
-  core's attribute-only `require_scope`, it reads its route param and denies when the scope is
-  absent or unsatisfied.
+- Delivery access gate with both global (`read:content`) and per-content-type
+  (`read:content:{type}`) API-key scopes, plus per-type public delivery opt-in via
+  `content_types.public_delivery`. Invalid supplied API keys still fail 401 and never fall
+  through to public access.
 - `FilterCompiler`: safe, typed, filterable-only JSONB filter predicates
   (`?filter[field][op]=value`) with always-bound values, sharing a `FieldSqlExpression` helper
   with the expression-index planner so predicates always hit their index.

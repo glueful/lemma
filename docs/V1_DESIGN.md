@@ -303,8 +303,9 @@ GET /v1/content/{type}/{slug-or-uuid}  -- single published entry
 ```
 
 - **Auth:** core `api_keys` (`gf_live_*`/`gf_test_*`) with a `read:content`
-  scope; per-type scopes (`read:content:{type}`) when a real consumer needs
-  them. Public/anonymous access is a per-content-type opt-in.
+  scope, or per-type scopes (`read:content:{type}`). Public/anonymous access
+  is opt-in per content type via `public_delivery`; invalid supplied API keys
+  still fail before public access is considered.
 - **Field selection & expansion:** the framework's `?fields=` / `?expand=`
   (REST and GraphQL-style syntaxes) with the **content-type schema as the
   whitelist** — not the framework's static `#[Fields]` route attribute.
@@ -403,9 +404,10 @@ establish the pattern they follow.
 
 `glueful/tenancy` (built; row-level shared-database tenancy) scopes
 tenant-owned tables through a `tenant_uuid` column, a `BelongsToTenant` ORM
-trait, and a raw-SQL interceptor backstop. Lemma v1 does **not** carry
-`tenant_uuid` columns, and this is the opposite call from the locale decision
-(§3) for a structural reason:
+trait, and a raw-SQL interceptor backstop. Lemma v1 integrates with the broader
+Glueful ecosystem but does **not** carry `tenant_uuid` columns in its content
+tables. This is the opposite call from the locale decision (§3) for a structural
+reason:
 
 - **Locale is identity-defining** — it multiplies rows (versions,
   publications, routes exist *per locale*), so retrofitting it would redefine
@@ -422,6 +424,12 @@ absent it references nothing, and a *nullable* `tenant_uuid` inside unique
 constraints does not enforce uniqueness on PostgreSQL (NULLs compare
 distinct), so single-tenant installs would need a sentinel tenant value — a
 permanent wart for a future feature.
+
+So tenancy is not blocked by ecosystem availability; it is consciously scoped
+as a V1.x/V2 Lemma integration track. When Lemma needs tenant-owned content,
+the work is a coordinated content-schema migration and repository/model
+adoption of `glueful/tenancy`, not a prerequisite for closing the V1 headless
+backend.
 
 Design rules that keep the retrofit cheap (cost nothing today):
 

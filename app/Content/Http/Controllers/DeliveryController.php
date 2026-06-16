@@ -75,8 +75,9 @@ final class DeliveryController
         summary: 'List published entries of a content type',
         description: 'Returns a page of PUBLISHED entries for the content type identified by the {type} '
             . 'slug. Reads only through the publication spine, so drafts/unpublished/archived entries are '
-            . 'never returned. Requires an API key carrying the `read:content` scope (header `X-API-Key`); '
-            . 'rate-limited to 120 requests/minute per key. Two pagination modes: by default a keyset '
+            . 'never returned. Private types require an API key carrying `read:content` or '
+            . '`read:content:{type}` (header `X-API-Key`); types with `public_delivery=true` may be '
+            . 'read anonymously. Rate-limited to 120 requests/minute. Two pagination modes: by default a keyset '
             . 'cursor (stable under publish churn) returns `data.items` + `data.next_cursor`; passing '
             . '`page`/`perPage` switches to an offset envelope with top-level '
             . '`current_page`/`per_page`/`total`/`total_pages`. Filtering and sorting are accepted only on '
@@ -128,13 +129,13 @@ final class DeliveryController
         401,
         schema: ErrorResponse::class,
         envelope: false,
-        description: 'Missing or invalid authentication.',
+        description: 'Invalid supplied API key.',
     )]
     #[ApiResponse(
         403,
         schema: ErrorResponse::class,
         envelope: false,
-        description: 'API key lacks the required `read:content` scope.',
+        description: 'Missing key for a private content type, or API key lacks `read:content`/`read:content:{type}`.',
     )]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type slug.')]
     #[ApiResponse(
@@ -215,7 +216,8 @@ final class DeliveryController
         summary: 'Get a single published entry by slug or UUID',
         description: 'Returns one PUBLISHED entry of the {type} content type, resolved by its route slug or '
             . 'by its 12-char entry UUID. Only published content is reachable — a draft-only or '
-            . 'unpublished entry yields 404. Requires an API key with the `read:content` scope. Emits an '
+            . 'unpublished entry yields 404. Private types require an API key carrying `read:content` or '
+            . '`read:content:{type}`; types with `public_delivery=true` may be read anonymously. Emits an '
             . '`ETag`; send it back as `If-None-Match` to receive a `304 Not Modified` when the published '
             . 'version is unchanged. Field projection and reference expansion via `fields`/`expand`.',
         tags: ['Lemma Delivery'],
@@ -230,13 +232,13 @@ final class DeliveryController
         401,
         schema: ErrorResponse::class,
         envelope: false,
-        description: 'Missing or invalid authentication.',
+        description: 'Invalid supplied API key.',
     )]
     #[ApiResponse(
         403,
         schema: ErrorResponse::class,
         envelope: false,
-        description: 'API key lacks the required `read:content` scope.',
+        description: 'Missing key for a private content type, or API key lacks `read:content`/`read:content:{type}`.',
     )]
     #[ApiResponse(
         404,

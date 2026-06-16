@@ -20,7 +20,7 @@ use Symfony\Component\HttpFoundation\Request;
  * concatenation of every member's version uuid (in result order) plus the selection key.
  *
  * `Cache-Control: public, max-age=<ttl>` is emitted with the per-type TTL (delivery is
- * always API-key gated but the responses are still cacheable). `Cache-Tag` carries the
+ * may be publicly readable but the responses are still cacheable). `Cache-Tag` carries the
  * surrogate keys a CDN/cache layer purges on publish: `lemma:entry:{uuid}` for each
  * member entry plus `lemma:type:{slug}` for the whole type.
  */

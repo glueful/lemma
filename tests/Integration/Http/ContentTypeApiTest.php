@@ -97,6 +97,7 @@ final class ContentTypeApiTest extends LemmaTestCase
                 'slug' => 'cached_page',
                 'name' => 'Cached Page',
                 'cache_ttl' => 300,
+                'public_delivery' => true,
                 'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
             ]),
             new Request(),
@@ -106,10 +107,13 @@ final class ContentTypeApiTest extends LemmaTestCase
 
         $data = json_decode((string) $resp->getContent(), true)['data']['content_type'];
         self::assertSame(300, $data['cache_ttl']);
+        self::assertTrue($data['public_delivery']);
         self::assertSame(
             300,
             (new ContentTypeRepository($this->connection()))->findBySlug('cached_page')['cache_ttl']
         );
+        $row = (new ContentTypeRepository($this->connection()))->findBySlug('cached_page');
+        self::assertTrue($row['public_delivery']);
     }
 
     public function testStoreRejectsBadSchema(): void

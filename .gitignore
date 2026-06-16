@@ -1,7 +1,5 @@
 # --- Composer ---
 /vendor/
-# The skeleton is a create-project template; installs resolve fresh dependencies.
-/composer.lock
 /composer.phar
 
 # --- Environment files ---

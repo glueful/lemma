@@ -41,15 +41,21 @@ Unpublish is the symmetric deferred call to the existing unpublish action.
 
 ## Architecture
 
-Three units, each independently testable:
+Four units, each independently testable:
 
 - **`entry_schedules` table + `ScheduleRepository`** — persistence and the due-row claim
   (the claim query is repository-owned raw PDO with bound parameters; see below).
-- **`lemma:schedules:run` console command** — the executable unit that claims due rows
-  and fires them through `PublishService`. It is the primary runner: deterministic,
-  manually/admin-invokable, and the direct test target (Lemma's command + test harness
-  is more proven than app schedule registration). `config/schedule.php` optionally
-  registers it to run every minute as the cron target.
+- **`ScheduleRunner`** — the unit of firing logic and the direct test target. It claims
+  due rows, fires each through `PublishService` **outside any enclosing transaction**, and
+  records the outcome via a separate write (see firing mechanism). Both entry points below
+  delegate to it, so the behavior is defined once.
+- **Two thin runner wrappers:**
+  - **`lemma:schedules:run` console command** — the operator/manual entry point
+    (deterministic, admin-invokable).
+  - **`RunDueSchedulesJob` (a `Glueful\Queue\Job` / `JobInterface`)** — the cron entry
+    point. The framework scheduler resolves `config/schedule.php` `handler_class` through
+    `JobHandlerResolver`, which **requires `JobInterface`** — a console command is rejected
+    — so the every-minute cron target is this job, not the command.
 - **`ScheduleController` + routes** — the admin API to create/list/cancel schedules.
 
 `PublishService::publish(string $entryUuid, string $locale, ?string $actor): string`
@@ -69,7 +75,7 @@ entry_schedules
   locale          varchar
   action          varchar         -- CHECK (action IN ('publish','unpublish'))
   run_at          timestamptz     -- when to fire (stored UTC)
-  status          varchar         -- CHECK (status IN ('pending','done','failed','canceled'))
+  status          varchar         -- CHECK (status IN ('pending','processing','done','failed','canceled'))
   attempts        int default 0   -- incremented per fire attempt; diagnostics + future manual retry
   failure_reason  text null       -- set when status='failed'
   created_by      char(12) null
@@ -88,29 +94,42 @@ Notes:
   a PostgreSQL timestamp-with-time-zone column.
 - The partial unique allows at most **one pending publish and one pending unpublish per
   (entry, locale)**; terminal rows (`done`/`failed`/`canceled`) accumulate as history.
+- `processing` is a **transient claim marker**, not a terminal state: the runner flips a
+  row `pending → processing` when it claims it (so the claim is durable without holding a
+  row lock across the fire), then writes the terminal status afterward. A row stuck in
+  `processing` means the worker crashed mid-fire; `reclaimStale` returns it to `pending`.
 
-## Firing mechanism — `lemma:schedules:run`
+## Firing mechanism — `ScheduleRunner`
 
-The executable unit is a console command, `lemma:schedules:run` — a deterministic
-runner that can be invoked manually/by an admin, used as the cron target, and tested
-directly. `config/schedule.php` optionally registers the command to run every minute
-(`'schedule' => '* * * * *'`, gated by an env flag e.g. `LEMMA_SCHEDULER_ENABLED`); the
-schedule entry just invokes the command, so the command stays the unit of logic and of
-testing.
+The unit of firing logic is `ScheduleRunner::run(int $limit)`. Both wrappers
+(`lemma:schedules:run` for operators, `RunDueSchedulesJob` for cron) simply call it, so
+the behavior is defined and tested in one place — the runner is the direct test target.
+`config/schedule.php` registers `RunDueSchedulesJob` to run every minute
+(`'schedule' => '* * * * *'`). The on/off switch is `config('lemma.scheduler.enabled')`
+(env `LEMMA_SCHEDULER_ENABLED`, default off in the test env), checked **inside**
+`run()`. Note the framework scheduler's per-job `'enabled'` config key is **inert** (the
+disabled-job skip is commented out in `JobScheduler::loadCoreJobsFromConfig()`), so the
+internal guard — not a schedule-entry flag — is the real off-switch.
 
 Per run (one "tick"):
-1. **Claim** a bounded batch of due rows via `ScheduleRepository` —
-   `status='pending' AND run_at <= now()`, ordered by `run_at`, with
-   `SELECT … FOR UPDATE SKIP LOCKED`. The row lock is the claim, so overlapping runs /
-   multiple workers never double-fire (no extra `processing` status needed). **This
-   claim query is owned by `ScheduleRepository` and may use raw PDO with bound
-   parameters** — the Glueful query builder doesn't expose `FOR UPDATE SKIP LOCKED`
-   safely, and the feature's concurrency guarantee depends on it. **Postgres-only**,
-   consistent with the V1 Postgres requirement.
-2. **Execute** each row in its own try/catch:
+0. **Reclaim stale claims** — `reclaimStale(300)` resets any row left `processing` for
+   more than ~5 minutes (a worker that crashed mid-fire) back to `pending` so it is
+   retried on this tick.
+1. **Claim** a bounded batch of due rows via `ScheduleRepository::claimDuePending($limit)`
+   in a **short transaction**: `SELECT … status='pending' AND run_at <= now()` ordered by
+   `run_at` `FOR UPDATE SKIP LOCKED`, then `UPDATE … SET status='processing' … RETURNING *`,
+   then commit. Flipping to `processing` **is** the claim — the row lock is released at
+   commit, so the lock is not held across the (potentially slow) fire, yet overlapping
+   runs / multiple workers never double-claim (`SKIP LOCKED` + the status change). **This
+   claim query is owned by `ScheduleRepository` and uses raw PDO with bound parameters** —
+   the Glueful query builder doesn't expose `FOR UPDATE SKIP LOCKED` safely, and the
+   feature's concurrency guarantee depends on it. **Postgres-only**, consistent with the
+   V1 Postgres requirement.
+2. **Execute** each claimed row in its own try/catch, **outside any enclosing
+   transaction**:
    - `publish` → `PublishService::publish(entry_uuid, locale, created_by)`.
    - `unpublish` → `PublishService::unpublish(entry_uuid, locale)`.
-3. **Record outcome** (write survives an action failure — see transaction shape):
+3. **Record outcome** via a separate `markOutcome` write (not nested in the action):
    - success → `status='done'`;
    - exception → `status='failed'`, `failure_reason` = the exception message, entry
      unchanged;
@@ -125,17 +144,20 @@ Per run (one "tick"):
 - **Missed runs catch up** — polling `run_at <= now()` fires a schedule whose time
   passed while the worker was down, on the next tick. No separate catch-up logic.
 - **Idempotency** — only `pending` rows are claimed; `done`/`failed`/`canceled` are
-  terminal and never re-fired.
+  terminal and never re-fired. `processing` rows are not re-claimed except via
+  `reclaimStale`.
 - **`unpublish` of an already-unpublished entry → `done`** (desired end-state reached;
   no false error).
 
-**Transaction shape (pinned):** claim a bounded batch with `FOR UPDATE SKIP LOCKED`;
-execute each schedule in its own try/catch; write `done`/`failed`/`canceled` in a
-transaction scope that **survives the action failure** (a `PublishService` exception
-must not roll back the status write). `PublishService::publish` runs its own
-`db()->transaction()` with `afterCommit` effects; the framework promotes `afterCommit`
-to the outermost commit. The plan must verify the nested-transaction semantics with a
-test (publish exception → `failed` recorded; success → `afterCommit` events fire once).
+**Why this shape (savepoint-independent):** because the claim commits the `processing`
+flip *before* the action runs, the action fires *outside* any enclosing transaction, and
+the terminal status is a *separate* write, an action failure can never roll back the
+status write — the design does **not** depend on the framework's `db()->transaction()`
+being savepoint-isolated. `PublishService::publish` still runs its own `db()->transaction()`
+with `afterCommit` effects internally; that transaction failing rolls back only its own
+work, and the runner then writes `failed`. The plan verifies this with an
+**outcome-survives-failure test** (publish exception → `failed` recorded; success →
+`afterCommit` events fire once).
 
 ## API surface
 
@@ -144,7 +166,9 @@ A `schedules` sub-resource under the existing `/v1/admin` group (consistent with
 
 - **`POST /v1/admin/entries/{uuid}/schedules/{locale}`** — Perm `lemma.entries.publish`.
   Body `{ "action": "publish"|"unpublish", "run_at": "<ISO-8601 with offset>" }`.
-  - Validation: `action` ∈ {publish, unpublish}; `run_at` must be an **absolute ISO-8601
+  - Validation: the entry must **exist and not be soft-deleted** (`status='deleted'`) —
+    otherwise **404**, before any row is written (no orphan schedule against a missing
+    entry); `action` ∈ {publish, unpublish}; `run_at` must be an **absolute ISO-8601
     timestamp with timezone** and in the **future** (reject past + naive/no-offset →
     422); `locale` validated via `ContentLocaleService`. `run_at` is **normalized to UTC**
     before storage.
@@ -160,7 +184,10 @@ A `schedules` sub-resource under the existing `/v1/admin` group (consistent with
   `failure_reason` where present.
 - **`DELETE /v1/admin/entries/{uuid}/schedules/{scheduleUuid}`** — Perm
   `lemma.entries.publish`. Cancels a **pending** row → `status='canceled'`,
-  `canceled_at`/`canceled_by` set. A terminal row → **409** (not a silent success).
+  `canceled_at`/`canceled_by` set. The cancel is **entry-scoped**: it matches on
+  `entry_uuid = {uuid} AND uuid = {scheduleUuid}`, so a known schedule UUID cannot be
+  canceled under the wrong entry URL. A terminal row, an unknown UUID, or a UUID that
+  belongs to a different entry → **409** (not a silent success).
 
 Request DTO: `App\Content\Http\DTOs\ScheduleData` (`action`, `run_at`) — a hydrated
 `RequestData` with `#[Rule]`s; the with-timezone + future + UTC-normalization logic
@@ -187,21 +214,26 @@ state changes, and emit no content event.
   rejected/replaced; pending publish + pending unpublish coexist).
 - **API:** POST creates pending, returns the row with `replaced=false`; 2nd POST same
   action → `replaced=true`, moves `run_at`, terminal rows untouched; POST rejects past
-  `run_at`, naive (no-offset) `run_at`, bad `action`, disabled locale (422); GET lists
-  pending + terminal history; DELETE cancels a pending row (`canceled` + `canceled_at/by`);
-  DELETE on a terminal row → 409; permission gating (publish for POST/DELETE, read for GET).
-- **Command `lemma:schedules:run`** (invoked directly — the deterministic test unit):
+  `run_at`, naive (no-offset) `run_at`, bad `action`, disabled locale (422), and a
+  missing or soft-deleted entry (404, no row written); GET lists pending + terminal
+  history; DELETE cancels a pending row (`canceled` + `canceled_at/by`); DELETE on a
+  terminal row → 409; DELETE is **entry-scoped** (a schedule of entry A DELETEd under
+  entry B's URL → 409, row stays pending); permission gating (publish for POST/DELETE,
+  read for GET).
+- **`ScheduleRunner`** (invoked directly — the deterministic test unit):
   claims `run_at <= now()` not future; `publish` → version + pin +
   `entry.published` (recording listener); `unpublish` → publication removed +
   `entry.unpublished`; invalid draft → `failed` + `failure_reason`, entry unchanged;
   soft-deleted entry → `canceled`; unpublish-already-unpublished → `done`; missed run
   fires on tick; terminal rows never re-fired; `attempts` incremented.
-- **Nested-transaction test:** a publish exception inside the claim still records
-  `failed` (status write survives the action's rollback); on success, `afterCommit`
-  events fire exactly once.
+- **Outcome-survives-failure test:** a publish exception during the fire still records
+  `failed` (the `markOutcome` write is independent of the action — not nested in it); on
+  success, `afterCommit` events fire exactly once.
 - **Concurrency-claim test:** with a held `FOR UPDATE SKIP LOCKED` transaction on a due
-  row, a second claim does not see/fire that row — the same pending row cannot be
+  row, a second claim does not see/claim that row — the same pending row cannot be
   claimed/fired twice.
+- **Stale-reclaim test:** a row left `processing` past the threshold is returned to
+  `pending` by `reclaimStale` and fired on the next tick.
 - **Timezone normalization test:** POST with a valid offset timestamp (e.g.
   `2026-07-01T09:00:00+02:00`); assert the stored + returned `run_at` is the consistent
   UTC ISO-8601 equivalent (`2026-07-01T07:00:00Z`).
@@ -224,5 +256,5 @@ state changes, and emit no content event.
   `failure_reason`, visible in the admin.
 - Cancel, reschedule (replace pending), and the publish/unpublish window all work; the
   §5 event taxonomy and the delivery read path are unchanged.
-- Full suite green on Postgres CI; the concurrency, nested-transaction, and timezone
-  tests pass.
+- Full suite green on Postgres CI; the concurrency, outcome-survives-failure, stale-reclaim,
+  and timezone tests pass.

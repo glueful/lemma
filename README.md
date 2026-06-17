@@ -1,206 +1,126 @@
-# Glueful API Skeleton
+# Lemma
 
-A minimal API application starter powered by the Glueful framework.
+**The canonical source for your content.** Model it once with flexible schemas, manage it with
+real editorial workflows, and deliver it anywhere — through headless APIs today, rendered
+pages later.
 
-## Quick Start
+Lemma is a hybrid CMS built as a [Glueful](https://github.com/glueful/framework) application
+(it starts from `glueful/api-skeleton` and dogfoods the framework's onboarding path). It owns
+the **content domain** — content models, entries, versioning, publishing, delivery — and
+integrates with Glueful core + extensions for the platform layer (storage, queue, scheduler,
+webhooks, OpenAPI, auth).
+
+> **Status:** the **V1 headless backend is complete**, plus a post‑V1 batch (scheduled publish,
+> destructive‑schema backfill, version pruning, SEO/routing, field‑localization, per‑locale
+> RBAC) has shipped. The first‑party **admin UI** and **rendered page delivery** are the next
+> phases — see [docs/NEXT.md](docs/NEXT.md). This is pre‑release software.
+
+---
+
+## What it does
+
+- **Content modeling** — content types with JSONB field schemas (`string`/`text`/`number`/
+  `boolean`/`datetime`/`enum`/`reference`/`asset`/`json`), filterable fields with Postgres
+  expression indexes, and field‑append‑only evolution (with a destructive‑change backfill path).
+- **Drafts → versions → publication** — one mutable draft per `(entry, locale)` with optimistic
+  locking; immutable version snapshots written *at publish*; a single published pin per
+  entry+locale. Rollback re‑pins any prior version.
+- **Headless delivery API** — `GET /v1/content/{type}/{slugOrUuid}` with GraphQL‑style field
+  selection (`?fields=…&expand=…`), filtering, pagination, per‑type `Cache-Control`, ETags, and
+  per‑type API‑key scopes (`read:content`, `read:content:{type}`) with public opt‑in.
+- **Preview** — short‑lived HMAC‑signed tokens give a frontend draft (or a specific historical
+  version) access without exposing unpublished content publicly.
+- **Localization** — locale‑aware drafts/versions/routes over `glueful/i18n` (fallback chains,
+  locale‑variant status), plus flag‑aware copy‑on‑create for non‑localized fields.
+- **Publishing pipeline** — a frozen PSR‑14 content‑event taxonomy driving cache invalidation,
+  webhooks, and search reindex; **scheduled** publish/unpublish at a future time.
+- **SEO / routing** — auto‑captured + manual redirects (301/302/308, chain‑free), plus
+  canonical / hreflang metadata on delivery.
+- **Permissions** — coarse Lemma RBAC over `glueful/aegis`, with optional **per‑locale** scoping
+  via Aegis resource filters (see [docs/PER_LOCALE_RBAC.md](docs/PER_LOCALE_RBAC.md)).
+- **Portability** — content‑model + entry + asset‑manifest export/import adapters over
+  `glueful/import-export` (see [docs/ADAPTER_NOTES.md](docs/ADAPTER_NOTES.md)); configurable
+  version pruning with the export bundle as the safety net.
+
+## Requirements
+
+- **PHP 8.3+**
+- **PostgreSQL** — required, not optional. Lemma relies on JSONB, expression indexes,
+  `FOR UPDATE SKIP LOCKED`, partial‑unique indexes, and `CHECK` constraints throughout.
+- Composer
+
+## Quick start
 
 ```bash
-# Install dependencies
 composer install
 
-# Initialize application (runs migrations, generates key)
-php glueful install --quiet
+# Configure the environment (PostgreSQL connection + secrets)
+cp .env.example .env
+#  set DB_DRIVER=pgsql and the DB_PGSQL_* connection vars
+composer key:generate               # APP_KEY (encryption) + JWT_KEY
 
-# Start development server
+# Apply the schema (core auth/queue/scheduler + Lemma content engine + extensions)
+php glueful migrate:run
+
+# Run it
 php glueful serve
-
-# Visit the API
-curl http://127.0.0.1:8080/v1/welcome
-curl http://127.0.0.1:8080/health
 ```
 
-## Default Routes
+Key endpoints once running:
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/v1/welcome` | GET | Welcome JSON payload |
-| `/v1/status` | GET | Lightweight status check |
-| `/health` | GET | Framework health endpoint |
+| Surface | Route | Notes |
+|---------|-------|-------|
+| Delivery (public, read‑only) | `GET /v1/content/{type}/{slugOrUuid}` | API‑key scoped; anonymous only for `public_delivery` types |
+| Admin / editor API | `…/v1/admin/*` | content types, entries, drafts, versions, publish, routes, schedules, redirects, migrations |
+| Preview | `GET /v1/preview/{token}` | unauthenticated by design — the signed token is the capability |
+| API docs | `/docs` | when `API_DOCS_ENABLED=true` |
 
-## Identity, Accounts & RBAC
-
-The skeleton enables two extensions by default — **`glueful/users`** (identity store + account lifecycle) and **`glueful/email-notification`** (the `email` channel). Authorization (RBAC) is **opt-in**.
-
-**1. Default skeleton — no RBAC required**
-
-- Login / token refresh / logout via the core auth seam (backed by `glueful/users`).
-- `GET /me` — the authenticated user's account + nested profile (authentication only).
-- Account lifecycle (`/auth/verify-email`, `/auth/forgot-password`, `/auth/reset-password`).
-- Email-PIN 2FA (`/2fa/*`, when `TWO_FACTOR_ENABLED=true`).
-
-**2. Optional user lookup / list — needs RBAC**
-
-These are **off by default** and **permission-gated** (`users.read`):
-
-```env
-USERS_USER_LOOKUP_ENABLED=true   # GET /users/{uuid}
-USERS_USER_LIST_ENABLED=true     # GET /users  (also requires the lookup flag)
-```
-
-Because they require `users.read`, they only work once an RBAC provider is enabled and the permission is granted — without one, the framework gate fails closed (`403`).
-
-**3. Enabling RBAC (`glueful/aegis`)**
-
-```bash
-composer require glueful/aegis
-php glueful extensions:enable aegis
-php glueful migrate:run                                    # RBAC tables + seeds default roles
-php glueful aegis:bootstrap-admin --user=<uuid-or-email>   # syncs the catalog, grants users.read, assigns the role
-```
-
-`aegis:bootstrap-admin` is the one-command first-admin path: it syncs the declared permission catalog, creates/reuses a role (default `admin`), grants it `users.read`, and assigns that role to your user — enough to unlock the lookup/list endpoints. Useful flags:
-
-- `--role=administrator` — target a specific (e.g. seeded) role instead of `admin`.
-- `--permission=posts.read` — repeatable; grant specific permissions instead of the `users.read` default.
-- `--all-catalog` — grant **every** catalog permission (full admin).
-- `--dry-run` — preview without writing.
-
-> Manual equivalent (if you prefer): `php glueful permissions:sync`, then assign a seeded role (`superuser`/`administrator`) to the user via the roles API (`POST /{user_uuid}/roles`).
-
-> Modern-framework norm: the user store is a sensible default; full RBAC stays opt-in so a fresh skeleton boots lean and secure (fail-closed) without imposing roles/permissions setup until you need it.
-
-## Project Structure
+## Project layout
 
 ```
-api-skeleton/
-├── app/                    # Application code
-│   ├── Controllers/        # HTTP request handlers
-│   ├── Models/             # ORM models
-│   └── Providers/          # Service providers
-├── bootstrap/app.php       # Framework initialization
-├── config/                 # Configuration files
-├── database/migrations/    # Database migrations
-├── public/index.php        # HTTP entry point
-├── routes/api.php          # API routes
-├── storage/                # Runtime data (logs, cache, db)
-└── tests/                  # PHPUnit tests
+app/Content/            # the content engine (Lemma's domain)
+  Schema/               # field definitions, content-type schema, migration op model
+  Repositories/         # entries, drafts, versions, publications, routes, references, schedules
+  Services/             # PublishService (publish/unpublish/rollback), MigrationService, …
+  Http/Controllers/     # admin + delivery controllers
+  Delivery/             # published read path, field projection, ETags
+  Scheduling/ Backfill/ Seo/ Retention/ Localization/ Indexing/   # feature modules
+  Console/ Jobs/        # CLI commands + queue jobs
+config/                 # lemma.php (+ schedule.php, queue.php, …)
+database/migrations/    # content-engine schema (001 → 012)
+routes/                 # lemma_admin.php, lemma_content.php, lemma_preview.php
+tests/                  # Unit / Integration / Feature (PostgreSQL via LemmaTestCase)
+docs/                   # design + product docs (see below)
 ```
 
-This skeleton uses a **minimal starter structure**. As your application grows, see [docs/APPLICATION_ARCHITECTURE.md](docs/APPLICATION_ARCHITECTURE.md) for guidance on scaling to standard and enterprise structures.
+## Documentation
 
-## Architecture Guide
-
-The skeleton follows a progressive complexity model:
-
-| Project Size | Structure |
-|--------------|-----------|
-| **Starter** (< 10 endpoints) | Controllers, Models, Providers |
-| **Standard** (10-50 endpoints) | + Actions, DTO, Events, Jobs, Policies |
-| **Enterprise** (50+ endpoints) | + Repositories, Services, Validators |
-
-**Start minimal. Add complexity only when needed.**
-
-See the full guide: [docs/APPLICATION_ARCHITECTURE.md](docs/APPLICATION_ARCHITECTURE.md)
-
-## Controllers & Routing
-
-Routes are defined explicitly in `routes/api.php`:
-
-```php
-// Simple version prefix (customize as needed)
-$router->group(['prefix' => 'v1'], function (Router $router) {
-    $router->get('/welcome', [WelcomeController::class, 'index']);
-    $router->get('/status', [WelcomeController::class, 'status']);
-});
-
-// Other prefix options:
-// - 'v1'                 → /v1/...
-// - '/api/v1'            → /api/v1/...
-// - api_prefix($context) → uses config/api.php settings
-```
-
-The framework also supports attribute-based routing:
-
-```php
-#[Controller(prefix: '/api/v1')]
-class UserController extends BaseController
-{
-    #[Get('/users/{id}')]
-    public function show(int $id): Response { }
-}
-```
-
-## Configuration
-
-Key configuration files in `config/`:
-
-| File | Purpose |
-|------|---------|
-| `app.php` | Application settings, paths, URLs |
-| `database.php` | Database connections (SQLite default) |
-| `security.php` | CORS, CSRF, headers, rate limiting |
-| `api.php` | API versioning, field selection |
-
-Environment variables in `.env` override config values.
-
-## CLI Commands
-
-```bash
-# Development
-php glueful serve                    # Start dev server
-php glueful serve --watch            # Auto-restart on changes
-
-# Database
-php glueful migrate:run              # Run migrations
-php glueful migrate:status           # Check migration status
-
-# Code Generation
-php glueful scaffold:controller UserController
-php glueful scaffold:model User --migration
-php glueful scaffold:request CreateUserRequest
-
-# Utilities
-php glueful generate:key             # Generate APP_KEY
-php glueful cache:clear              # Clear cache
-php glueful generate:openapi         # Generate API docs
-```
-
-## Deploying To Production
-
-Before deploying a generated app, review this checklist:
-
-```env
-APP_ENV=production
-APP_DEBUG=false
-FORCE_HTTPS=true
-```
-
-- Generate strong secrets with `php glueful generate:key`, then set `APP_KEY` and `JWT_KEY` in the production environment.
-- Move from SQLite to your production database driver and run `php glueful migrate:run` during deployment.
-- Move `QUEUE_CONNECTION` away from `sync` for background work, usually to `database`, `redis`, or your queue driver.
-- Move `CACHE_DRIVER` away from local file storage when the app runs on more than one server.
-- Generate the production command manifest with `php glueful commands:cache`.
-- Check route-cache health with `php glueful route:cache:status`; clear stale routes with `php glueful route:cache:clear`.
-- Clear application cache with `php glueful cache:clear` after config or deployment changes.
-- Enable PHP opcache in production and deploy with Composer's optimized autoloader.
-- Point logs at `storage/logs` or your platform log sink, never under `public/`.
-- Keep `/docs` disabled unless API docs should be public in that environment.
+| Doc | What it is |
+|-----|-----------|
+| [docs/APPROACH.md](docs/APPROACH.md) | Product vision, positioning, and ecosystem boundaries |
+| [docs/V1_DESIGN.md](docs/V1_DESIGN.md) | V1's expensive‑to‑reverse architecture decisions |
+| [docs/POST_V1.md](docs/POST_V1.md) | The (now‑closed) post‑V1 backlog — all six features shipped |
+| [docs/NEXT.md](docs/NEXT.md) | Forward‑work index: what's next and where it's tracked |
+| [docs/PER_LOCALE_RBAC.md](docs/PER_LOCALE_RBAC.md) | Operator recipe for locale‑scoped permissions |
+| [docs/ADAPTER_NOTES.md](docs/ADAPTER_NOTES.md) | Import/export adapter notes |
+| `docs/superpowers/specs/` · `plans/` | Per‑feature design specs and implementation plans |
 
 ## Testing
 
 ```bash
-# Run all tests
-composer test
-
-# Run specific suites
+composer test            # full suite (PostgreSQL)
 composer test:unit
 composer test:integration
+composer ci              # phpcs + tests
 ```
 
-Base test case at `tests/TestCase.php` provides framework integration.
+Tests run against a PostgreSQL test database (`*_test`); `composer test` resets + migrates it
+before running. See `CLAUDE.md` for the full developer workflow and conventions.
 
-## Notes
+## Built on Glueful
 
-- **Database**: SQLite at `storage/database/glueful.sqlite` (zero config)
-- **Queue**: `sync` driver for immediate execution (change to `redis` or `database` in `.env`)
-- **Docs**: API documentation at `/docs` when `API_DOCS_ENABLED=true`
+Lemma deliberately does **not** rebuild platform infrastructure. Storage/uploads, webhooks,
+scheduler, OpenAPI/docs, queue, and basic audit logging come from Glueful core and its
+extensions (`glueful/users`, `glueful/aegis`, `glueful/i18n`, `glueful/import-export`,
+`glueful/media`, `glueful/cdn`, …). Lemma focuses on the content domain and integrates with the
+rest.

@@ -249,7 +249,7 @@ V1 focus:
 11. content import/export adapters over `glueful/import-export`;
 12. backend content localization over `glueful/i18n`.
 
-Rendered pages, the block/page builder, approval workflows, localization UI, forms, navigation, SEO modules, scheduled publish, and native multi-tenant content partitioning are post-v1. The backend already carries the locale dimension and i18n-backed locale workflow; the deferred localization item is the editor-facing UI polish, not the content API/storage model.
+Rendered pages, the block/page builder, approval workflows, localization UI, forms, navigation, and native multi-tenant content partitioning are post-v1. (SEO modules and scheduled publish were also deferred past V1 and have since shipped — see [POST_V1.md](POST_V1.md).) The backend already carries the locale dimension and i18n-backed locale workflow; the deferred localization item is the editor-facing UI polish, not the content API/storage model.
 
 It should integrate with core webhooks, scheduler, OpenAPI, storage, queues, CDN, and search from the start where useful. Avoid overbuilding early: the product should prove the content model, editorial workflow, and delivery model first.
 

@@ -163,12 +163,14 @@ aren't even in a table the delivery repository touches.
 
 - Unpublish = delete the `entry_publications` row.
 - Rollback = re-pin an older version row.
-- **Scheduled publish/unpublish is deferred.** V1 supports immediate manual
-  publish/unpublish only. The post-v1 scheduled path should be a core scheduler
-  job that performs the same pin/unpin at `publish_at` — no special publication
-  states and no delivery read-path changes. **Settled design + plan:**
+- **Scheduled publish/unpublish is implemented.** Scheduled publish is deferred
+  execution of the normal publish action: at `run_at`, Lemma validates and
+  publishes the current draft; if validation fails, the entry remains unchanged
+  and the schedule row records the failure. Scheduled unpublish is the symmetric
+  deferred call to the normal unpublish path. There are no special publication
+  states and no delivery read-path changes. **Design + plan:**
   [`docs/superpowers/specs/2026-06-16-scheduled-publish-design.md`](superpowers/specs/2026-06-16-scheduled-publish-design.md)
-  (+ [implementation plan](superpowers/plans/2026-06-16-scheduled-publish.md)) — not yet implemented.
+  (+ [implementation plan](superpowers/plans/2026-06-16-scheduled-publish.md)).
 
 **Product language rule:** because versions are written at publish, the UI
 and docs call this **"version history"** (or "published revisions") — never
@@ -507,7 +509,7 @@ building Lemma is filed against the skeleton/framework, not worked around.
    capabilities switchboard, PostgreSQL configured); then migrations +
    models/repositories for §1's tables; validation of field values against
    `content_types.schema` (framework DTO/Validator).
-3. Admin API: content types CRUD, entries/versions, immediate publish/unpublish
+3. Admin API: content types CRUD, entries/versions, immediate/scheduled publish/unpublish
    (§2 semantics), routes.
 4. Delivery API: list/single + field selection + filterable-field indexes +
    API-key scopes + rate limits + ETag/cache tags.

@@ -47,6 +47,12 @@ return [
         'webhooks_enabled' => (bool) env('LEMMA_WEBHOOKS_ENABLED', true),
     ],
 
+    // Scheduled publish/unpublish. The framework scheduler's per-job `enabled` key is not
+    // the gate; ScheduleRunner reads this switch before firing any due rows.
+    'scheduler' => [
+        'enabled' => (bool) env('LEMMA_SCHEDULER_ENABLED', true),
+    ],
+
     // Version retention / pruning. Raw env pass-through: do not cast here.
     // RetentionPolicy::fromValues() validates positive integers and treats null/'' as off.
     'versions' => [

@@ -8,6 +8,7 @@ use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
+use App\Content\Http\Controllers\ScheduleController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -96,6 +97,17 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->post('/entries/{uuid}/preview/{locale}', [PreviewController::class, 'mint'])
         ->middleware('lemma_permission:lemma.entries.read');
+
+    // Scheduled publication: POST body is {action:"publish"|"unpublish", run_at:<absolute ISO-8601 with timezone>};
+    // response wraps {schedule:{...row,replaced:bool}}. GET returns {schedules:[...history]}.
+    $router->post('/entries/{uuid}/schedules/{locale}', [ScheduleController::class, 'store'])
+        ->middleware('lemma_permission:lemma.entries.publish');
+
+    $router->get('/entries/{uuid}/schedules', [ScheduleController::class, 'index'])
+        ->middleware('lemma_permission:lemma.entries.read');
+
+    $router->delete('/entries/{uuid}/schedules/{scheduleUuid}', [ScheduleController::class, 'destroy'])
+        ->middleware('lemma_permission:lemma.entries.publish');
 
     // Publication lifecycle.
     $router->post('/entries/{uuid}/publish/{locale}', [PublicationController::class, 'publish'])

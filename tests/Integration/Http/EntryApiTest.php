@@ -9,11 +9,13 @@ use App\Content\Http\DTOs\AssignRouteData;
 use App\Content\Http\DTOs\CopyLocaleData;
 use App\Content\Http\DTOs\CreateEntryData;
 use App\Content\Http\DTOs\SaveDraftData;
+use App\Content\Enums\ScheduleAction;
 use App\Content\Localization\ContentLocaleService;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
+use App\Content\Repositories\ScheduleRepository;
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Validation\FieldValidator;
 use App\Tests\Support\FakeLocaleManager;
@@ -362,6 +364,26 @@ final class EntryApiTest extends LemmaTestCase
         self::assertSame('hello-world', $locales[0]['route_slug']);
         self::assertSame(true, $locales[1]['has_draft']);
         self::assertNull($locales[1]['route_slug']);
+    }
+
+    public function testLocalesSummaryIncludesScheduledBlock(): void
+    {
+        $uuid = $this->createEntryUuid();
+        (new ScheduleRepository($this->connection()))->schedule(
+            $uuid,
+            'en',
+            ScheduleAction::Publish,
+            '2999-07-01T07:00:00Z',
+            'user00000001',
+        );
+
+        $resp = $this->controller(new FakeLocaleManager())->locales(new Request(), $uuid);
+
+        self::assertSame(200, $resp->getStatusCode());
+        $locale = json_decode((string) $resp->getContent(), true)['data']['locales'][0];
+        self::assertSame('2999-07-01T07:00:00Z', $locale['scheduled']['publish']);
+        self::assertNull($locale['scheduled']['unpublish']);
+        self::assertNull($locale['scheduled']['last_failure']);
     }
 
     private function controllerEntryRepo(): EntryRepository

@@ -11,6 +11,7 @@ use App\Content\Delivery\SortCompiler;
 use App\Content\Console\PruneVersionsCommand;
 use App\Content\Console\ResyncCommand;
 use App\Content\Console\RunBackfillCommand;
+use App\Content\Console\RunDueSchedulesCommand;
 use App\Content\Backfill\BackfillRunner;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\DeliveryController;
@@ -19,6 +20,7 @@ use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
+use App\Content\Http\Controllers\ScheduleController;
 use App\Content\ImportExport\LemmaContentExporter;
 use App\Content\ImportExport\LemmaContentImporter;
 use App\Content\Http\DeliveryEtag;
@@ -49,9 +51,11 @@ use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\MigrationRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
+use App\Content\Repositories\ScheduleRepository;
 use App\Content\Repositories\VersionRepository;
 use App\Content\Retention\VersionPruner;
 use App\Content\Schema\Migration\SchemaProjector;
+use App\Content\Scheduling\ScheduleRunner;
 use App\Content\Seo\CanonicalProjector;
 use App\Content\Seo\PathRenderer;
 use App\Content\Seo\RedirectRepository;
@@ -155,6 +159,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             MigrationRepository::class => [
                 'class' => MigrationRepository::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ScheduleRepository::class => [
+                'class' => ScheduleRepository::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -325,6 +334,11 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            ScheduleController::class => [
+                'class' => ScheduleController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
             VersionPruner::class => [
                 'class' => VersionPruner::class,
                 'shared' => true,
@@ -332,6 +346,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             BackfillRunner::class => [
                 'class' => BackfillRunner::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ScheduleRunner::class => [
+                'class' => ScheduleRunner::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -350,6 +369,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             RunBackfillCommand::class => [
                 'class' => RunBackfillCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RunDueSchedulesCommand::class => [
+                'class' => RunDueSchedulesCommand::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -406,7 +430,12 @@ final class LemmaServiceProvider extends ServiceProvider
 
         // Console: register Lemma's app commands. commands() is a console-only no-op in
         // the HTTP phase (runningInConsole() guards it), so this is free during requests.
-        $this->commands([ResyncCommand::class, PruneVersionsCommand::class, RunBackfillCommand::class]);
+        $this->commands([
+            ResyncCommand::class,
+            PruneVersionsCommand::class,
+            RunBackfillCommand::class,
+            RunDueSchedulesCommand::class,
+        ]);
     }
 
     /**

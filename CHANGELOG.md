@@ -71,6 +71,10 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - `lemma:resync` command: re-drives the idempotent effects (cache invalidation + search reindex;
   webhooks opt-in via `--webhooks`) for an entry, a type, or everything — published content only,
   bounded/keyset-paged.
+- Scheduled publish/unpublish: `POST /v1/admin/entries/{uuid}/schedules/{locale}` creates or
+  reschedules a pending publish/unpublish action, `GET /schedules` lists pending/history rows,
+  `DELETE /schedules/{scheduleUuid}` cancels pending rows, and the every-minute
+  `RunDueSchedulesJob` fires due rows through the normal `PublishService` path.
 
 #### Version retention
 - `lemma:versions:prune` operator command for manual, opt-in pruning of non-pinned

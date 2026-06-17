@@ -9,25 +9,22 @@ its own focused spec (brainstorm → spec → plan) when it is actually schedule
 Ordering here is rough priority, not a committed sequence. The Admin SPA
 (V1_DESIGN §11 step 7) is a separate frontend deliverable and is tracked elsewhere.
 
-**Status (2026-06-16):** all six items now have a **settled design spec** (linked per item
-below); none is implemented yet. #1 also has an implementation plan. The next step for any
-item is its implementation plan → build; items stay in this backlog until shipped.
+**Status (2026-06-16):** scheduled publish/unpublish (#1) has shipped in V1. The
+remaining items have settled design specs (linked per item); items stay in this backlog
+until shipped.
 
 ---
 
 ## 1. Scheduled publish / unpublish
 
-- **V1 behavior:** immediate manual publish/unpublish only.
-- **Reference:** V1_DESIGN §2 ("Scheduled publish/unpublish is deferred", line ~166).
-- **Spec:** [`superpowers/specs/2026-06-16-scheduled-publish-design.md`](superpowers/specs/2026-06-16-scheduled-publish-design.md) — settled design + [implementation plan](superpowers/plans/2026-06-16-scheduled-publish.md) ready.
-- **Scope sketch:** a `publish_at` / `unpublish_at` time (a column on the draft, or a
-  small `entry_schedules` table) plus a core scheduler job that calls
-  `PublishService::publish()` / `unpublish()` at the due time. **No new publication
-  states and no delivery read‑path changes** — it reuses the same pin/unpin path; a
-  scheduled publish is just a deferred call to the existing one.
-- **Hard parts:** idempotency + missed‑run handling (job fires late/twice), locale
-  awareness, and cancelling/rescheduling a pending action.
-- **Depends on:** the framework scheduler (already present).
+- **Status:** shipped.
+- **Reference:** V1_DESIGN §2 ("Scheduled publish/unpublish is implemented").
+- **Spec:** [`superpowers/specs/2026-06-16-scheduled-publish-design.md`](superpowers/specs/2026-06-16-scheduled-publish-design.md)
+  + [implementation plan](superpowers/plans/2026-06-16-scheduled-publish.md).
+- **Shipped shape:** `entry_schedules` records pending/history rows; the admin API
+  creates/lists/cancels schedules; `RunDueSchedulesJob` fires due rows through the
+  normal `PublishService::publish()` / `unpublish()` path with no new publication
+  states and no delivery read-path changes.
 
 ## 2. Destructive schema‑change backfill
 

@@ -280,7 +280,8 @@ final class EntryRepository
      *   is_published:bool,
      *   route_slug:?string,
      *   draft_updated_at:?string,
-     *   published_at:?string
+     *   published_at:?string,
+     *   scheduled:array{publish:?string,unpublish:?string,last_failure:?array}
      * }>
      */
     public function localeSummary(string $entryUuid): array
@@ -296,6 +297,7 @@ final class EntryRepository
                 'route_slug' => null,
                 'draft_updated_at' => null,
                 'published_at' => null,
+                'scheduled' => $this->emptyScheduleSummary(),
             ];
             $locales[$locale]['has_draft'] = true;
             $locales[$locale]['draft_updated_at'] = $row['updated_at'] ?? null;
@@ -310,6 +312,7 @@ final class EntryRepository
                 'route_slug' => null,
                 'draft_updated_at' => null,
                 'published_at' => null,
+                'scheduled' => $this->emptyScheduleSummary(),
             ];
             $locales[$locale]['is_published'] = true;
             $locales[$locale]['published_at'] = $row['published_at'] ?? null;
@@ -324,12 +327,49 @@ final class EntryRepository
                 'route_slug' => null,
                 'draft_updated_at' => null,
                 'published_at' => null,
+                'scheduled' => $this->emptyScheduleSummary(),
             ];
             $locales[$locale]['route_slug'] = $row['slug'] ?? null;
         }
 
+        foreach ($this->db->table('entry_schedules')->where('entry_uuid', '=', $entryUuid)->get() as $row) {
+            $locale = (string) $row['locale'];
+            $locales[$locale] ??= [
+                'locale' => $locale,
+                'has_draft' => false,
+                'is_published' => false,
+                'route_slug' => null,
+                'draft_updated_at' => null,
+                'published_at' => null,
+                'scheduled' => $this->emptyScheduleSummary(),
+            ];
+
+            if (($row['status'] ?? null) === 'pending') {
+                $action = (string) $row['action'];
+                if ($action === 'publish' || $action === 'unpublish') {
+                    $locales[$locale]['scheduled'][$action] = $this->isoUtc($row['run_at'] ?? null);
+                }
+            }
+
+            if (($row['status'] ?? null) === 'failed' && $row['failure_reason'] !== null) {
+                $locales[$locale]['scheduled']['last_failure'] ??= [
+                    'action' => (string) $row['action'],
+                    'run_at' => $this->isoUtc($row['run_at'] ?? null),
+                    'reason' => (string) $row['failure_reason'],
+                ];
+            }
+        }
+
         ksort($locales);
         return array_values($locales);
+    }
+
+    /**
+     * @return array{publish:?string,unpublish:?string,last_failure:?array}
+     */
+    private function emptyScheduleSummary(): array
+    {
+        return ['publish' => null, 'unpublish' => null, 'last_failure' => null];
     }
 
     public function softDelete(string $uuid): void
@@ -393,5 +433,20 @@ final class EntryRepository
     private function now(): string
     {
         return date('Y-m-d H:i:s');
+    }
+
+    private function isoUtc(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            return (new \DateTimeImmutable((string) $value, new \DateTimeZone('UTC')))
+                ->setTimezone(new \DateTimeZone('UTC'))
+                ->format('Y-m-d\TH:i:s\Z');
+        } catch (\Exception) {
+            return (string) $value;
+        }
     }
 }

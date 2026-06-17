@@ -78,6 +78,13 @@ return [
             'timeout' => 300,
             'retry_attempts' => 2,
         ],
+        [
+            'name' => 'lemma_schedules_run',
+            'schedule' => '* * * * *',
+            'handler_class' => \App\Content\Jobs\RunDueSchedulesJob::class,
+            'parameters' => [],
+            'description' => 'Fire due scheduled publish/unpublish actions',
+        ],
     ],
 
     'settings' => [

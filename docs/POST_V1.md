@@ -9,9 +9,11 @@ its own focused spec (brainstorm → spec → plan) when it is actually schedule
 Ordering here is rough priority, not a committed sequence. The Admin SPA
 (V1_DESIGN §11 step 7) is a separate frontend deliverable and is tracked elsewhere.
 
-**Status (2026-06-16):** scheduled publish/unpublish (#1) has shipped in V1. The
-remaining items have settled design specs (linked per item); items stay in this backlog
-until shipped.
+**Status (2026-06-17): ✅ COMPLETE — all six backlog items have shipped.** Each went the
+full distance: brainstorm → spec → spec review → plan → plan review → implementation →
+review, grounded against the real framework/Lemma/Aegis code. The per-item entries below are
+retained for history (with their settled specs + implementation plans); this backlog is
+closed. New post-V1 work should start a fresh document.
 
 ---
 
@@ -28,10 +30,11 @@ until shipped.
 
 ## 2. Destructive schema‑change backfill
 
+- **Status:** ✅ shipped (2026-06-17).
 - **V1 behavior:** destructive field changes (delete / retype; rename surfaces as
   delete+add) are rejected with a `422`. Models are field‑append‑only.
 - **Reference:** V1_DESIGN §1 ("Backfill is a V1.x/V2 feature, not V1", line ~130).
-- **Spec:** [`superpowers/specs/2026-06-16-destructive-schema-backfill-design.md`](superpowers/specs/2026-06-16-destructive-schema-backfill-design.md) — settled design (delete + rename; retype deferred); ready for plan.
+- **Spec:** [`superpowers/specs/2026-06-16-destructive-schema-backfill-design.md`](superpowers/specs/2026-06-16-destructive-schema-backfill-design.md) — shipped (delete + rename; retype deferred).
 - **Scope sketch:** an explicit model‑migration step in the admin that captures
   rename/retype/delete intent and enqueues a backfill job over **current published
   versions only**, with a draft/version‑history policy, reference/index rebuild, and
@@ -44,9 +47,10 @@ until shipped.
 
 ## 3. Version retention / pruning
 
+- **Status:** ✅ shipped (2026-06-17).
 - **V1 behavior:** unlimited published version history.
 - **Reference:** V1_DESIGN "Resolved V1 decisions → Version retention" (line ~528).
-- **Spec:** [`superpowers/specs/2026-06-16-version-pruning-design.md`](superpowers/specs/2026-06-16-version-pruning-design.md) — settled design (CLI-only this iteration; scheduled pruning deferred); ready for plan.
+- **Spec:** [`superpowers/specs/2026-06-16-version-pruning-design.md`](superpowers/specs/2026-06-16-version-pruning-design.md) — shipped (CLI-only this iteration; scheduled pruning deferred).
 - **Scope sketch:** configurable retention (keep‑N and/or age‑based) that prunes
   `entry_versions` rows below the policy, never touching the currently‑pinned version.
 - **Hard parts / gate:** pruning **must not** run until the export/import bundle can
@@ -56,9 +60,10 @@ until shipped.
 
 ## 4. SEO / redirects
 
+- **Status:** ✅ shipped (2026-06-17).
 - **V1 behavior:** `entry_routes` carries current route rows only.
 - **Reference:** V1_DESIGN "Resolved V1 decisions → Redirects" (line ~532).
-- **Spec:** [`superpowers/specs/2026-06-16-seo-routing-module-design.md`](superpowers/specs/2026-06-16-seo-routing-module-design.md) — settled design (full SEO/routing module: redirects + 301/302/308 + canonical/hreflang); ready for plan.
+- **Spec:** [`superpowers/specs/2026-06-16-seo-routing-module-design.md`](superpowers/specs/2026-06-16-seo-routing-module-design.md) — shipped (full SEO/routing module: redirects + 301/302/308 + canonical/hreflang).
 - **Scope sketch:** redirect rows (in `entry_routes` or a dedicated `entry_redirects`
   table) with status codes (301/302/308), redirect chains, and canonical‑URL handling.
 - **Hard parts:** deliberately **bundled with the SEO/routing module** so status
@@ -68,10 +73,11 @@ until shipped.
 
 ## 5. Field‑level localization automation
 
+- **Status:** ✅ shipped (2026-06-17).
 - **V1 behavior:** the `localized: true` field‑schema flag is representable but inert;
   the persisted unit is the whole‑entry locale variant.
 - **Reference:** V1_DESIGN §3 ("Field‑level localization … already representable", line ~229).
-- **Spec:** [`superpowers/specs/2026-06-16-field-localization-design.md`](superpowers/specs/2026-06-16-field-localization-design.md) — settled design (flag-aware copy-on-create; copy-on-change deferred); ready for plan.
+- **Spec:** [`superpowers/specs/2026-06-16-field-localization-design.md`](superpowers/specs/2026-06-16-field-localization-design.md) — shipped (flag-aware copy-on-create; copy-on-change deferred).
 - **Scope sketch:** use the existing `localized` flag to automate copy behavior — when
   a locale variant is created or saved, copy **non‑localized** field values from the
   source/default locale so editors only translate what's marked localized.
@@ -82,10 +88,11 @@ until shipped.
 
 ## 6. Per‑locale RBAC
 
+- **Status:** ✅ shipped (2026-06-17).
 - **V1 behavior:** coarse, namespaced permissions checked with **no resource argument**
   (`lemma.entries.publish`, etc.); no per‑locale or per‑content‑type rules.
 - **Reference:** V1_DESIGN §3 ("does not add per‑locale RBAC", line ~225) + §7.
-- **Spec:** [`superpowers/specs/2026-06-16-per-locale-rbac-design.md`](superpowers/specs/2026-06-16-per-locale-rbac-design.md) — settled design (per-locale via Aegis resource filters; per-content-type deferred); ready for plan.
+- **Spec:** [`superpowers/specs/2026-06-16-per-locale-rbac-design.md`](superpowers/specs/2026-06-16-per-locale-rbac-design.md) — shipped (per-locale via Aegis resource filters; per-content-type deferred).
 - **Scope sketch:** per‑locale (and, on the same mechanism, per‑content‑type)
   permission checks — e.g. an editor may publish `fr` but not `de` — via Aegis's
   native resource‑level filters (`can($user, 'lemma.entries.publish', 'locale:fr')`),

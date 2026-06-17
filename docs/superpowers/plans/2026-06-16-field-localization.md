@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** ✅ Shipped (2026-06-17) — implemented, reviewed, and merged. Steps left as `[ ]` for historical reference.
+
 **Goal:** Make the existing `localized: true` field-schema flag *do* something: when a new locale variant is created from a source locale, seed the new draft's **non-localized** fields from the source and leave the **localized** fields empty for the editor to translate.
 
 **Architecture:** One new pure unit — `LocaleFieldSeeder::seed(array $sourceFields, ContentTypeSchema $schema): array` — partitions source fields by the schema's `localized` flag, copying a non-localized field **iff `array_key_exists($field->name, $sourceFields)`** (key presence, NOT truthiness, so `false`/`0`/`0.0`/`''` survive) and omitting localized fields. The schema is the source of truth for the partition: fields in the source but not in the schema are dropped; fields in the schema but absent from the source are not invented. `EntryRepository::createLocaleDraft` gains a `ContentTypeSchema $schema` parameter and routes the source copy through the seeder; the no-source (empty draft) path is unchanged. `EntryController::createLocaleDraft` passes the already-resolved schema via `types->schemaFor(...)`. No new persisted unit, route, permission, event, DTO, or migration — the only behavioral change is *what gets copied* inside `createLocaleDraft`. Flag changes are prospective only (existing drafts/versions are never re-shaped). `overwrite: true` re-seed intentionally drops the target's localized values (re-seed = fresh translation).

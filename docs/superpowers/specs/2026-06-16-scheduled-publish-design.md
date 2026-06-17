@@ -5,7 +5,7 @@ time, as **deferred execution of the existing publish/unpublish actions** — no
 publish model, no changes to the draft/version/publication lifecycle or the delivery
 read path.
 
-**Status:** Design + implementation plan ready for review.
+**Status:** ✅ Shipped (2026-06-17) — implemented and reviewed.
 
 **Backlog item:** [POST_V1.md](../../POST_V1.md) §1. Resolves the deferral documented in
 [V1_DESIGN.md](../../V1_DESIGN.md) §2 ("Scheduled publish/unpublish is deferred").

@@ -8,7 +8,7 @@ half-migrated window.
 **Scope of this iteration:** **delete + rename only.** Retype (value coercion) is deferred;
 the op model is built to accept it later.
 
-**Status:** Settled design — ready for the implementation plan.
+**Status:** ✅ Shipped (2026-06-17) — implemented and reviewed.
 
 **Backlog item:** [POST_V1.md](../../POST_V1.md) §2. Resolves the deferral documented in
 [V1_DESIGN.md](../../V1_DESIGN.md) §1 ("Backfill is a V1.x/V2 feature, not V1").

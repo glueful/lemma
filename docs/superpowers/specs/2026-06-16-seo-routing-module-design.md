@@ -5,7 +5,7 @@ change + manual) with **301/302/308** status codes, chain-free resolution, and
 **canonical / hreflang** metadata on delivery — so a headless frontend never 404s a renamed
 URL and can emit correct SEO signals.
 
-**Status:** Settled design — ready for the implementation plan.
+**Status:** ✅ Shipped (2026-06-17) — implemented and reviewed.
 
 **Backlog item:** [POST_V1.md](../../POST_V1.md) §4. Resolves the deferral documented in
 [V1_DESIGN.md](../../V1_DESIGN.md) ("Redirects").

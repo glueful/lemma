@@ -31,6 +31,10 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   time (unpublished/archived targets resolve to `null`; depth-bounded).
 - Field selection / `ETag` / `Cache-Tag` (`lemma:entry:{uuid}`, `lemma:type:{slug}`) /
   `Cache-Control` on delivery responses.
+- SEO/routing module: route slug changes auto-capture 301 redirects, admins can manage manual
+  internal/external redirects, single-entry delivery emits canonical/hreflang metadata, and moved
+  paths return a headless redirect descriptor (`data.redirect`) instead of serving duplicate
+  content at the old path.
 
 #### Import/export
 - `lemma.content` export adapter for `glueful/import-export`, registered through
@@ -48,6 +52,11 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - Entry locale variant workflow endpoints: `GET /v1/admin/entries/{uuid}/locales` summarizes each
   locale's draft/publication/route state, and `POST /v1/admin/entries/{uuid}/locales/{locale}`
   creates a target-locale draft, optionally copied from a source locale draft.
+- Field-level localization automation: source-locale copy now preserves non-localized/shared fields
+  by key presence while leaving `localized: true` fields empty for translation.
+- Per-locale RBAC support through Aegis resource-filtered grants: locale-targeted admin routes
+  now authorize against `locale:<code>` while locale-agnostic routes keep the coarse `lemma`
+  resource. Seeded unscoped roles remain backward compatible.
 
 #### Publishing pipeline
 - A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,
@@ -62,6 +71,26 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - `lemma:resync` command: re-drives the idempotent effects (cache invalidation + search reindex;
   webhooks opt-in via `--webhooks`) for an entry, a type, or everything — published content only,
   bounded/keyset-paged.
+- Scheduled publish/unpublish: `POST /v1/admin/entries/{uuid}/schedules/{locale}` creates or
+  reschedules a pending publish/unpublish action, `GET /schedules` lists pending/history rows,
+  `DELETE /schedules/{scheduleUuid}` cancels pending rows, and the every-minute
+  `RunDueSchedulesJob` fires due rows through the normal `PublishService` path.
+
+#### Version retention
+- `lemma:versions:prune` operator command for manual, opt-in pruning of non-pinned
+  `entry_versions` history, with `--dry-run`, `--keep`, and `--max-age-days` controls. Pinned
+  publications are protected by a delete-time guard, and unset retention config preserves
+  unlimited history.
+
+#### Schema migrations
+- Explicit destructive schema migrations for content types: `POST /v1/admin/content-types/{slug}/migrations`
+  accepts tracked `rename` and `delete` field operations, records progress in
+  `entry_schema_migrations`, flips the canonical schema immediately, and queues
+  `lemma:schema:backfill` materialization.
+- Read-time schema projection now replays pending migration operations for lagging drafts,
+  versions, preview tokens, and delivery rows, so partially materialized catalogs still serve
+  the current schema shape. Published backfills append and re-pin new migrated versions while
+  preserving historical version rows.
 
 #### Preview tokens
 - HMAC-signed (`APP_KEY`) `PreviewToken` bound to `{entry, locale, version?}` with a minutes-scale

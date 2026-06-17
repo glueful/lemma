@@ -9,11 +9,13 @@ use App\Content\Http\DTOs\AssignRouteData;
 use App\Content\Http\DTOs\CopyLocaleData;
 use App\Content\Http\DTOs\CreateEntryData;
 use App\Content\Http\DTOs\SaveDraftData;
+use App\Content\Enums\ScheduleAction;
 use App\Content\Localization\ContentLocaleService;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
+use App\Content\Repositories\ScheduleRepository;
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Validation\FieldValidator;
 use App\Tests\Support\FakeLocaleManager;
@@ -73,6 +75,25 @@ final class EntryApiTest extends LemmaTestCase
         );
 
         return json_decode($resp->getContent(), true)['data']['entry']['uuid'];
+    }
+
+    private function createLocalizedEntryUuid(): string
+    {
+        (new ContentTypeRepository($this->connection()))->create([
+            'slug' => 'product',
+            'name' => 'Product',
+            'schema' => [
+                ['name' => 'title', 'type' => 'string', 'required' => true, 'localized' => true],
+                ['name' => 'price', 'type' => 'number'],
+            ],
+        ]);
+
+        $resp = $this->controller()->store(
+            $this->hydrate(CreateEntryData::class, ['content_type' => 'product', 'locale' => 'en']),
+            new Request(),
+        );
+
+        return json_decode((string) $resp->getContent(), true)['data']['entry']['uuid'];
     }
 
     public function testCreateEntryReturnsEntryWithEmptyDraft(): void
@@ -254,6 +275,70 @@ final class EntryApiTest extends LemmaTestCase
         self::assertSame(0, $draft['lock_version']);
     }
 
+    public function testLocaleDraftCopySeedsNonLocalizedAndOmitsLocalized(): void
+    {
+        $uuid = $this->createLocalizedEntryUuid();
+        $this->controller(new FakeLocaleManager())->saveDraft(
+            $this->hydrate(SaveDraftData::class, [
+                'fields' => ['title' => 'English', 'price' => 42],
+                'lock_version' => 0,
+            ]),
+            new Request(),
+            $uuid,
+            'en',
+        );
+
+        $resp = $this->controller(new FakeLocaleManager())->createLocaleDraft(
+            $this->hydrate(CopyLocaleData::class, ['source_locale' => 'en']),
+            new Request(),
+            $uuid,
+            'fr',
+        );
+
+        self::assertSame(201, $resp->getStatusCode());
+        $draft = json_decode((string) $resp->getContent(), true)['data']['draft'];
+        self::assertSame('fr', $draft['locale']);
+        self::assertSame(['price' => 42], $draft['fields'], 'shared price copied, localized title omitted');
+        self::assertArrayNotHasKey('title', $draft['fields']);
+    }
+
+    public function testRequiredLocalizedFieldLeftEmptyBlocksPublish(): void
+    {
+        $uuid = $this->createLocalizedEntryUuid();
+        $this->controller(new FakeLocaleManager())->saveDraft(
+            $this->hydrate(SaveDraftData::class, [
+                'fields' => ['title' => 'English', 'price' => 42],
+                'lock_version' => 0,
+            ]),
+            new Request(),
+            $uuid,
+            'en',
+        );
+
+        $this->controller(new FakeLocaleManager())->createLocaleDraft(
+            $this->hydrate(CopyLocaleData::class, ['source_locale' => 'en']),
+            new Request(),
+            $uuid,
+            'fr',
+        );
+
+        $publisher = $this->container()->get(\App\Content\Services\PublishService::class);
+
+        $errors = [];
+        try {
+            $publisher->publish($uuid, 'fr', 'user00000001');
+            self::fail('publishing a draft missing a required localized field must throw');
+        } catch (\App\Content\Validation\ValidationException $e) {
+            $errors = $e->errors();
+        }
+
+        self::assertArrayHasKey('title', $errors, 'required localized field left empty blocks publish');
+        self::assertNull(
+            (new \App\Content\Repositories\VersionRepository($this->connection()))->findPublication($uuid, 'fr'),
+            'a validation-failed publish creates no publication row'
+        );
+    }
+
     public function testEntryLocalesSummarizeDraftsPublicationsAndRoutes(): void
     {
         $uuid = $this->createEntryUuid();
@@ -279,6 +364,26 @@ final class EntryApiTest extends LemmaTestCase
         self::assertSame('hello-world', $locales[0]['route_slug']);
         self::assertSame(true, $locales[1]['has_draft']);
         self::assertNull($locales[1]['route_slug']);
+    }
+
+    public function testLocalesSummaryIncludesScheduledBlock(): void
+    {
+        $uuid = $this->createEntryUuid();
+        (new ScheduleRepository($this->connection()))->schedule(
+            $uuid,
+            'en',
+            ScheduleAction::Publish,
+            '2999-07-01T07:00:00Z',
+            'user00000001',
+        );
+
+        $resp = $this->controller(new FakeLocaleManager())->locales(new Request(), $uuid);
+
+        self::assertSame(200, $resp->getStatusCode());
+        $locale = json_decode((string) $resp->getContent(), true)['data']['locales'][0];
+        self::assertSame('2999-07-01T07:00:00Z', $locale['scheduled']['publish']);
+        self::assertNull($locale['scheduled']['unpublish']);
+        self::assertNull($locale['scheduled']['last_failure']);
     }
 
     private function controllerEntryRepo(): EntryRepository

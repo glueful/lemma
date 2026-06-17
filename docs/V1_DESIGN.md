@@ -135,7 +135,7 @@ reporting — none of which should ship half-built against immutable published
 content. When it lands, the admin gains an explicit model-migration step that
 enqueues a backfill job over current published versions only, with history
 staying as written; until then, the `422` is the deliberate, documented V1
-contract.
+contract. **Settled design:** [`docs/superpowers/specs/2026-06-16-destructive-schema-backfill-design.md`](superpowers/specs/2026-06-16-destructive-schema-backfill-design.md) (delete + rename; retype deferred) — not yet implemented.
 
 ---
 
@@ -163,10 +163,14 @@ aren't even in a table the delivery repository touches.
 
 - Unpublish = delete the `entry_publications` row.
 - Rollback = re-pin an older version row.
-- **Scheduled publish/unpublish is deferred.** V1 supports immediate manual
-  publish/unpublish only. The post-v1 scheduled path should be a core scheduler
-  job that performs the same pin/unpin at `publish_at` — no special publication
-  states and no delivery read-path changes.
+- **Scheduled publish/unpublish is implemented.** Scheduled publish is deferred
+  execution of the normal publish action: at `run_at`, Lemma validates and
+  publishes the current draft; if validation fails, the entry remains unchanged
+  and the schedule row records the failure. Scheduled unpublish is the symmetric
+  deferred call to the normal unpublish path. There are no special publication
+  states and no delivery read-path changes. **Design + plan:**
+  [`docs/superpowers/specs/2026-06-16-scheduled-publish-design.md`](superpowers/specs/2026-06-16-scheduled-publish-design.md)
+  (+ [implementation plan](superpowers/plans/2026-06-16-scheduled-publish.md)).
 
 **Product language rule:** because versions are written at publish, the UI
 and docs call this **"version history"** (or "published revisions") — never
@@ -222,13 +226,19 @@ API/CLI. The division of labor:
   fallback chain for route slugs and entry UUIDs, while preserving the actual
   served locale in the response payload.
 
-V1 deliberately does not add per-locale RBAC rules or UI-only translation
-assignment state. Those are admin-interface/workflow concerns layered on top of
-the backend contract above.
+V1 supports backend per-locale RBAC through Aegis resource-filtered grants: locale-targeted
+admin routes authorize against `locale:<code>` while locale-agnostic routes keep the coarse
+`lemma` resource. Lemma does not add a UI/API for assigning per-locale grants; that remains an
+admin-interface workflow layered on top of Aegis. **Implemented design:**
+[`docs/superpowers/specs/2026-06-16-per-locale-rbac-design.md`](superpowers/specs/2026-06-16-per-locale-rbac-design.md)
+(via Aegis resource filters; per-content-type deferred).
 
 Field-level localization (`localized: true` in the field schema) is already
 representable. V1 keeps whole-entry locale variants as the persisted unit; a
-future editor can use the flag to automate copy behavior for non-localized fields.
+future editor can use the flag to identify translated fields. Lemma now automates
+flag-aware copy-on-create for locale drafts; copy-on-change remains deferred.
+**Implemented design:** [`docs/superpowers/specs/2026-06-16-field-localization-design.md`](superpowers/specs/2026-06-16-field-localization-design.md)
+(flag-aware copy-on-create; copy-on-change deferred).
 
 ---
 
@@ -499,7 +509,7 @@ building Lemma is filed against the skeleton/framework, not worked around.
    capabilities switchboard, PostgreSQL configured); then migrations +
    models/repositories for §1's tables; validation of field values against
    `content_types.schema` (framework DTO/Validator).
-3. Admin API: content types CRUD, entries/versions, immediate publish/unpublish
+3. Admin API: content types CRUD, entries/versions, immediate/scheduled publish/unpublish
    (§2 semantics), routes.
 4. Delivery API: list/single + field selection + filterable-field indexes +
    API-key scopes + rate limits + ETag/cache tags.
@@ -528,11 +538,15 @@ correct.
 - **Version retention:** V1 keeps unlimited published version history by
   default. Configurable pruning is deferred until after export/import is
   established as the safety net; pruning must never run before a portable
-  content bundle can preserve history.
+  content bundle can preserve history. **Settled design:**
+  [`docs/superpowers/specs/2026-06-16-version-pruning-design.md`](superpowers/specs/2026-06-16-version-pruning-design.md)
+  (CLI-only this iteration; scheduled pruning deferred) — not yet implemented.
 - **Redirects:** `entry_routes` carries current route rows only in V1.
   Redirect rows wait for the SEO/routing module so status codes, chains,
   canonical URLs, and admin UX land together instead of as a half-feature in
-  core content routing.
+  core content routing. **Settled design:**
+  [`docs/superpowers/specs/2026-06-16-seo-routing-module-design.md`](superpowers/specs/2026-06-16-seo-routing-module-design.md)
+  (full SEO/routing module) — not yet implemented.
 - **License/distribution:** the backend source is distributed under the
   repository license (`MIT` today). Product packaging, hosted/commercial tiers,
   or admin-build distribution can be decided separately; they do not block the

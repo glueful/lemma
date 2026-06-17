@@ -13,7 +13,12 @@ use App\Content\Http\DeliveryEtag;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
+use App\Content\Repositories\RouteRepository;
 use App\Content\Services\PublishService;
+use App\Content\Seo\CanonicalProjector;
+use App\Content\Seo\PathRenderer;
+use App\Content\Seo\RedirectRepository;
+use App\Content\Seo\RouteResolver;
 use App\Content\Validation\FieldValidator;
 use App\Content\Repositories\VersionRepository;
 use App\Tests\Support\FakeLocaleManager;
@@ -50,16 +55,21 @@ final class DeliveryApiTest extends LemmaTestCase
     private function controller(LocaleManagerInterface $locales = new FakeLocaleManager()): DeliveryController
     {
         $repo = new DeliveryRepository($this->connection());
+        $types = new ContentTypeRepository($this->connection());
+        $routes = new RouteRepository($this->connection(), new RedirectRepository($this->connection()));
+        $paths = new PathRenderer('/{locale}/{type}/{slug}', null, 'en');
         return new DeliveryController(
             $this->appContext(),
             $repo,
-            new ContentTypeRepository($this->connection()),
+            $types,
             new FilterCompiler(),
             new SortCompiler(),
             new ReferenceResolver($repo),
             new Projector(),
             new DeliveryEtag(),
             $locales,
+            new RouteResolver($repo, new RedirectRepository($this->connection()), $routes, $types, $paths),
+            new CanonicalProjector($repo, $routes, $types, $paths, 'en'),
         );
     }
 
@@ -147,6 +157,60 @@ final class DeliveryApiTest extends LemmaTestCase
 
         $data = json_decode($resp->getContent(), true)['data'];
         self::assertSame('Hello show', $data['fields']['title']);
+    }
+
+    public function testShowAddsSeoBlockForRoutedPublishedEntry(): void
+    {
+        $uuid = $this->publish(['title' => 'SEO show', 'priority' => 1]);
+        (new RouteRepository($this->connection()))->assign($uuid, $this->type, 'en', 'seo-show');
+
+        $resp = $this->controller()->show($this->get(), 'post', 'seo-show');
+        self::assertSame(200, $resp->getStatusCode());
+
+        $data = json_decode($resp->getContent(), true)['data'];
+        self::assertSame('/en/post/seo-show', $data['seo']['canonical']['href']);
+        self::assertSame('/post/seo-show', $data['seo']['x_default']['href']);
+        self::assertSame(['en'], array_column($data['seo']['alternates'], 'locale'));
+    }
+
+    public function testShowReturnsRedirectDescriptorForMovedSlug(): void
+    {
+        $uuid = $this->publish(['title' => 'Moved', 'priority' => 1]);
+        $routes = new RouteRepository($this->connection(), new RedirectRepository($this->connection()));
+        $routes->assign($uuid, $this->type, 'en', 'old');
+        $routes->assign($uuid, $this->type, 'en', 'new');
+
+        $resp = $this->controller()->show($this->get(), 'post', 'old');
+        self::assertSame(200, $resp->getStatusCode());
+
+        $body = json_decode($resp->getContent(), true);
+        self::assertArrayHasKey('redirect', $body['data']);
+        self::assertArrayNotHasKey('fields', $body['data']);
+        self::assertSame('/en/post/new', $body['data']['redirect']['to']);
+        self::assertSame(301, $body['data']['redirect']['status']);
+        self::assertSame('max-age=60, public', $resp->headers->get('Cache-Control'));
+        self::assertStringContainsString('lemma:entry:' . $uuid, (string) $resp->headers->get('Cache-Tag'));
+    }
+
+    public function testShowReturns404ForBrokenInternalRedirectTarget(): void
+    {
+        $entries = $this->entries();
+        $uuid = $entries->createEntry($this->type, 'en', 1, 'user00000001');
+        (new RouteRepository($this->connection()))->assign($uuid, $this->type, 'en', 'draft-target');
+        (new RedirectRepository($this->connection()))->create([
+            'content_type_uuid' => $this->type,
+            'locale' => 'en',
+            'source_slug' => 'old',
+            'target_content_type_uuid' => $this->type,
+            'target_locale' => 'en',
+            'target_entry_uuid' => $uuid,
+            'status' => 301,
+            'origin' => 'manual',
+        ]);
+
+        $resp = $this->controller()->show($this->get(), 'post', 'old');
+
+        self::assertSame(404, $resp->getStatusCode());
     }
 
     public function testShowFallsBackThroughI18nLocaleChainByUuid(): void
@@ -308,7 +372,7 @@ final class DeliveryApiTest extends LemmaTestCase
     }
 
     /**
-     * Drift guard: the single-entry show payload matches DeliveryItemData.
+     * Drift guard: the single-entry show payload matches DeliveryShowItemData.
      */
     public function testShowDtoShape(): void
     {
@@ -318,6 +382,6 @@ final class DeliveryApiTest extends LemmaTestCase
         self::assertSame(200, $resp->getStatusCode());
 
         $data = json_decode((string) $resp->getContent(), true)['data'];
-        self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Delivery\DeliveryItemData::class);
+        self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Delivery\DeliveryShowItemData::class);
     }
 }

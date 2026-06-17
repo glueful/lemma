@@ -51,6 +51,37 @@ final class RequireLemmaPermissionTest extends TestCase
         self::assertSame(403, $resp->getStatusCode());
     }
 
+    public function testResourceForDerivesLocaleScopedResourceFromRouteParam(): void
+    {
+        $mw = new RequireLemmaPermission($this->contextWithoutContainer());
+        $request = new Request();
+        $request->attributes->set('_route_params', ['uuid' => 'e1abcdefghij', 'locale' => 'fr']);
+
+        self::assertSame('locale:fr', $this->resourceFor($mw, $request));
+    }
+
+    public function testResourceForFallsBackToCoarseLemmaWithoutLocaleParam(): void
+    {
+        $mw = new RequireLemmaPermission($this->contextWithoutContainer());
+
+        self::assertSame('lemma', $this->resourceFor($mw, new Request()));
+
+        $noLocale = new Request();
+        $noLocale->attributes->set('_route_params', ['uuid' => 'e1abcdefghij']);
+        self::assertSame('lemma', $this->resourceFor($mw, $noLocale));
+
+        $empty = new Request();
+        $empty->attributes->set('_route_params', ['locale' => '']);
+        self::assertSame('lemma', $this->resourceFor($mw, $empty));
+    }
+
+    private function resourceFor(RequireLemmaPermission $mw, Request $request): string
+    {
+        $method = new \ReflectionMethod($mw, 'resourceFor');
+        $method->setAccessible(true);
+        return $method->invoke($mw, $request);
+    }
+
     private function contextWithoutContainer(): ApplicationContext
     {
         // A bare context: hasContainer() is false, so permissionManager() returns null

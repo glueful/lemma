@@ -8,12 +8,19 @@ use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\ReferenceResolver;
 use App\Content\Delivery\SortCompiler;
+use App\Content\Console\PruneVersionsCommand;
 use App\Content\Console\ResyncCommand;
+use App\Content\Console\RunBackfillCommand;
+use App\Content\Console\RunDueSchedulesCommand;
+use App\Content\Backfill\BackfillRunner;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
+use App\Content\Http\Controllers\RedirectController;
+use App\Content\Http\Controllers\ScheduleController;
 use App\Content\ImportExport\LemmaContentExporter;
 use App\Content\ImportExport\LemmaContentImporter;
 use App\Content\Http\DeliveryEtag;
@@ -41,16 +48,28 @@ use App\Content\Preview\PreviewMinter;
 use App\Content\Preview\PreviewReader;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\MigrationRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
+use App\Content\Repositories\ScheduleRepository;
 use App\Content\Repositories\VersionRepository;
+use App\Content\Retention\VersionPruner;
+use App\Content\Schema\Migration\SchemaProjector;
+use App\Content\Scheduling\ScheduleRunner;
+use App\Content\Seo\CanonicalProjector;
+use App\Content\Seo\PathRenderer;
+use App\Content\Seo\RedirectRepository;
+use App\Content\Seo\RouteResolver;
+use App\Content\Services\MigrationService;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Support\FieldSelection\Projector;
+use Psr\Container\ContainerInterface;
 
 /**
  * Wires the Lemma content engine into the application container.
@@ -113,11 +132,44 @@ final class LemmaServiceProvider extends ServiceProvider
             RouteRepository::class => [
                 'class' => RouteRepository::class,
                 'shared' => true,
+                'arguments' => ['@' . Connection::class, '@' . RedirectRepository::class],
+            ],
+            RedirectRepository::class => [
+                'class' => RedirectRepository::class,
+                'shared' => true,
                 'autowire' => true,
+            ],
+            PathRenderer::class => [
+                'factory' => [self::class, 'makePathRenderer'],
+                'shared' => true,
+            ],
+            RouteResolver::class => [
+                'class' => RouteResolver::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CanonicalProjector::class => [
+                'factory' => [self::class, 'makeCanonicalProjector'],
+                'shared' => true,
             ],
             ReferenceProjectionRepository::class => [
                 'class' => ReferenceProjectionRepository::class,
                 'shared' => true,
+                'autowire' => true,
+            ],
+            MigrationRepository::class => [
+                'class' => MigrationRepository::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ScheduleRepository::class => [
+                'class' => ScheduleRepository::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            SchemaProjector::class => [
+                'class' => SchemaProjector::class,
+                'shared' => false,
                 'autowire' => true,
             ],
             FieldValidator::class => [
@@ -160,8 +212,18 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            MigrationService::class => [
+                'class' => MigrationService::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
             ContentTypeController::class => [
                 'class' => ContentTypeController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            MigrationController::class => [
+                'class' => MigrationController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -172,6 +234,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             PublicationController::class => [
                 'class' => PublicationController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RedirectController::class => [
+                'class' => RedirectController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -267,11 +334,46 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            ScheduleController::class => [
+                'class' => ScheduleController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            VersionPruner::class => [
+                'class' => VersionPruner::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            BackfillRunner::class => [
+                'class' => BackfillRunner::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ScheduleRunner::class => [
+                'class' => ScheduleRunner::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
 
             // Console command (resolved by commands() in boot()). Autowire fills its
             // BaseCommand (ContainerInterface, ApplicationContext) constructor.
             ResyncCommand::class => [
                 'class' => ResyncCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            PruneVersionsCommand::class => [
+                'class' => PruneVersionsCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RunBackfillCommand::class => [
+                'class' => RunBackfillCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RunDueSchedulesCommand::class => [
+                'class' => RunDueSchedulesCommand::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -283,6 +385,30 @@ final class LemmaServiceProvider extends ServiceProvider
         // No-op: config/lemma.php is auto-loaded by the app config system, and DI
         // bindings are contributed declaratively via services(). Kept for lifecycle
         // symmetry and as the seam for future runtime registration.
+    }
+
+    public static function makePathRenderer(ContainerInterface $container): PathRenderer
+    {
+        $context = $container->get(ApplicationContext::class);
+
+        return new PathRenderer(
+            (string) config($context, 'lemma.seo.route_template', '/{locale}/{type}/{slug}'),
+            config($context, 'lemma.seo.public_url_base') === null
+                ? null
+                : (string) config($context, 'lemma.seo.public_url_base'),
+            (string) config($context, 'i18n.default_locale', 'en')
+        );
+    }
+
+    public static function makeCanonicalProjector(ContainerInterface $container): CanonicalProjector
+    {
+        return new CanonicalProjector(
+            $container->get(DeliveryRepository::class),
+            $container->get(RouteRepository::class),
+            $container->get(ContentTypeRepository::class),
+            $container->get(PathRenderer::class),
+            (string) config($container->get(ApplicationContext::class), 'i18n.default_locale', 'en')
+        );
     }
 
     public function boot(ApplicationContext $context): void
@@ -304,7 +430,12 @@ final class LemmaServiceProvider extends ServiceProvider
 
         // Console: register Lemma's app commands. commands() is a console-only no-op in
         // the HTTP phase (runningInConsole() guards it), so this is free during requests.
-        $this->commands([ResyncCommand::class]);
+        $this->commands([
+            ResyncCommand::class,
+            PruneVersionsCommand::class,
+            RunBackfillCommand::class,
+            RunDueSchedulesCommand::class,
+        ]);
     }
 
     /**

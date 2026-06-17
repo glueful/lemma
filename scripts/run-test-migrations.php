@@ -135,6 +135,8 @@ $requiredTables = [
     'i18n_locales',
     'content_types',
     'entries',
+    'entry_redirects',
+    'entry_schedules',
 ];
 
 $dsn = sprintf(

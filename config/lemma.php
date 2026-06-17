@@ -24,6 +24,15 @@ return [
         'cache_ttl' => (int) env('LEMMA_DELIVERY_CACHE_TTL', 60),
     ],
 
+    // Headless SEO/routing helpers. Paths are rendered as public-site paths, never API
+    // URLs. Leave public_url_base empty to return relative paths for the frontend to
+    // make absolute.
+    'seo' => [
+        'route_template' => env('LEMMA_SEO_ROUTE_TEMPLATE', '/{locale}/{type}/{slug}'),
+        'public_url_base' => env('LEMMA_PUBLIC_URL_BASE'),
+        'redirect_ttl' => (int) env('LEMMA_SEO_REDIRECT_TTL', 60),
+    ],
+
     // Preview tokens (see docs/V1_DESIGN.md). Drafts are only reachable through a
     // signed, short-lived preview token; this is its lifetime in seconds.
     'preview' => [
@@ -36,5 +45,20 @@ return [
         // Forward content events to the core WebhookDispatcher. Deliveries only occur for
         // events that have an active subscription, so this is safe to leave on.
         'webhooks_enabled' => (bool) env('LEMMA_WEBHOOKS_ENABLED', true),
+    ],
+
+    // Scheduled publish/unpublish. The framework scheduler's per-job `enabled` key is not
+    // the gate; ScheduleRunner reads this switch before firing any due rows.
+    'scheduler' => [
+        'enabled' => (bool) env('LEMMA_SCHEDULER_ENABLED', true),
+    ],
+
+    // Version retention / pruning. Raw env pass-through: do not cast here.
+    // RetentionPolicy::fromValues() validates positive integers and treats null/'' as off.
+    'versions' => [
+        'retention' => [
+            'keep' => env('LEMMA_VERSION_KEEP'),
+            'max_age_days' => env('LEMMA_VERSION_MAX_AGE_DAYS'),
+        ],
     ],
 ];

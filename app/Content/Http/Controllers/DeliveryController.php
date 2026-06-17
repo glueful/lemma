@@ -14,9 +14,13 @@ use App\Content\Delivery\InvalidFilterException;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Schema\ContentTypeSchema;
+use App\Content\Schema\Migration\SchemaProjector;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryItemData;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryListData;
+use App\Content\Http\DTOs\Responses\Delivery\DeliveryShowItemData;
 use App\Http\DTOs\ErrorResponse;
+use App\Content\Seo\CanonicalProjector;
+use App\Content\Seo\RouteResolver;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
 use Glueful\Http\Response;
@@ -59,6 +63,9 @@ final class DeliveryController
         private readonly Projector $projector,
         private readonly DeliveryEtag $etags,
         private readonly LocaleManagerInterface $locales,
+        private readonly RouteResolver $resolver,
+        private readonly CanonicalProjector $canonical,
+        private readonly ?SchemaProjector $schemaProjector = null,
     ) {
     }
 
@@ -174,7 +181,7 @@ final class DeliveryController
         if ($this->wantsPagination($request)) {
             [$page, $perPage] = $this->pageParams($request);
             $result = $this->delivery->paginatePublished($typeUuid, $locale, $page, $perPage, $filter, $order);
-            $rows = $this->shape($result['data'], $schema, $selector, $locale);
+            $rows = $this->shape($result['data'], $schema, $selector, $locale, $typeUuid);
             $response = Response::paginated(
                 array_map(fn(array $r): array => $this->item($r), $rows),
                 $result['total'],
@@ -188,7 +195,7 @@ final class DeliveryController
         $limit = $this->limit($request);
         $cursor = Cursor::decode($this->stringQuery($request, 'cursor') ?? '');
         $rows = $this->delivery->listPublished($typeUuid, $locale, $limit, $filter, $order, $cursor);
-        $shaped = $this->shape($rows, $schema, $selector, $locale);
+        $shaped = $this->shape($rows, $schema, $selector, $locale, $typeUuid);
 
         $nextCursor = null;
         if (count($rows) === $limit && $rows !== []) {
@@ -223,7 +230,7 @@ final class DeliveryController
         tags: ['Lemma Delivery'],
     )]
     #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to the i18n default locale).')]
-    #[ApiResponse(200, schema: DeliveryItemData::class, description: 'The published entry.')]
+    #[ApiResponse(200, schema: DeliveryShowItemData::class, description: 'The published entry with SEO metadata.')]
     #[ApiResponse(
         304,
         description: 'Not Modified — the supplied If-None-Match ETag still matches the published version.',
@@ -263,19 +270,25 @@ final class DeliveryController
         $typeUuid = (string) $typeRow['uuid'];
         $locales = $this->localeChain($request);
 
-        // Slug/route first across the fallback chain; fall back to a uuid lookup when it
-        // looks like a nanoid. The row's own locale is preserved in the response.
-        $row = $this->findPublishedByRoute($typeUuid, $locales, $slugOrUuid);
-        if ($row === null && $this->looksLikeNanoid($slugOrUuid)) {
-            $row = $this->findPublishedByUuid($typeUuid, $locales, $slugOrUuid);
-        }
-        if ($row === null) {
+        $result = $this->resolver->resolve($typeUuid, $type, $locales, $slugOrUuid);
+        if ($result === null || $result->isGone()) {
             return Response::notFound('Content not found.');
         }
+        if ($result->isRedirect()) {
+            return $this->redirectResponse($request, $result->redirect(), $type);
+        }
+
+        $row = $result->content();
 
         $selector = FieldSelector::fromRequest($request);
-        $shaped = $this->shape([$row], $schema, $selector, (string) $row['locale']);
+        $shaped = $this->shape([$row], $schema, $selector, (string) $row['locale'], $typeUuid);
         $item = $this->item($shaped[0]);
+        $item['seo'] = $this->canonical->project(
+            (string) $row['entry_uuid'],
+            $typeUuid,
+            $type,
+            (string) $row['locale'],
+        );
 
         $etag = $this->etags->forItem((string) $row['version_uuid'], $this->selectionKey($request));
         if ($this->etags->matches($request, $etag)) {
@@ -296,6 +309,51 @@ final class DeliveryController
     }
 
     /**
+     * @param array<string,mixed> $descriptor
+     */
+    private function redirectResponse(Request $request, array $descriptor, string $typeSlug): Response
+    {
+        $public = $this->publicRedirectDescriptor($descriptor);
+        $etag = '"' . sha1((string) json_encode($descriptor, JSON_THROW_ON_ERROR)) . '"';
+        if ($this->etags->matches($request, $etag)) {
+            return $this->etags->notModified(
+                $etag,
+                $this->redirectTtl(),
+                $this->redirectCacheTag($descriptor, $typeSlug)
+            );
+        }
+
+        return $this->etags->applyHeaders(
+            Response::success(['redirect' => $public], 'Redirect resolved.'),
+            $etag,
+            $this->redirectTtl(),
+            $this->redirectCacheTag($descriptor, $typeSlug),
+        );
+    }
+
+    /** @param array<string,mixed> $descriptor */
+    private function redirectCacheTag(array $descriptor, string $typeSlug): string
+    {
+        $entries = isset($descriptor['_target_entry_uuid']) ? [(string) $descriptor['_target_entry_uuid']] : [];
+        return $this->etags->cacheTag($entries, $typeSlug);
+    }
+
+    /** @param array<string,mixed> $descriptor */
+    private function publicRedirectDescriptor(array $descriptor): array
+    {
+        return array_filter(
+            $descriptor,
+            static fn (string $key): bool => !str_starts_with($key, '_'),
+            ARRAY_FILTER_USE_KEY
+        );
+    }
+
+    private function redirectTtl(): int
+    {
+        return max(0, (int) config($this->context, 'lemma.seo.redirect_ttl', 60));
+    }
+
+    /**
      * Resolve references then project each row's schema fields against the schema-derived
      * allow-list. The envelope keys (uuid/version/published_at) are not projectable — only
      * the `fields` sub-object honours `?fields`.
@@ -303,10 +361,25 @@ final class DeliveryController
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private function shape(array $rows, ContentTypeSchema $schema, FieldSelector $selector, string $locale): array
-    {
+    private function shape(
+        array $rows,
+        ContentTypeSchema $schema,
+        FieldSelector $selector,
+        string $locale,
+        string $typeUuid,
+    ): array {
         if ($rows === []) {
             return [];
+        }
+
+        if ($this->schemaProjector !== null) {
+            foreach ($rows as $i => $row) {
+                $rows[$i]['fields'] = $this->schemaProjector->project(
+                    $typeUuid,
+                    (int) ($row['schema_version'] ?? 0),
+                    (array) ($row['fields'] ?? []),
+                );
+            }
         }
 
         $rows = $this->references->expand($rows, $schema, $selector->empty() ? null : $selector, $locale);
@@ -478,36 +551,6 @@ final class DeliveryController
     }
 
     /**
-     * @param non-empty-list<string> $locales
-     * @return array<string,mixed>|null
-     */
-    private function findPublishedByRoute(string $typeUuid, array $locales, string $slug): ?array
-    {
-        foreach ($locales as $locale) {
-            $row = $this->delivery->findPublishedByRoute($typeUuid, $locale, $slug);
-            if ($row !== null) {
-                return $row;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * @param non-empty-list<string> $locales
-     * @return array<string,mixed>|null
-     */
-    private function findPublishedByUuid(string $typeUuid, array $locales, string $entryUuid): ?array
-    {
-        foreach ($locales as $locale) {
-            $row = $this->delivery->findPublishedByUuid($typeUuid, $locale, $entryUuid);
-            if ($row !== null) {
-                return $row;
-            }
-        }
-        return null;
-    }
-
-    /**
      * Read a query param as a string, or null when it is absent or an array (e.g. `key[]=`),
      * so callers can treat it as a plain optional scalar without type juggling.
      */
@@ -531,14 +574,5 @@ final class DeliveryController
             'filter=' . json_encode($request->query->all('filter')),
         ];
         return implode('&', $parts);
-    }
-
-    /**
-     * Whether the value has the shape of a 12-char entry nanoid (the alphabet show() falls
-     * back to a UUID lookup on). A cheap shape check only — it does not assert the id exists.
-     */
-    private function looksLikeNanoid(string $value): bool
-    {
-        return preg_match('/\A[A-Za-z0-9_-]{12}\z/', $value) === 1;
     }
 }

@@ -7,7 +7,9 @@ namespace App\Content\Http\Controllers;
 use App\Content\Http\DTOs\RollbackData;
 use App\Content\Http\DTOs\Responses\Publication\VersionResultData;
 use App\Content\Localization\ContentLocaleService;
+use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\VersionRepository;
+use App\Content\Schema\Migration\SchemaProjector;
 use App\Content\Services\PublishService;
 use App\Content\Validation\ValidationException;
 use App\Http\DTOs\ErrorResponse;
@@ -35,6 +37,8 @@ final class PublicationController
         private readonly PublishService $publisher,
         private readonly VersionRepository $versions,
         private readonly ContentLocaleService $locales,
+        private readonly ?EntryRepository $entries = null,
+        private readonly ?SchemaProjector $schemaProjector = null,
     ) {
     }
 
@@ -199,7 +203,24 @@ final class PublicationController
         if (($errors = $this->locales->validate($locale)) !== []) {
             return Response::validation($errors);
         }
-        return Response::success(['versions' => $this->versions->versionsFor($uuid, $locale)], 'Versions retrieved.');
+        $versions = $this->versions->versionsFor($uuid, $locale);
+        if ($this->entries !== null && $this->schemaProjector !== null) {
+            $entry = $this->entries->findEntry($uuid);
+            if ($entry !== null) {
+                foreach ($versions as $i => $version) {
+                    $fields = is_string($version['fields'] ?? null)
+                        ? (json_decode((string) $version['fields'], true) ?? [])
+                        : (array) ($version['fields'] ?? []);
+                    $versions[$i]['fields'] = $this->schemaProjector->project(
+                        (string) $entry['content_type_uuid'],
+                        (int) ($version['schema_version'] ?? 0),
+                        $fields,
+                    );
+                }
+            }
+        }
+
+        return Response::success(['versions' => $versions], 'Versions retrieved.');
     }
 
     /**

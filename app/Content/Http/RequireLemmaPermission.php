@@ -16,7 +16,8 @@ use Symfony\Component\HttpFoundation\Request;
  *
  * Registered under the `lemma_permission` alias and used on the fluent admin routes.
  * The required permission slug is the first middleware parameter; the check runs through
- * the same `PermissionManager::can()` that Aegis backs, scoped to the `lemma` resource.
+ * the same `PermissionManager::can()` that Aegis backs, scoped to the resource the route
+ * targets: `locale:<code>` for routes carrying `{locale}`, else the coarse `lemma`.
  *
  * Fails closed: a missing/empty permission parameter, no authenticated identity, an
  * unresolvable PermissionManager, or a denied check all return 403.
@@ -57,10 +58,24 @@ final class RequireLemmaPermission implements RouteMiddleware
             'scopes' => $principal['scopes'],
             'jwt_claims' => (array) $request->attributes->get('jwt.claims'),
         ];
-        if (!$manager->can($principal['uuid'], $permission, 'lemma', $context)) {
+        if (!$manager->can($principal['uuid'], $permission, $this->resourceFor($request), $context)) {
             return $this->forbidden();
         }
         return $next($request);
+    }
+
+    /**
+     * Derive the authorization resource from the matched route. Locale-specific routes
+     * carry a `{locale}` parameter, set by the router as `_route_params` before the
+     * middleware pipeline runs; those actions are scoped to `locale:<code>`. Routes
+     * without a locale keep the coarse `lemma` resource.
+     */
+    private function resourceFor(Request $request): string
+    {
+        $params = (array) $request->attributes->get('_route_params');
+        $locale = $params['locale'] ?? null;
+
+        return is_string($locale) && $locale !== '' ? "locale:{$locale}" : 'lemma';
     }
 
     /**

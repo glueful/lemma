@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
+use App\Content\Http\Controllers\RedirectController;
+use App\Content\Http\Controllers\ScheduleController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -29,6 +32,17 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->patch('/content-types/{slug}/schema', [ContentTypeController::class, 'updateSchema'])
         ->middleware('lemma_permission:lemma.models.manage');
+
+    // Destructive schema migrations: POST body is {ops:[{op:"rename",from,to}|{op:"delete",name}]};
+    // responses wrap migration rows with status/progress/failure_report for polling.
+    $router->post('/content-types/{slug}/migrations', [MigrationController::class, 'store'])
+        ->middleware('lemma_permission:lemma.models.manage');
+
+    $router->get('/content-types/{slug}/migrations', [MigrationController::class, 'index'])
+        ->middleware('lemma_permission:lemma.entries.read');
+
+    $router->get('/content-types/{slug}/migrations/{migrationUuid}', [MigrationController::class, 'show'])
+        ->middleware('lemma_permission:lemma.entries.read');
 
     $router->delete('/content-types/{slug}', [ContentTypeController::class, 'destroy'])
         ->middleware('lemma_permission:lemma.models.manage');
@@ -70,8 +84,30 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
     $router->delete('/entries/{uuid}/routes/{locale}', [EntryController::class, 'removeRoute'])
         ->middleware('lemma_permission:lemma.entries.write');
 
+    // SEO redirects: POST body is {locale, source_slug, target:{url|entry_uuid, content_type?, locale?}, status};
+    // responses wrap redirect rows and their computed target_state (live|broken).
+    $router->post('/content-types/{slug}/redirects', [RedirectController::class, 'store'])
+        ->middleware('lemma_permission:lemma.routes.manage');
+
+    $router->get('/content-types/{slug}/redirects', [RedirectController::class, 'index'])
+        ->middleware('lemma_permission:lemma.routes.manage');
+
+    $router->delete('/redirects/{uuid}', [RedirectController::class, 'destroy'])
+        ->middleware('lemma_permission:lemma.routes.manage');
+
     $router->post('/entries/{uuid}/preview/{locale}', [PreviewController::class, 'mint'])
         ->middleware('lemma_permission:lemma.entries.read');
+
+    // Scheduled publication: POST body is {action:"publish"|"unpublish", run_at:<absolute ISO-8601 with timezone>};
+    // response wraps {schedule:{...row,replaced:bool}}. GET returns {schedules:[...history]}.
+    $router->post('/entries/{uuid}/schedules/{locale}', [ScheduleController::class, 'store'])
+        ->middleware('lemma_permission:lemma.entries.publish');
+
+    $router->get('/entries/{uuid}/schedules', [ScheduleController::class, 'index'])
+        ->middleware('lemma_permission:lemma.entries.read');
+
+    $router->delete('/entries/{uuid}/schedules/{scheduleUuid}', [ScheduleController::class, 'destroy'])
+        ->middleware('lemma_permission:lemma.entries.publish');
 
     // Publication lifecycle.
     $router->post('/entries/{uuid}/publish/{locale}', [PublicationController::class, 'publish'])

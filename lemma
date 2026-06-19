@@ -30,6 +30,10 @@ case "$cmd" in
   key:generate)
     exec "$PHP" "$GLUEFUL" generate:key "$@"
     ;;
+  lemma:*)
+    # Tolerate a redundant prefix: `lemma lemma:doctor` == `lemma doctor`.
+    exec "$PHP" "$GLUEFUL" "$cmd" "$@"
+    ;;
   *)
     # provision, create-admin, doctor, and any other lemma:<cmd>
     exec "$PHP" "$GLUEFUL" "lemma:$cmd" "$@"

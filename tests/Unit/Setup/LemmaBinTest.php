@@ -56,6 +56,8 @@ final class LemmaBinTest extends TestCase
         // `setup` runs the two layers as two processes: provision then create-admin.
         self::assertSame("lemma:provision\nlemma:create-admin\n", $run('setup'));
         self::assertSame("lemma:doctor\n", $run('doctor'));
+        // A redundant `lemma:` prefix collapses to a single one (not lemma:lemma:doctor).
+        self::assertSame("lemma:doctor\n", $run('lemma:doctor'));
         self::assertSame("lemma:provision\nfoo\n", $run('provision foo'));
         self::assertSame("migrate:run\n--limit=5\n", $run('migrate --limit=5'));
         self::assertSame("generate:key\n", $run('key:generate'));

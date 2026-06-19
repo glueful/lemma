@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Setup\SetupService;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\ReferenceResolver;
@@ -114,6 +115,11 @@ final class LemmaServiceProvider extends ServiceProvider
     public static function services(): array
     {
         return [
+            SetupService::class => [
+                'class'    => SetupService::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             ContentTypeRepository::class => [
                 'class' => ContentTypeRepository::class,
                 'shared' => true,

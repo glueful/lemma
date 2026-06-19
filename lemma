@@ -41,11 +41,13 @@ case "$cmd" in
     printf '%s\n' \
       'lemma — operator CLI for this Lemma instance.' \
       '' \
-      'Run any lemma:* command below as `lemma <name>` (the `lemma:` prefix is optional).' \
+      'Run any command below as `lemma <name>` (the `lemma:` prefix is optional).' \
       'Shortcuts: `lemma setup` (provision + create-admin), `lemma migrate`, `lemma key:generate`.' \
       'For the full framework console, use `php glueful`.' \
-      ''
-    exec "$PHP" "$GLUEFUL" list lemma
+      '' \
+      'Commands:'
+    # --raw drops Symfony's generic Usage/Options preamble — just the lemma:* command lines.
+    exec "$PHP" "$GLUEFUL" list lemma --raw
     ;;
   setup)
     # The interactive front door: run the two setup layers as TWO processes. Layer 2

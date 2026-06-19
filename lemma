@@ -1,0 +1,37 @@
+#!/usr/bin/env sh
+# lemma — branded operator front door for a Lemma instance.
+# A thin developer-convenience launcher: it forwards to the app's own `php glueful`
+# console (which owns the actual lemma:provision / lemma:create-admin / lemma:doctor
+# commands). It contains NO setup logic of its own.
+set -e
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+PHP="${PHP:-php}"
+GLUEFUL="$DIR/glueful"
+
+cmd="${1:-}"
+[ "$#" -gt 0 ] && shift || true
+
+# Every word is quoted so a $DIR (or any arg) containing spaces is passed intact.
+case "$cmd" in
+  "" | -h | --help | help)
+    exec "$PHP" "$GLUEFUL" list
+    ;;
+  setup)
+    # The interactive front door: run the two setup layers as TWO processes. Layer 2
+    # (create-admin) MUST be a fresh boot so its container-bound DB connection reflects the
+    # .env that Layer 1 (provision) just wrote. No flags are forwarded — for non-interactive
+    # use, call `lemma provision` and `lemma create-admin` directly with their options.
+    "$PHP" "$GLUEFUL" lemma:provision && exec "$PHP" "$GLUEFUL" lemma:create-admin
+    ;;
+  migrate)
+    exec "$PHP" "$GLUEFUL" migrate:run "$@"
+    ;;
+  key:generate)
+    exec "$PHP" "$GLUEFUL" generate:key "$@"
+    ;;
+  *)
+    # provision, create-admin, doctor, and any other lemma:<cmd>
+    exec "$PHP" "$GLUEFUL" "lemma:$cmd" "$@"
+    ;;
+esac

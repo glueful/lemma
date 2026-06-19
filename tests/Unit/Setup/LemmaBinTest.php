@@ -67,6 +67,25 @@ final class LemmaBinTest extends TestCase
     }
 
     /**
+     * Running the launcher with PHP by mistake (`php lemma`) must NOT dump the script source —
+     * the sh/PHP polyglot guard prints a hint and exits non-zero instead.
+     */
+    public function testRunningWithPhpPrintsHintNotTheScript(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            self::markTestSkipped('POSIX sh launcher');
+        }
+
+        $out = (string) shell_exec(
+            escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($this->bin) . ' doctor 2>&1',
+        );
+
+        self::assertStringContainsString('shell launcher', $out, 'should print the use-./lemma hint');
+        self::assertStringNotContainsString('case "$cmd"', $out, 'must not dump the launcher logic');
+        self::assertStringNotContainsString('Parse error', $out, 'no PHP parse error should surface');
+    }
+
+    /**
      * The launcher must resolve its OWN real location through a symlink, so it can be linked
      * onto $PATH (e.g. /usr/local/bin/lemma) and still find its sibling `glueful` — not look
      * for a `glueful` next to the symlink.

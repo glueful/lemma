@@ -1,8 +1,17 @@
 #!/usr/bin/env sh
+':' <<'__NOT_PHP__'
+<?php
+// sh/PHP polyglot guard. `sh` treats the block above as a no-op heredoc and skips it; running
+// this file with PHP by mistake (`php lemma`) lands here and prints a hint instead of dumping
+// the whole script. (PHP ignores the `#!` shebang, so only the harmless `: <<...` line shows.)
+fwrite(STDERR, "lemma is a shell launcher — run it as './lemma <command>', not 'php lemma'.\n");
+exit(1);
+// __halt_compiler() stops PHP tokenizing here, so the sh code below is never parsed.
+__halt_compiler();
+__NOT_PHP__
 # lemma — branded operator front door for a Lemma instance.
-# A thin developer-convenience launcher: it forwards to the app's own `php glueful`
-# console (which owns the actual lemma:provision / lemma:create-admin / lemma:doctor
-# commands). It contains NO setup logic of its own.
+# A thin sh launcher that forwards to the app's own `php glueful` console (which owns the real
+# lemma:provision / lemma:create-admin / lemma:doctor commands). Run it as `./lemma <command>`.
 set -e
 
 # Resolve this script's real location, following symlinks, so `lemma` can be symlinked onto

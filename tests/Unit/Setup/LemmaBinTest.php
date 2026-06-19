@@ -24,9 +24,11 @@ final class LemmaBinTest extends TestCase
     public function testForwardsKnownCommands(): void
     {
         $src = (string) file_get_contents($this->bin);
+        // Branded setup verbs map to the lemma: namespace.
         self::assertStringContainsString('lemma:', $src);
-        self::assertStringContainsString('migrate:run', $src);
-        self::assertStringContainsString('generate:key', $src);
+        // It has the special two-process setup verb.
+        self::assertStringContainsString('setup', $src);
+        // It invokes the app's own glueful console, not a global binary.
         self::assertStringContainsString('glueful', $src);
     }
 
@@ -55,12 +57,13 @@ final class LemmaBinTest extends TestCase
 
         // `setup` runs the two layers as two processes: provision then create-admin.
         self::assertSame("lemma:provision\nlemma:create-admin\n", $run('setup'));
+        // Branded shortcuts: a bare setup verb maps to its lemma: command.
         self::assertSame("lemma:doctor\n", $run('doctor'));
-        // A redundant `lemma:` prefix collapses to a single one (not lemma:lemma:doctor).
-        self::assertSame("lemma:doctor\n", $run('lemma:doctor'));
         self::assertSame("lemma:provision\nfoo\n", $run('provision foo'));
-        self::assertSame("migrate:run\n--limit=5\n", $run('migrate --limit=5'));
-        self::assertSame("generate:key\n", $run('key:generate'));
+        // Everything else passes straight through to the full framework console.
+        self::assertSame("lemma:doctor\n", $run('lemma:doctor'));
+        self::assertSame("cache:clear\n", $run('cache:clear'));
+        self::assertSame("migrate:run\n--limit=5\n", $run('migrate:run --limit=5'));
 
         array_map('unlink', [$dir . '/lemma', $dir . '/glueful']);
         rmdir($dir);

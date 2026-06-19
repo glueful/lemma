@@ -33,41 +33,28 @@ GLUEFUL="$DIR/glueful"
 cmd="${1:-}"
 [ "$#" -gt 0 ] && shift || true
 
+# `lemma` is a transparent front end for the app's `php glueful` console: every command passes
+# straight through (so a dev gets the FULL framework console — colour and all), with two extras —
+# the `setup` orchestration verb, and bare-name shortcuts for the branded setup commands.
 # Every word is quoted so a $DIR (or any arg) containing spaces is passed intact.
 case "$cmd" in
-  "" | -h | --help | help)
-    # Only advertise what THIS launcher can run: the lemma:* namespace + the shortcuts below.
-    # (`php glueful` is the full framework console.)
-    printf '%s\n' \
-      'lemma — operator CLI for this Lemma instance.' \
-      '' \
-      'Run any command below as `lemma <name>` (the `lemma:` prefix is optional).' \
-      'Shortcuts: `lemma setup` (provision + create-admin), `lemma migrate`, `lemma key:generate`.' \
-      'For the full framework console, use `php glueful`.' \
-      '' \
-      'Commands:'
-    # --raw drops Symfony's generic Usage/Options preamble — just the lemma:* command lines.
-    exec "$PHP" "$GLUEFUL" list lemma --raw
+  "")
+    # No command → the full, colourised framework command list (all namespaces).
+    exec "$PHP" "$GLUEFUL" list
     ;;
   setup)
     # The interactive front door: run the two setup layers as TWO processes. Layer 2
     # (create-admin) MUST be a fresh boot so its container-bound DB connection reflects the
-    # .env that Layer 1 (provision) just wrote. No flags are forwarded — for non-interactive
-    # use, call `lemma provision` and `lemma create-admin` directly with their options.
+    # .env that Layer 1 (provision) just wrote.
     "$PHP" "$GLUEFUL" lemma:provision && exec "$PHP" "$GLUEFUL" lemma:create-admin
     ;;
-  migrate)
-    exec "$PHP" "$GLUEFUL" migrate:run "$@"
-    ;;
-  key:generate)
-    exec "$PHP" "$GLUEFUL" generate:key "$@"
-    ;;
-  lemma:*)
-    # Tolerate a redundant prefix: `lemma lemma:doctor` == `lemma doctor`.
-    exec "$PHP" "$GLUEFUL" "$cmd" "$@"
+  doctor | provision | create-admin)
+    # Branded shortcuts: a bare setup verb maps to its `lemma:` command.
+    exec "$PHP" "$GLUEFUL" "lemma:$cmd" "$@"
     ;;
   *)
-    # provision, create-admin, doctor, and any other lemma:<cmd>
-    exec "$PHP" "$GLUEFUL" "lemma:$cmd" "$@"
+    # Everything else passes straight through to the full framework console — including any
+    # `lemma:*`, `migrate:run`, `cache:clear`, `--help`, `list`, etc.
+    exec "$PHP" "$GLUEFUL" "$cmd" "$@"
     ;;
 esac

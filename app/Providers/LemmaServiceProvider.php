@@ -13,6 +13,7 @@ use App\Content\Console\PruneVersionsCommand;
 use App\Content\Console\ResyncCommand;
 use App\Content\Console\RunBackfillCommand;
 use App\Content\Console\RunDueSchedulesCommand;
+use App\Setup\Console\DoctorCommand;
 use App\Content\Backfill\BackfillRunner;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\DeliveryController;
@@ -383,6 +384,11 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            DoctorCommand::class => [
+                'class' => DoctorCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
         ];
     }
 
@@ -441,6 +447,7 @@ final class LemmaServiceProvider extends ServiceProvider
             PruneVersionsCommand::class,
             RunBackfillCommand::class,
             RunDueSchedulesCommand::class,
+            DoctorCommand::class,
         ]);
     }
 

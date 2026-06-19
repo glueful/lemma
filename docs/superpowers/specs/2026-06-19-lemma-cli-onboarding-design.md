@@ -1,0 +1,175 @@
+# `lemma` CLI & Onboarding (v1) — Design / Spec
+
+**Date:** 2026-06-19
+**Status:** Settled design. Open decisions resolved (see "Resolved decisions"). Ready for its own
+TDD implementation plan (`docs/superpowers/plans/…-lemma-cli.md`).
+
+Captures the onboarding/CLI work that does **not** belong in the Admin SPA Phase 1 plan
+(`2026-06-17-admin-spa-phase-1.md`), which keeps only the **web** first-run setup.
+
+## Why this is separate
+
+Lemma is a create-project product app (it dogfoods the framework's onboarding). Getting a fresh
+install from "scaffolded" to "usable admin" has two layers:
+
+- **Layer 1 — infrastructure:** Postgres connection, framework security keys, base URL, run
+  migrations. This is `.env`/env + CLI — **never** a browser wizard (writing DB creds from an HTTP
+  request is a security/12-factor footgun).
+- **Layer 2 — application:** create the first admin user, set site name + default locale.
+
+**Phase 1 (the Admin SPA plan) ships the *web* cut of Layer 2 only** — a gated `POST /admin/setup`
++ a `/setup` screen. **Everything else — the `lemma` CLI, the Layer-1 provisioning, and the CLI cut
+of setup — lives here.**
+
+## Boundary (the load-bearing decision)
+
+**Framework owns install *primitives*; Lemma owns *product* setup.**
+
+- The framework's `Glueful\Installer\` seams (shipped in framework 1.60.0 "Vega") own Layer 1:
+  `DatabaseConfig`, `ConnectionTester`, `EnvWriter`, `Installer`, `InstallState`. They enforce two
+  invariants Lemma inherits for free: a failed connection test mutates nothing (`.env` untouched),
+  and the tested credentials are exactly the connection migrations run on.
+- Lemma owns Layer 2 via a single **`App\Setup\SetupService`** (first admin + site settings),
+  **defined and owned by the UI-setup spec** (`2026-06-19-lemma-ui-setup-design.md`). This CLI
+  **consumes** it. That one shared service is the important design choice: it prevents the CLI and
+  the Admin SPA setup endpoint from becoming two divergent installers.
+
+## Resolved decisions
+
+1. **v1 scope = (A) lightweight app-setup CLI.** Operates on an *existing* Lemma checkout: configure
+   `.env`, generate keys, test + migrate, run setup (first admin + site). The full ghost-cli-style
+   provisioner — scaffold via `create-project`, provision host (nginx/systemd/SSL) — is **(B), a
+   later track**. The `lemma install` scaffold-then-setup bridge is **deferred out of v1** entirely.
+
+2. **Distribution = in the Lemma app.** Build `php glueful lemma:setup` / `lemma:doctor` as console
+   commands in the Lemma repo, plus a thin branded **`lemma` bin** wrapper. **No separate
+   `glueful/lemma-cli` global package** in v1 (the CLI only ever runs inside a Lemma checkout). If
+   (B) ever lands, the bin graduates to a standalone repo then.
+
+3. **Layer 1 runs in-process via the framework `Installer` seams — no shell-out.** "No shell-out" is
+   a constraint on **PHP setup code**: `SetupService` and the framework `Installer` never spawn
+   subprocesses. The `lemma` bin is exempt — it is a developer-convenience launcher that execs
+   `php glueful`, which is expected and fine.
+
+4. **Shared setup service (owned elsewhere).** "Create first admin + write site settings" is ONE
+   service, `App\Setup\SetupService::install(siteName, adminEmail, adminPassword, locale)`, **owned
+   by the UI-setup spec** along with its `lemma_settings` store + migration + the `installed` marker.
+   The CLI **consumes** it — it does **not** define a settings table, a `SettingsStore`, or an
+   `installed_at` key (an earlier draft of this spec did; that is superseded by the UI-setup spec's
+   names). The web `POST /admin/setup` consumes the identical `install()` path.
+
+## Components (all in the Lemma app, `App\` namespace)
+
+### `App\Setup\SetupService` — consumed, not built here
+Owned by the UI-setup spec (`2026-06-19-lemma-ui-setup-design.md`):
+`isInstalled(): bool` + race-safe `install(string $siteName, string $adminEmail, string
+$adminPassword, string $locale): void` (creates the first admin via **`glueful/users`**, grants admin
+via **`glueful/aegis`**, writes `site_name`/`default_locale` to `lemma_settings`, sets the `installed`
+marker). The CLI's Layer 2 is simply a call to `install()`; the already-installed guard reads
+`isInstalled()`. This CLI spec introduces **no** new settings storage.
+
+### `lemma:setup` console command
+Orchestrates both layers interactively:
+- **Layer 1** → builds a `DatabaseConfig` and hands it to the framework `Installer` (preflight →
+  `ConnectionTester.test()` → `EnvWriter` writes `.env` with DB creds + **framework security keys:
+  `APP_KEY`, `TOKEN_SALT`, `JWT_KEY`** → migrate via the injected tested `Connection`).
+  - **Engine is fixed to Postgres — never prompted.** The framework `Installer` is engine-agnostic,
+    but Lemma is Postgres-required, so `lemma:setup` hardcodes `engine = pgsql` in the
+    `DatabaseConfig` and prompts only for host / port / database / user / password.
+  - **Keys must be generated by the framework `Installer`, not `generate:key`.** The `Installer`
+    emits all three (`APP_KEY`/`TOKEN_SALT`/`JWT_KEY`); `generate:key` emits only `APP_KEY`/`JWT_KEY`
+    and would silently omit `TOKEN_SALT`, which `config/session.php` marks REQUIRED and
+    `TokenManager` uses for token hashing (defaulting to `''` — i.e. weakened — if absent).
+- **Layer 2** → calls `App\Setup\SetupService::install(siteName, adminEmail, adminPassword, locale)`.
+
+On success it prints a summary covering **both** layers: the configured database (host / port /
+database name — Postgres is fixed, and the password is **never** shown) and that migrations were
+applied, then the admin email + admin URL + next steps.
+
+Flags: `--force` (re-run past the installed guard), `--quiet` / `--no-interaction`. Quiet mode does
+**not** fall back to implicit process config: it **reads the existing env → builds a
+`DatabaseConfig` → passes it to the framework `Installer`**, exactly like interactive mode, so it
+still gets `ConnectionTester` and the tested==migrated guarantee. No prompts; fail loudly if a
+required env value is missing.
+
+### `lemma:doctor` console command — two check phases
+- **Pre-prompt checks** (no credentials needed, run before any prompt): PHP 8.3+, required
+  extensions (`pdo_pgsql`, …), and:
+  - **Writable `.env` target, not "`.env` is writable".** If `.env` exists → it must be writable; if
+    it does **not** exist → the project root must be writable **and** `.env.example` must exist and
+    be readable (the framework `Installer` creates `.env` from `.env.example`). `storage/` must be
+    writable.
+  - **Keys writable/generatable, not "keys present".** On a fresh checkout keys are absent **by
+    design** — Layer 1 generates them via the `Installer`. So in **`lemma:setup`** the pre-prompt
+    check is "keys can be written/generated" (i.e. the `.env` target is writable, per above), never
+    "keys present" — otherwise setup would abort before the step that creates them. **Standalone
+    `lemma:doctor`** reports absent keys as a **warning** (default) or a **failure** under a strict
+    mode, since a configured-but-keyless install is a real problem post-setup.
+- **Post-credential checks** (need DB creds): Postgres reachability via `ConnectionTester` — runs
+  *after* prompts in interactive `setup`, or against the `DatabaseConfig` built from existing env
+  under `--no-interaction`.
+
+In `lemma:setup`, the pre-prompt block auto-runs first; reachability runs once credentials exist.
+`lemma:doctor` standalone runs the pre-prompt block, then the reachability check against existing
+env if creds are present.
+
+### Thin `lemma` bin (Lemma repo root)
+Forwards `lemma <cmd>` → `php glueful lemma:<cmd>`. Discoverability passthroughs:
+`lemma migrate` → `php glueful migrate:run`, `lemma key:generate` → `php glueful generate:key`
+(convenience alias only — **not** the setup key path, since it omits `TOKEN_SALT`; see above).
+
+## Data flow (`./lemma setup`)
+
+```
+./lemma setup
+  → lemma bin execs `php glueful lemma:setup`
+  → doctor pre-prompt checks (PHP, extensions, writable paths)
+  → prompt pgsql creds (host/port/db/user/pass; engine fixed to pgsql, not prompted) → DatabaseConfig
+  → doctor reachability check (ConnectionTester) on those creds
+  → framework Installer: test → EnvWriter writes .env (DB + APP_KEY/TOKEN_SALT/JWT_KEY) → migrate
+  → SetupService.install(site name, admin email/pw, default locale)
+        → create admin (glueful/users) + grant (glueful/aegis) + lemma_settings + installed marker
+  → success summary:
+        • database (host / port / database name — Postgres fixed; NEVER the password) + migrations applied
+        • admin email + admin URL + next steps
+```
+
+## Error handling
+
+- **Connection test fails** → abort; `.env` untouched (framework invariant); friendly message
+  including `sqlState`.
+- **Already installed** (`SetupService::isInstalled()` true / `installed` marker set) → refuse without
+  `--force`.
+- **Missing extension / unwritable `.env` target / unwritable `storage/`** → doctor pre-prompt fails
+  fast, before any prompt. **Absent security keys on a fresh checkout are NOT a `lemma:setup`
+  failure** — Layer 1 generates them; they only matter as a standalone-`doctor` warning/failure.
+- **`--quiet` / `--no-interaction`** → read existing env → build `DatabaseConfig` → hand to the
+  `Installer` (still test + migrate the tested connection); no prompts; fail loudly on a missing
+  required env value.
+
+## Testing
+
+- **`SetupService` / `lemma_settings`**: owned and tested by the UI-setup spec — not retested here.
+- **`lemma:setup`** orchestration: Layer 1 delegates to already-tested framework seams and Layer 2 to
+  the already-tested `SetupService`, so Lemma tests here focus on the wiring — including the
+  **`--quiet` path builds a `DatabaseConfig` from env and still tests+migrates**, that Layer 2 calls
+  `install()`, and the already-installed (`isInstalled()`) path.
+- **`lemma:doctor`**: each pre-prompt check unit-tested with fakes — including **`.env` target
+  writable when `.env` is absent** (root writable + `.env.example` readable) and the
+  **keys-writable-vs-keys-present** distinction (fresh checkout passes `setup` pre-prompt, standalone
+  `doctor` warns); reachability check against a reachable/unreachable `DatabaseConfig`.
+- **`lemma` bin**: smoke test that it forwards `setup` to `php glueful lemma:setup` and exits with
+  the delegated status code.
+
+## Out of scope (tracked elsewhere)
+
+- The **web** first-run setup (`/setup` screen + `POST /admin/setup` + `installed` surface) **and the
+  shared `App\Setup\SetupService` + `lemma_settings` core** → **UI-setup spec**
+  (`2026-06-19-lemma-ui-setup-design.md`), implemented via the Admin SPA Phase 1 plan.
+- Server provisioning / managed-hosting / `create-project` scaffolding → future, decision (B).
+
+## Next step
+
+Settled. Proceed to the TDD implementation plan
+(`docs/superpowers/plans/2026-06-19-lemma-cli.md`). Linked from the Admin SPA Phase 1 plan's
+first-run-setup task and from `docs/NEXT.md`.

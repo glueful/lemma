@@ -30,6 +30,10 @@ DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 PHP="${PHP:-php}"
 GLUEFUL="$DIR/glueful"
 
+# Present the console as "Lemma" (the entry script reads this) — so `lemma` shows the Lemma
+# brand while bare `php glueful` keeps showing "Glueful CLI".
+export LEMMA_CONSOLE_NAME="Lemma"
+
 cmd="${1:-}"
 [ "$#" -gt 0 ] && shift || true
 

@@ -16,6 +16,13 @@ $container = $app->getContainer();
 // Wire up Glueful’s Symfony Console application with DI
 $cli = new GluefulConsole($container);
 
+// When invoked through the branded `lemma` launcher, present the console as that brand
+// (e.g. "Lemma") instead of "Glueful CLI". Bare `php glueful` is unaffected.
+$brand = getenv('LEMMA_CONSOLE_NAME');
+if (is_string($brand) && $brand !== '') {
+    $cli->setName($brand);
+}
+
 // Run CLI
 try {
     exit($cli->run(new ArgvInput(), new ConsoleOutput()));

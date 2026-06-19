@@ -96,7 +96,8 @@ Configures the database + framework security keys; runs migrations. No admin.
 - On success prints the configured database (host / port / database — Postgres fixed; password
   **never** shown) + "migrations applied".
 - Flags: `--force` (re-runs Layer 1 infra only — regenerate keys / rewrite `.env` / re-run pending
-  migrations), `--quiet` (read DB creds from existing env / explicit `--db-*` options, no prompts;
+  migrations), and **non-interactive mode** (`-n` / `--no-interaction`, or no TTY) — read DB creds
+  from existing env / explicit `--db-*` options, no prompts;
   fail loudly on a missing/invalid required value — never fall back to implicit process config).
 
 ### `lemma:create-admin` console command (Layer 2)
@@ -105,7 +106,7 @@ after `lemma:provision`), so its container-bound connection is correct.
 - Guards on `App\Setup\SetupService::isInstalled()`: if already installed, reports it and exits
   success **without** re-creating the admin (Layer 2 is permanent — there is no `--force` for it).
 - Otherwise gathers site name / admin email / admin password / locale (prompts, or `--site-name` /
-  `--admin-email` / `--admin-password` / `--locale` in `--quiet`; fail loudly on a missing required
+  `--admin-email` / `--admin-password` / `--locale` when non-interactive (`-n`); fail loudly on a missing required
   value), then calls `App\Setup\SetupService::install(siteName, adminEmail, adminPassword, locale)`.
 - On success prints the admin email + admin URL + next steps.
 
@@ -181,8 +182,8 @@ not forward command-specific flags); for non-interactive/CI, call `lemma:provisi
   non-numeric `--db-port`) aborts **before** the Installer, mutating nothing. `Doctor` + the DB-config
   factory are unit-tested directly.
 - **`lemma:create-admin`**: integration test against the test DB — creates the admin, the
-  already-installed guard exits success without a second admin, and a missing required `--quiet`
-  option fails fast.
+  already-installed guard exits success without a second admin, and a missing required option in
+  non-interactive mode fails fast.
 - **`lemma:doctor`**: each pre-prompt check unit-tested with fakes — including **`.env` target
   writable when `.env` is absent** (root writable + `.env.example` readable) and the
   **keys-writable-vs-keys-present** distinction (fresh checkout passes `setup` pre-prompt, standalone

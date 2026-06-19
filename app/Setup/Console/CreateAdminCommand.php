@@ -11,7 +11,6 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-use function base_path;
 use function config;
 
 #[AsCommand(
@@ -22,7 +21,6 @@ final class CreateAdminCommand extends BaseCommand
 {
     protected function configure(): void
     {
-        $this->addOption('quiet', null, InputOption::VALUE_NONE, 'Non-interactive: take values from options');
         $this->addOption('site-name', null, InputOption::VALUE_REQUIRED, 'Site name', 'Lemma');
         $this->addOption('admin-email', null, InputOption::VALUE_REQUIRED, 'First admin email');
         $this->addOption('admin-password', null, InputOption::VALUE_REQUIRED, 'First admin password');
@@ -40,7 +38,7 @@ final class CreateAdminCommand extends BaseCommand
             return self::SUCCESS;
         }
 
-        $quiet = (bool) $input->getOption('quiet') || !$this->isInteractive();
+        $quiet = !$this->isInteractive();
 
         if ($quiet) {
             foreach (['admin-email', 'admin-password'] as $required) {

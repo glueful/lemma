@@ -47,6 +47,18 @@ final class SetupServiceTest extends LemmaTestCase
 
         self::assertTrue($svc->isInstalled());
 
+        // Verify the admin password is stored as a hash, never as plaintext.
+        $userRow = $this->connection()->table('users')
+            ->where(['email' => 'admin@example.com'])
+            ->first();
+
+        self::assertNotNull($userRow, 'admin user must exist after install');
+        self::assertNotSame('S3cur3P@ssw0rd!', $userRow['password'], 'password must not be stored plaintext');
+        self::assertTrue(
+            password_verify('S3cur3P@ssw0rd!', (string) $userRow['password']),
+            'stored hash must verify against the original password',
+        );
+
         // Verify site_name was written to lemma_settings.
         $row = $this->connection()->table('lemma_settings')
             ->where(['key' => 'site_name'])

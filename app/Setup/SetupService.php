@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Setup;
 
+use Glueful\Auth\PasswordHasher;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Extensions\Aegis\AegisPermissionProvider;
@@ -58,11 +59,14 @@ final class SetupService
         string $locale,
     ): void {
         $this->db->transaction(function () use ($siteName, $adminEmail, $adminPassword, $locale): void {
-            // Race-safety: a concurrent request may have completed install between
-            // the caller's isInstalled() check and this transaction acquiring a lock.
+            // Reduces the race window: a concurrent request that completed install between
+            // the caller's isInstalled() check and this point will be caught here. This does
+            // not fully close the race (no row lock), but avoids the common double-install case.
             if ($this->isInstalled()) {
                 throw new \RuntimeException('Lemma is already installed.');
             }
+
+            $hashed = (new PasswordHasher())->hash($adminPassword);
 
             // Use the email as the username so the first admin is unique (the users table
             // enforces both username and email uniqueness) and matches the web setup flow,
@@ -70,7 +74,7 @@ final class SetupService
             $userUuid = $this->users->create([
                 'username' => $adminEmail,
                 'email'    => $adminEmail,
-                'password' => $adminPassword,
+                'password' => $hashed,
                 'status'   => 'active',
             ]);
 

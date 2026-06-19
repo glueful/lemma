@@ -34,12 +34,6 @@ final class ProvisionCommand extends BaseCommand
             InputOption::VALUE_NONE,
             'Regenerate keys / rewrite .env / re-run pending migrations',
         );
-        $this->addOption(
-            'quiet',
-            null,
-            InputOption::VALUE_NONE,
-            'Non-interactive: take DB creds from .env / --db-* options',
-        );
         foreach (['db-host', 'db-port', 'db-name', 'db-user', 'db-password', 'db-schema', 'db-sslmode'] as $opt) {
             $this->addOption($opt, null, InputOption::VALUE_REQUIRED, "Override {$opt}");
         }
@@ -58,7 +52,7 @@ final class ProvisionCommand extends BaseCommand
             }
         }
 
-        $quiet = (bool) $input->getOption('quiet') || !$this->isInteractive();
+        $quiet = !$this->isInteractive();
 
         // 2. Build the pgsql DatabaseConfig (engine is fixed; never prompted).
         $database = $quiet

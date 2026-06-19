@@ -20,7 +20,7 @@ final class ProvisionCommandTest extends LemmaTestCase
         $command = new ProvisionCommand($this->container(), self::$app);
         $tester = new CommandTester($command);
 
-        $exit = $tester->execute(['--quiet' => true, '--db-port' => 'not-a-number']);
+        $exit = $tester->execute(['--db-port' => 'not-a-number'], ['interactive' => false]);
 
         self::assertSame(1, $exit);
         self::assertStringContainsString('port', $tester->getDisplay());

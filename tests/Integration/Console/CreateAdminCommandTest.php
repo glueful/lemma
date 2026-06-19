@@ -31,11 +31,10 @@ final class CreateAdminCommandTest extends LemmaTestCase
     public function testCreatesFirstAdmin(): void
     {
         $exit = $this->tester()->execute([
-            '--quiet' => true,
             '--admin-email' => 'admin@example.com',
             '--admin-password' => 'a-strong-password',
             '--site-name' => 'Demo',
-        ]);
+        ], ['interactive' => false]);
 
         self::assertSame(0, $exit);
         self::assertTrue($this->service()->isInstalled());
@@ -47,10 +46,9 @@ final class CreateAdminCommandTest extends LemmaTestCase
 
         $tester = $this->tester();
         $exit = $tester->execute([
-            '--quiet' => true,
             '--admin-email' => 'second@example.com',
             '--admin-password' => 'a-strong-password',
-        ]);
+        ], ['interactive' => false]);
 
         self::assertSame(0, $exit);
         self::assertStringContainsStringIgnoringCase('already installed', $tester->getDisplay());
@@ -64,7 +62,7 @@ final class CreateAdminCommandTest extends LemmaTestCase
     public function testQuietMissingAdminEmailFailsFast(): void
     {
         $tester = $this->tester();
-        $exit = $tester->execute(['--quiet' => true, '--admin-password' => 'a-strong-password']);
+        $exit = $tester->execute(['--admin-password' => 'a-strong-password'], ['interactive' => false]);
 
         self::assertSame(1, $exit);
         self::assertStringContainsString('admin-email', $tester->getDisplay());

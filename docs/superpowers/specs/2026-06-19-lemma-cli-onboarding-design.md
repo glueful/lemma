@@ -132,14 +132,19 @@ after `lemma:provision`), so its container-bound connection is correct.
 block, then the reachability check against existing env if creds are present.
 
 ### Thin `lemma` bin (Lemma repo root)
-Forwards `lemma <cmd>` → `php glueful lemma:<cmd>` (so `lemma provision`, `lemma create-admin`,
-`lemma doctor` all work). The **`lemma setup` verb is special**: it runs the two setup commands as
-two sequential `php glueful` processes — `lemma:provision` then `lemma:create-admin` — which is what
-gives Layer 2 a fresh boot against the configured DB. It is the **interactive** front door (it does
-not forward command-specific flags); for non-interactive/CI, call `lemma:provision` and
-`lemma:create-admin` individually with their flags. Discoverability passthroughs: `lemma migrate` →
-`php glueful migrate:run`, `lemma key:generate` → `php glueful generate:key` (convenience alias only
-— **not** the setup key path, since it omits `TOKEN_SALT`; see above).
+A **transparent front end** for the app's `php glueful` console: every command passes straight
+through (`lemma <cmd> …` → `php glueful <cmd> …`), so a developer gets the **full framework console**
+— colour and all — via `lemma` (`lemma cache:clear`, `lemma migrate:run`, `lemma list`, `lemma
+--help`, …). No-arg `lemma` runs `php glueful list`. Three extras sit on top:
+- **`lemma setup`** (special): runs the two setup commands as two sequential `php glueful` processes
+  — `lemma:provision` then `lemma:create-admin` — which is what gives Layer 2 a fresh boot against
+  the configured DB. Interactive front door (no command-specific flags forwarded); for
+  non-interactive/CI, call `lemma:provision` / `lemma:create-admin` individually with their flags.
+- **Bare-name shortcuts** for the branded setup verbs: `lemma doctor` / `lemma provision` /
+  `lemma create-admin` map to their `lemma:` command. (Everything else, including `lemma
+  lemma:doctor`, is the plain passthrough.)
+The launcher resolves its own path through symlinks (so it can live on `$PATH`) and is an `sh`/PHP
+polyglot — running it as `php lemma` by mistake prints a hint instead of dumping the script.
 
 ## Data flow (`./lemma setup`)
 

@@ -86,7 +86,9 @@ On success it prints a summary covering **both** layers: the configured database
 database name — Postgres is fixed, and the password is **never** shown) and that migrations were
 applied, then the admin email + admin URL + next steps.
 
-Flags: `--force` (re-run past the installed guard), `--quiet` / `--no-interaction`. Quiet mode does
+Flags: `--force` (re-runs **Layer 1** infra only — regenerate keys / rewrite `.env` / re-run pending
+migrations; it does **not** re-create the first admin, which is permanent — see error handling),
+`--quiet` / `--no-interaction`. Quiet mode does
 **not** fall back to implicit process config: it **reads the existing env → builds a
 `DatabaseConfig` → passes it to the framework `Installer`**, exactly like interactive mode, so it
 still gets `ConnectionTester` and the tested==migrated guarantee. No prompts; fail loudly if a
@@ -138,8 +140,10 @@ Forwards `lemma <cmd>` → `php glueful lemma:<cmd>`. Discoverability passthroug
 
 - **Connection test fails** → abort; `.env` untouched (framework invariant); friendly message
   including `sqlState`.
-- **Already installed** (`SetupService::isInstalled()` true / `installed` marker set) → refuse without
-  `--force`.
+- **Already installed** (`SetupService::isInstalled()` true / `installed` marker set) → **Layer 2 is
+  skipped permanently** (the first admin can never be re-created — `SetupService` is the race-safe
+  lock). `--force` does not bypass this; it only re-runs Layer 1 infra. `lemma:setup` reports
+  "already installed" and exits success.
 - **Missing extension / unwritable `.env` target / unwritable `storage/`** → doctor pre-prompt fails
   fast, before any prompt. **Absent security keys on a fresh checkout are NOT a `lemma:setup`
   failure** — Layer 1 generates them; they only matter as a standalone-`doctor` warning/failure.

@@ -65,4 +65,40 @@ final class LemmaBinTest extends TestCase
         array_map('unlink', [$dir . '/lemma', $dir . '/glueful']);
         rmdir($dir);
     }
+
+    /**
+     * The launcher must resolve its OWN real location through a symlink, so it can be linked
+     * onto $PATH (e.g. /usr/local/bin/lemma) and still find its sibling `glueful` — not look
+     * for a `glueful` next to the symlink.
+     */
+    public function testResolvesSiblingGluefulThroughASymlink(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            self::markTestSkipped('POSIX sh launcher');
+        }
+
+        // A "project" dir holds the real launcher + a fake glueful that echoes its argv.
+        $project = sys_get_temp_dir() . '/lemma proj ' . uniqid('', true);
+        mkdir($project, 0755, true);
+        copy($this->bin, $project . '/lemma');
+        chmod($project . '/lemma', 0755);
+        file_put_contents(
+            $project . '/glueful',
+            "<?php\nforeach (array_slice(\$argv, 1) as \$a) { echo \$a, \"\\n\"; }\n",
+        );
+
+        // A separate "bin" dir (with NO glueful) holds only a symlink to the launcher.
+        $binDir = sys_get_temp_dir() . '/lemma path ' . uniqid('', true);
+        mkdir($binDir, 0755, true);
+        symlink($project . '/lemma', $binDir . '/lemma');
+
+        // Invoking via the symlink must still run the PROJECT's glueful.
+        $out = (string) shell_exec('"' . $binDir . '/lemma" doctor 2>&1');
+        self::assertSame("lemma:doctor\n", $out);
+
+        unlink($binDir . '/lemma');
+        rmdir($binDir);
+        array_map('unlink', [$project . '/lemma', $project . '/glueful']);
+        rmdir($project);
+    }
 }

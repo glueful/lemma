@@ -5,7 +5,19 @@
 # commands). It contains NO setup logic of its own.
 set -e
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve this script's real location, following symlinks, so `lemma` can be symlinked onto
+# $PATH (e.g. /usr/local/bin/lemma) and still find its sibling `glueful`. macOS has no
+# `readlink -f`, so walk the symlink chain portably.
+SOURCE="$0"
+while [ -h "$SOURCE" ]; do
+  link_dir="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  case "$SOURCE" in
+    /*) ;;                       # absolute target — use as-is
+    *) SOURCE="$link_dir/$SOURCE" ;;  # relative target — resolve against the link's dir
+  esac
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 PHP="${PHP:-php}"
 GLUEFUL="$DIR/glueful"
 

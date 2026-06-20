@@ -28,6 +28,11 @@ coverage
 
 .eslintcache
 
+# Generated type declarations (vue-router/vite + nuxt-ui auto-imports)
+auto-imports.d.ts
+components.d.ts
+typed-router.d.ts
+
 # Cypress
 /cypress/videos/
 /cypress/screenshots/

@@ -1,9 +1,9 @@
 {
-  "name": "glueful/api-skeleton",
-  "description": "Glueful API Application Skeleton — Create high-performance APIs",
+  "name": "glueful/lemma",
+  "description": "Lemma — a hybrid CMS and canonical content source, built on the Glueful framework.",
   "type": "project",
-  "keywords": ["api", "skeleton", "glueful", "rest", "php"],
-  "homepage": "https://glueful.com/",
+  "keywords": ["lemma", "cms", "hybrid-cms", "content", "glueful", "php"],
+  "homepage": "https://getlemma.dev",
   "license": "MIT",
   "authors": [
     {
@@ -62,9 +62,7 @@
       "@test"
     ],
     "post-create-project-cmd": [
-      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
-      "@php -r \"is_dir('storage/database') || mkdir('storage/database', 0775, true); file_exists('storage/database/glueful.sqlite') || touch('storage/database/glueful.sqlite');\"",
-      "@php glueful install --force --quiet --skip-database"
+      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
     ]
   },
   "config": {

@@ -126,12 +126,6 @@ return [
 
         // Final OpenAPI specification file location
         'openapi' => $root . '/docs/openapi.json',
-
-        // JSON definitions for route-based documentation
-        'route_definitions' => $root . '/docs/json-definitions/routes',
-
-        // JSON definitions for extension documentation
-        'extension_definitions' => $root . '/docs/json-definitions/extensions',
     ],
 
     /*
@@ -147,11 +141,12 @@ return [
         // Directory containing project route files
         'routes' => $root . '/routes',
 
-        // Include framework routes in documentation generation.
-        // Default false: this spec documents the Lemma CMS API only. The framework's
-        // own auth/blobs/health routes are documented upstream; authentication is
-        // summarized in info.description instead. Set true to include them.
-        'include_framework_routes' => env('API_DOCS_INCLUDE_FRAMEWORK_ROUTES', false),
+        // Include framework routes (auth/blobs/health/etc.) in the spec.
+        // Default true: from a Lemma consumer's POV the platform's auth + blob endpoints are
+        // part of Lemma's API surface. NOTE: there is no tag-level filter yet, so this also
+        // brings the framework's infra tags (Health/Data/Documentation/Security) — group/hide
+        // them in the docs UI, or set this false to drop all framework routes.
+        'include_framework_routes' => (bool) env('API_DOCS_INCLUDE_FRAMEWORK_ROUTES', true),
 
         // Framework routes directory (auto-detected from vendor or local path)
         'framework_routes' => null, // Will be resolved at runtime
@@ -269,9 +264,9 @@ return [
         // Include route-based documentation from PHPDoc comments
         'include_routes' => true,
 
-        // Include extension documentation (e.g. the aegis /rbac/* admin routes).
-        // Default false to keep this spec focused on the Lemma CMS API.
-        'include_extensions' => false,
+        // Include extension routes (users account/2FA, aegis RBAC, i18n, import/export).
+        // Default true: from a Lemma consumer's POV these are part of Lemma's API surface.
+        'include_extensions' => (bool) env('API_DOCS_INCLUDE_EXTENSIONS', true),
 
         // Pretty print JSON output
         'pretty_print' => true,
@@ -279,6 +274,24 @@ return [
         // Generate resource/table routes (CRUD endpoints for all database tables)
         // Set to false to disable automatic generation of table-based API endpoints
         'include_resource_routes' => env('API_DOCS_INCLUDE_RESOURCE_ROUTES', false),
+
+        // Tag allow/deny filter applied to the assembled spec before write. `include` is an
+        // allow-list (empty = keep all tags); `exclude` is a deny-list and WINS over include.
+        // Lemma's public spec drops the platform's infrastructure groups — generic table CRUD
+        // (`Data`), ops probes (`Health`), the docs endpoints (`Documentation`), and `Security`
+        // (CSRF) — none of which are part of Lemma's consumer API. Committed as the default so
+        // regeneration (locally or in CI) is reproducible; override with API_DOCS_EXCLUDE_TAGS /
+        // API_DOCS_INCLUDE_TAGS (comma-separated; pass an empty string to keep everything).
+        'tags' => [
+            'include' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('API_DOCS_INCLUDE_TAGS', ''))
+            ), static fn(string $v): bool => $v !== '')),
+            'exclude' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('API_DOCS_EXCLUDE_TAGS', 'Data,Documentation,Health,Security'))
+            ), static fn(string $v): bool => $v !== '')),
+        ],
     ],
 
     /*

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bc7a774934f5a83a1fa1b5e2b1b498ec",
+    "content-hash": "c0163b6deb4c3fc809bf53892a1bbbcd",
     "packages": [
         {
             "name": "composer/semver",
@@ -341,23 +341,23 @@
         },
         {
             "name": "glueful/aegis",
-            "version": "v1.8.0",
+            "version": "v1.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/aegis.git",
-                "reference": "0d6a0c825dd9f667fb27062003e22de85f890bd5"
+                "reference": "a51ec81c0f6a1eaa882eda89c7fe0867ab8ed96c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/aegis/zipball/0d6a0c825dd9f667fb27062003e22de85f890bd5",
-                "reference": "0d6a0c825dd9f667fb27062003e22de85f890bd5",
+                "url": "https://api.github.com/repos/glueful/aegis/zipball/a51ec81c0f6a1eaa882eda89c7fe0867ab8ed96c",
+                "reference": "a51ec81c0f6a1eaa882eda89c7fe0867ab8ed96c",
                 "shasum": ""
             },
             "require": {
                 "php": "^8.3"
             },
             "require-dev": {
-                "glueful/framework": "^1.56.0",
+                "glueful/framework": "^1.60.0",
                 "phpstan/phpstan": "^1.10",
                 "phpunit/phpunit": "^10.0"
             },
@@ -366,10 +366,10 @@
                 "glueful": {
                     "icon": "assets/icon.png",
                     "name": "Aegis",
-                    "version": "1.7.1",
+                    "version": "1.8.1",
                     "provider": "Glueful\\Extensions\\Aegis\\Services\\AegisServiceProvider",
                     "requires": {
-                        "glueful": ">=1.56.0",
+                        "glueful": ">=1.60.0",
                         "extensions": []
                     },
                     "publisher": "glueful-team",
@@ -404,9 +404,9 @@
             "homepage": "https://github.com/glueful/aegis",
             "support": {
                 "issues": "https://github.com/glueful/aegis/issues",
-                "source": "https://github.com/glueful/aegis/tree/v1.8.0"
+                "source": "https://github.com/glueful/aegis/tree/v1.8.1"
             },
-            "time": "2026-06-13T16:12:29+00:00"
+            "time": "2026-06-20T08:47:33+00:00"
         },
         {
             "name": "glueful/email-notification",
@@ -498,16 +498,16 @@
         },
         {
             "name": "glueful/framework",
-            "version": "v1.60.0",
+            "version": "v1.61.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/framework.git",
-                "reference": "6c0df1357df471be50c0886233232f2a19594f6d"
+                "reference": "3d7278b0679d5db2e05d0d13a4c15b73fe5f5ad0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/framework/zipball/6c0df1357df471be50c0886233232f2a19594f6d",
-                "reference": "6c0df1357df471be50c0886233232f2a19594f6d",
+                "url": "https://api.github.com/repos/glueful/framework/zipball/3d7278b0679d5db2e05d0d13a4c15b73fe5f5ad0",
+                "reference": "3d7278b0679d5db2e05d0d13a4c15b73fe5f5ad0",
                 "shasum": ""
             },
             "require": {
@@ -602,7 +602,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-06-19T19:31:28+00:00"
+            "time": "2026-06-20T09:26:12+00:00"
         },
         {
             "name": "glueful/i18n",

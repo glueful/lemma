@@ -13,8 +13,10 @@ use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
-use App\Content\Validation\FieldValidator;
+use App\Content\Repositories\VersionRepository;
 use App\Content\Schema\Migration\SchemaProjector;
+use App\Content\Services\PublishService;
+use App\Content\Validation\FieldValidator;
 use App\Tests\Support\FakeLocaleManager;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
@@ -135,6 +137,7 @@ final class EntryListApiTest extends LemmaTestCase
         $resp = $this->controller()->index($this->listQuery(['type' => 'page', 'q' => 'alph']));
         $data = json_decode((string) $resp->getContent(), true)['data'];
         self::assertCount(1, $data['entries']);
+        self::assertSame(1, $data['total']);
         self::assertSame('Alpha', $data['entries'][0]['display_title']);
     }
 
@@ -148,5 +151,43 @@ final class EntryListApiTest extends LemmaTestCase
             $data['entries'][0],
             \App\Content\Http\DTOs\Responses\Entries\EntryListItemData::class,
         );
+    }
+
+    private function publishService(): PublishService
+    {
+        return new PublishService(
+            $this->appContext(),
+            new EntryRepository(
+                $this->connection(),
+                $this->appContext(),
+                new ContentTypeRepository($this->connection()),
+            ),
+            new VersionRepository($this->connection()),
+            new ContentTypeRepository($this->connection()),
+            new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
+        );
+    }
+
+    /**
+     * Verify that listForType returns status='published' for an entry whose
+     * entry_publications row exists. Without this, a broken publication lookup
+     * would return 'draft' for every entry and the test would still pass.
+     */
+    public function testPublishedEntryAppearsAsPublishedInList(): void
+    {
+        $uuid = $this->newEntryWithTitle('Published Page');
+
+        // Publish through the real PublishService so the entry_publications row is written.
+        $this->publishService()->publish($uuid, 'en', 'user00000001');
+
+        $resp = $this->controller()->index($this->listQuery(['type' => 'page']));
+        self::assertSame(200, $resp->getStatusCode());
+
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertCount(1, $data['entries']);
+        $row = $data['entries'][0];
+        self::assertSame($uuid, $row['uuid']);
+        self::assertSame('published', $row['status'], 'a published entry must appear as published in the admin list');
     }
 }

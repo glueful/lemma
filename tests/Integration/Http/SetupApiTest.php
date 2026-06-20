@@ -124,4 +124,11 @@ final class SetupApiTest extends LemmaTestCase
         $resp = $this->controller()->setup($this->setupData($this->validBody()));
         self::assertSame(409, $resp->getStatusCode());
     }
+
+    public function testSetupRouteIsRegisteredUnauthenticated(): void
+    {
+        $route = $this->findRoute('POST', '/admin/setup');
+        self::assertNotNull($route, 'POST /admin/setup must be registered');
+        self::assertNotContains('auth', (array) ($route['middleware'] ?? []), 'setup must be unauthenticated');
+    }
 }

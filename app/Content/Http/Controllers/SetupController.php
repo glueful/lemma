@@ -37,12 +37,19 @@ final class SetupController
             );
         }
 
-        $this->setup->install(
-            $input->site_name,
-            $input->admin_email,
-            $input->admin_password,
-            $input->locale,
-        );
+        try {
+            $this->setup->install(
+                $input->site_name,
+                $input->admin_email,
+                $input->admin_password,
+                $input->locale,
+            );
+        } catch (\RuntimeException) {
+            return new JsonResponse(
+                ['message' => 'Setup has already been completed.'],
+                JsonResponse::HTTP_CONFLICT,
+            );
+        }
 
         return new JsonResponse(['message' => 'Setup complete.', 'installed' => true]);
     }

@@ -376,6 +376,16 @@ final class EntryRepository
      * routes, schedules) are gathered in bounded follow-up queries keyed by the page's
      * entry uuids, so this is O(1) round-trips, not N+1.
      *
+     * LIMITATION (a): All active entries for the content type are loaded into memory before
+     * the page slice is applied. This is correct and bounded by per-type entry count, which
+     * is manageable for Phase 1. Revisit with SQL-level LIMIT/OFFSET paging if any single
+     * content type grows large (thousands of entries).
+     *
+     * LIMITATION (b): The display title is derived from the `title` field of the default-locale
+     * draft. Content types that use a different field as their display label will fall back to
+     * the route slug (if assigned) or the entry uuid. A configurable display-field name can
+     * be added to the content type schema when needed.
+     *
      * @return array{
      *   entries: list<array{uuid:string,display_title:string,status:string,locales:list<string>,updated_at:?string}>,
      *   total:int, current_page:int, per_page:int

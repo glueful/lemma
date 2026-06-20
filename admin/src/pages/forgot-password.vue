@@ -1,0 +1,1 @@
+<template>Forgot Password</template>

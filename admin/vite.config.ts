@@ -17,13 +17,7 @@ export default defineConfig({
     vueDevTools(),
     Layouts(),
     ui({
-      colorMode: false, // Disable color mode support
       ui: {
-        // Custom UI options can be added here
-        colors: {
-          primary: 'valencia',
-        },
-
         button: {
           slots:{
             base: 'cursor-pointer'

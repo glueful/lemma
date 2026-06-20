@@ -1,0 +1,1 @@
+<template>{{ $route.params.type }}/{{ $route.params.uuid }}</template>

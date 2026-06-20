@@ -1,0 +1,1 @@
+<template>Reset Password</template>

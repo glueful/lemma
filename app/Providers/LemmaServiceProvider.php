@@ -456,6 +456,20 @@ final class LemmaServiceProvider extends ServiceProvider
             'app:dependent'
         );
 
+        // Mount the compiled admin SPA at /admin via the framework seam: secure asset serving
+        // + index.html deep-link fallback + cache split. No-ops (with a warning) if the bundle
+        // is unbuilt. The /admin/config.json static route (routes/lemma_admin_spa.php) keeps
+        // precedence over the SPA catch-all via the router's static-first lookup.
+        // Gated by lemma.admin.enabled so an operator can disable the default admin and bring
+        // their own (the admin is a replaceable client of the /v1/admin API).
+        if ((bool) config($context, 'lemma.admin.enabled', true)) {
+            $this->serveFrontend(
+                '/admin',
+                (string) config($context, 'lemma.admin.bundle_path', dirname(__DIR__, 2) . '/public/admin'),
+                ['name' => 'Lemma Admin'],
+            );
+        }
+
         $this->registerEventListeners($context);
 
         // Console: register Lemma's app commands. commands() is a console-only no-op in

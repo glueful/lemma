@@ -57,6 +57,14 @@ return [
         'site_preview_url' => env('LEMMA_SITE_PREVIEW_URL', ''),
         // Phase 1 is en-only in the UI; locale stays in the data model.
         'default_locale' => env('LEMMA_ADMIN_DEFAULT_LOCALE', (string) env('I18N_DEFAULT_LOCALE', 'en')),
+        // Whether the default first-party admin SPA is mounted at /admin. The bundled admin is a
+        // REPLACEABLE client of the /v1/admin API — set this false to bring your own (point
+        // bundle_path at your build, or disable and register a different mount in a provider).
+        'enabled' => (bool) env('LEMMA_ADMIN_ENABLED', true),
+        // Filesystem dir of the compiled SPA bundle the framework serveFrontend() seam mounts
+        // at /admin. Defaults to public/admin (baked into the release tag by .github/workflows/
+        // release.yml; gitignored in dev). Override for tests/relocation/a custom admin.
+        'bundle_path' => env('LEMMA_ADMIN_BUNDLE_PATH', dirname(__DIR__) . '/public/admin'),
     ],
 
     // Scheduled publish/unpublish. The framework scheduler's per-job `enabled` key is not

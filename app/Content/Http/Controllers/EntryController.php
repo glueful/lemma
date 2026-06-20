@@ -6,6 +6,8 @@ namespace App\Content\Http\Controllers;
 
 use App\Content\Http\DTOs\CreateEntryData;
 use App\Content\Http\DTOs\AssignRouteData;
+use App\Content\Http\DTOs\Requests\EntryListQuery;
+use App\Content\Http\DTOs\Responses\Entries\EntryListData;
 use App\Content\Http\DTOs\CopyLocaleData;
 use App\Content\Http\DTOs\SaveDraftData;
 use App\Content\Http\DTOs\Responses\Entries\DraftResultData;
@@ -53,6 +55,52 @@ final class EntryController
         private readonly ContentLocaleService $locales,
         private readonly ?SchemaProjector $schemaProjector = null,
     ) {
+    }
+
+    /**
+     * Draft-inclusive admin list of entries for a content type (`?type={slug}`). Unlike the
+     * public delivery list, this includes drafts/scheduled/unpublished entries — it reads the
+     * `entries` identity table, not the publication spine. Each row carries a derived display
+     * title, the coarse editorial status, the locales present, and updated_at. Offset paged
+     * (`?page`/`?perPage`, perPage clamped); optional `?q=` filters on the display title.
+     */
+    #[ApiOperation(
+        summary: 'List entries of a content type (draft-inclusive)',
+        description: 'Returns a page of entries for the content type named by `type` (slug), INCLUDING '
+            . 'drafts/scheduled/unpublished entries (this is the admin authoring list, not the published '
+            . 'delivery feed). Each row has a derived `display_title`, editorial `status` '
+            . '(draft|scheduled|published), the `locales` present, and `updated_at`. Offset paged via '
+            . '`page`/`perPage`; `q` filters on the display title. Requires the `lemma.entries.read` permission.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, schema: EntryListData::class, description: 'A page of entries.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type slug.')]
+    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Missing/invalid `type`.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
+    // The query params (type/q/page/perPage) are documented + validated by EntryListQuery.
+    public function index(EntryListQuery $query): Response
+    {
+        // `type` is guaranteed present + a string by the DTO's required rule (else 422 at hydration).
+        $typeRow = $this->types->findBySlug($query->type);
+        if ($typeRow === null) {
+            return Response::notFound('Content type not found.');
+        }
+
+        $page = max(1, $query->page ?? 1);
+        $max = (int) config($this->context, 'lemma.delivery.max_per_page', 100);
+        $default = (int) config($this->context, 'lemma.delivery.default_per_page', 20);
+        $perPage = $query->perPage ?? $default;
+        $perPage = $perPage < 1 ? $default : min($perPage, $max);
+
+        $result = $this->entries->listForType(
+            (string) $typeRow['uuid'],
+            $this->locales->default(),
+            $page,
+            $perPage,
+            ($query->q !== null && $query->q !== '') ? $query->q : null,
+        );
+
+        return Response::success($result, 'Entries retrieved.');
     }
 
     /**

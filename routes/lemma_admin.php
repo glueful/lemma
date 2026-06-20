@@ -48,6 +48,9 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
         ->middleware('lemma_permission:lemma.models.manage');
 
     // Entry authoring (identity, drafts, preview).
+    $router->get('/entries', [EntryController::class, 'index'])
+        ->middleware('lemma_permission:lemma.entries.read');
+
     $router->post('/entries', [EntryController::class, 'store'])
         ->middleware('lemma_permission:lemma.entries.write');
 

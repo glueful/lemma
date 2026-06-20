@@ -6,6 +6,8 @@ namespace App\Content\Http\Controllers;
 
 use App\Setup\SetupService;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 /**
@@ -27,6 +29,15 @@ final class AdminConfigController
     ) {
     }
 
+    #[ApiOperation(
+        summary: 'Admin SPA runtime config',
+        description: 'Unauthenticated bootstrap config the admin SPA fetches at startup: `apiBase`, '
+            . '`sitePreviewUrl`, `defaultLocale`, and whether first-run setup has completed '
+            . '(`installed`). A plain JSON document (no `data` envelope) so one compiled bundle '
+            . 'works across installs.',
+        tags: ['Lemma Setup'],
+    )]
+    #[ApiResponse(200, description: 'Runtime config: apiBase, sitePreviewUrl, defaultLocale, installed.')]
     public function config(): JsonResponse
     {
         $payload = [

@@ -4914,13 +4914,14 @@
         "\/admin\/config.json": {
             "get": {
                 "operationId": "getAdminConfigjson",
-                "summary": "GET \/admin\/config.json",
+                "summary": "Admin SPA runtime config",
                 "tags": [
-                    "Admin"
+                    "Lemma Setup"
                 ],
+                "description": "Unauthenticated bootstrap config the admin SPA fetches at startup: `apiBase`, `sitePreviewUrl`, `defaultLocale`, and whether first-run setup has completed (`installed`). A plain JSON document (no `data` envelope) so one compiled bundle works across installs.",
                 "responses": {
                     "200": {
-                        "description": "Successful response"
+                        "description": "Runtime config: apiBase, sitePreviewUrl, defaultLocale, installed."
                     },
                     "500": {
                         "description": "Unexpected server error.",
@@ -4960,10 +4961,11 @@
         "\/admin\/setup": {
             "post": {
                 "operationId": "postAdminSetup",
-                "summary": "POST \/admin\/setup",
+                "summary": "First-run web setup",
                 "tags": [
-                    "Admin"
+                    "Lemma Setup"
                 ],
+                "description": "Unauthenticated, self-locking first-run setup: creates the first admin and writes site settings. Returns 409 forever once the instance is installed \u2014 a second \"first\" admin can never be created.",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -5006,7 +5008,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Successful response"
+                        "description": "Setup complete; the first admin was created."
                     },
                     "500": {
                         "description": "Unexpected server error.",
@@ -5041,37 +5043,10 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed",
-                        "content": {
-                            "application\/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean",
-                                            "example": false
-                                        },
-                                        "message": {
-                                            "type": "string"
-                                        },
-                                        "errors": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "array",
-                                                "items": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "required": [
-                                        "success",
-                                        "message",
-                                        "errors"
-                                    ]
-                                }
-                            }
-                        }
+                        "description": "Invalid setup payload (site name, admin email\/password, locale)."
+                    },
+                    "409": {
+                        "description": "Already installed \u2014 setup is permanently locked."
                     }
                 }
             }
@@ -10337,9 +10312,9 @@
         "\/v1\/admin\/content-types\/{slug}\/redirects": {
             "get": {
                 "operationId": "getV1AdminContenttypesBySlugRedirects",
-                "summary": "GET \/v1\/admin\/content-types\/{slug}\/redirects",
+                "summary": "List redirects for a content type",
                 "tags": [
-                    "Admin"
+                    "Lemma Admin"
                 ],
                 "parameters": [
                     {
@@ -10357,9 +10332,10 @@
                         "BearerAuth": []
                     }
                 ],
+                "description": "Returns the manual redirects defined for the content type named by `slug` (optionally filtered by `?locale=`), each with its resolved target state (live\/broken).",
                 "responses": {
                     "200": {
-                        "description": "Successful response"
+                        "description": "Redirects retrieved."
                     },
                     "401": {
                         "description": "Unauthenticated.",
@@ -10456,14 +10432,46 @@
                                 }
                             }
                         }
+                    },
+                    "404": {
+                        "description": "Unknown content type slug.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             },
             "post": {
                 "operationId": "postV1AdminContenttypesBySlugRedirects",
-                "summary": "POST \/v1\/admin\/content-types\/{slug}\/redirects",
+                "summary": "Create a redirect for a content type",
                 "tags": [
-                    "Admin"
+                    "Lemma Admin"
                 ],
                 "parameters": [
                     {
@@ -10481,6 +10489,7 @@
                         "BearerAuth": []
                     }
                 ],
+                "description": "Adds a manual SEO redirect (301\/302\/308) from a source slug to a target URL or entry, scoped to the content type named by `slug`.",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -10617,34 +10626,100 @@
                         }
                     },
                     "422": {
-                        "description": "Validation failed",
+                        "description": "Invalid status, unsafe target URL, or ambiguous target.",
                         "content": {
                             "application\/json": {
                                 "schema": {
                                     "type": "object",
                                     "properties": {
                                         "success": {
-                                            "type": "boolean",
-                                            "example": false
+                                            "type": "boolean"
                                         },
                                         "message": {
                                             "type": "string"
                                         },
-                                        "errors": {
+                                        "error": {
                                             "type": "object",
-                                            "additionalProperties": {
-                                                "type": "array",
-                                                "items": {
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
                                                     "type": "string"
                                                 }
                                             }
                                         }
-                                    },
-                                    "required": [
-                                        "success",
-                                        "message",
-                                        "errors"
-                                    ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Redirect created."
+                    },
+                    "404": {
+                        "description": "Unknown content type or target.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Source slug conflicts with a live route.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -12945,9 +13020,9 @@
         "\/v1\/admin\/redirects\/{uuid}": {
             "delete": {
                 "operationId": "deleteV1AdminRedirectsByUuid",
-                "summary": "DELETE \/v1\/admin\/redirects\/{uuid}",
+                "summary": "Delete a redirect",
                 "tags": [
-                    "Admin"
+                    "Lemma Admin"
                 ],
                 "parameters": [
                     {
@@ -12965,9 +13040,10 @@
                         "BearerAuth": []
                     }
                 ],
+                "description": "Removes the manual redirect identified by `uuid`.",
                 "responses": {
                     "200": {
-                        "description": "Successful response"
+                        "description": "Redirect deleted."
                     },
                     "401": {
                         "description": "Unauthenticated.",
@@ -13035,6 +13111,38 @@
                     },
                     "500": {
                         "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No redirect with that UUID.",
                         "content": {
                             "application\/json": {
                                 "schema": {
@@ -16075,10 +16183,6 @@
     },
     "tags": [
         {
-            "name": "Admin",
-            "description": "Operations related to Admin"
-        },
-        {
             "name": "Authentication",
             "description": "Operations related to Authentication"
         },
@@ -16105,6 +16209,10 @@
         {
             "name": "Lemma Preview",
             "description": "Operations related to Lemma Preview"
+        },
+        {
+            "name": "Lemma Setup",
+            "description": "Operations related to Lemma Setup"
         },
         {
             "name": "RBAC Maintenance",

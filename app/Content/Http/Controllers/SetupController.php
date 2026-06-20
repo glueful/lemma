@@ -7,6 +7,8 @@ namespace App\Content\Http\Controllers;
 use App\Content\Http\DTOs\Requests\SetupData;
 use App\Setup\SetupService;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 /**
@@ -26,6 +28,16 @@ final class SetupController
     ) {
     }
 
+    #[ApiOperation(
+        summary: 'First-run web setup',
+        description: 'Unauthenticated, self-locking first-run setup: creates the first admin and '
+            . 'writes site settings. Returns 409 forever once the instance is installed — a second '
+            . '"first" admin can never be created.',
+        tags: ['Lemma Setup'],
+    )]
+    #[ApiResponse(200, description: 'Setup complete; the first admin was created.')]
+    #[ApiResponse(409, description: 'Already installed — setup is permanently locked.')]
+    #[ApiResponse(422, description: 'Invalid setup payload (site name, admin email/password, locale).')]
     public function setup(SetupData $input): JsonResponse
     {
         // Permanent lock: refuse once installed. This is the gate; install() ALSO re-checks

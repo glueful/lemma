@@ -1,5 +1,26 @@
 <script setup lang="ts">
-import { open, items } from "../navigation/sidebar";
+import { computed } from 'vue'
+import { open, items } from '../navigation/sidebar'
+import { useContentTypes } from '@/queries/contentTypes'
+
+// Content types are fetched live; injected as the Content section's children (the sidebar.ts
+// entry ships with empty children — see ADMIN_IA.md).
+const { data: contentTypes } = useContentTypes()
+
+const mainItems = computed(() =>
+  items[0].map((item) =>
+    item.label === 'Content'
+      ? {
+          ...item,
+          children: (contentTypes.value ?? []).map((ct) => ({
+            label: ct.name ?? ct.slug ?? 'Untitled',
+            icon: 'i-lucide-file-text',
+            to: `/content/${ct.slug}`,
+          })),
+        }
+      : item,
+  ),
+)
 </script>
 
 <template>
@@ -22,11 +43,11 @@ import { open, items } from "../navigation/sidebar";
       <template #default="{ collapsed }">
         <UNavigationMenu
           :collapsed="collapsed"
-          :items="items[0]"
+          :items="mainItems"
           orientation="vertical"
           tooltip
           popover
-          :ui="{link: 'my-1.5'}"
+          :ui="{ link: 'my-1.5' }"
         />
 
         <UNavigationMenu
@@ -35,7 +56,7 @@ import { open, items } from "../navigation/sidebar";
           orientation="vertical"
           tooltip
           class="mt-auto"
-          :ui="{link: 'my-1.5'}"
+          :ui="{ link: 'my-1.5' }"
         />
       </template>
 
@@ -44,8 +65,7 @@ import { open, items } from "../navigation/sidebar";
       </template>
     </UDashboardSidebar>
     <div class="flex-1 flex flex-col min-w-0 min-h-0 bg-linear-to-b from-[#F7F7F7] to-white">
-        <RouterView />
+      <RouterView />
     </div>
-
   </UDashboardGroup>
 </template>

@@ -15,7 +15,7 @@
     "php": "^8.3",
     "glueful/aegis": "^1.8.0",
     "glueful/email-notification": "^1.10.0",
-    "glueful/framework": "^1.58.1",
+    "glueful/framework": "^1.60.0",
     "glueful/i18n": "^1.1.1",
     "glueful/import-export": "^1.1.1",
     "glueful/media": "^1.1.0",
@@ -64,7 +64,7 @@
     "post-create-project-cmd": [
       "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
       "@php -r \"is_dir('storage/database') || mkdir('storage/database', 0775, true); file_exists('storage/database/glueful.sqlite') || touch('storage/database/glueful.sqlite');\"",
-      "@php glueful install --force"
+      "@php glueful install --force --quiet --skip-database"
     ]
   },
   "config": {

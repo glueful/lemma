@@ -8,7 +8,7 @@
 
 **Tech Stack:**
 - **Backend:** PHP 8.3, PostgreSQL, Glueful framework (`Glueful\Http\Response` envelope, `QueryBuilder`, `config()` helper, fluent router, `ServiceProvider`, `RequireLemmaPermission` middleware), PHPUnit 10 via `App\Tests\Support\LemmaTestCase` (Postgres `lemma_test`). Tests: `composer test:phpunit -- --filter <Name>`; lint `composer phpcs`.
-- **Frontend:** Vue 3 (`<script setup>` + TS), Vite, Vue Router, Pinia, **Nuxt UI** (the `@nuxt/ui` Vue/Vite integration, *not* Nuxt the framework), `openapi-typescript` (type generation) + `openapi-fetch` (thin typed client), `markdown-it` (preview render), Vitest + `@vue/test-utils` (unit/component), Playwright (one e2e). Frontend tests: `npm --prefix admin run test`; e2e `npm --prefix admin run test:e2e`; build `npm --prefix admin run build` → `public/admin/`.
+- **Frontend:** *(toolchain SUPERSEDED — see the SUPERSEDED note under "Frontend (Task groups 1–8)"; the maintainer scaffolds on **Vite 8 / Vue Router 5 file-based / Nuxt UI**.)* Vue 3 (`<script setup>` + TS), Vite, Vue Router, Pinia, **Nuxt UI**, `openapi-typescript` (type generation) + `openapi-fetch` (thin typed client), `markdown-it` (preview render), Vitest + `@vue/test-utils`, Playwright (one e2e). Build → `public/admin/`.
 
 **Spec:** `docs/superpowers/specs/2026-06-17-admin-spa-phase-1-design.md`
 
@@ -48,6 +48,27 @@
 - Create fixture: `tests/fixtures/admin/index.html` — minimal committed `<!doctype html>` bundle so `serveFrontend()` (which no-ops without an `index.html`) mounts `/admin` under test. Also: `phpunit.xml` gains a `<env name="LEMMA_ADMIN_BUNDLE_PATH" value="tests/fixtures/admin"/>` entry so `lemma.admin.bundle_path` resolves to this fixture before the process-global boot.
 
 ### Frontend (Task groups 1–8) — all under `admin/`
+
+> **⚠️ SUPERSEDED — the frontend toolchain below is out of date and is NOT to be implemented as written.**
+> The Admin SPA **project scaffold is owned and created by the maintainer**, on a current stack:
+> **Vite 8**, **Vue Router 5 (file-based routing)**, and **Nuxt UI**. That makes the hand-rolled
+> toolchain here obsolete: no hand-written `router.ts` or `views/` enumeration (file-based `pages/`
+> replaces them), no hand-authored `vite.config.ts`/`tsconfig*`/`vitest.config`/`playwright.config`/
+> `strip-admin-paths.mjs` (Vite 8 owns its config; `base: '/admin/'` replaces the path-strip hack),
+> and UI primitives come from Nuxt UI rather than being built per-type.
+>
+> **Division of work:** the maintainer scaffolds the project; **then** these task groups are
+> **re-planned against the real scaffold** and only the *app-specific* layer is implemented on top —
+> the `runtimeConfig` loader (fetch `/admin/config.json` at boot), the typed-from-OpenAPI client +
+> refresh-on-401, the Pinia in-memory session store, the domain composables, the **schema-driven
+> field registry/editor built _on_ Nuxt UI**, the screens as file-based pages, and the
+> schema-boundary test. **Contracts the backend assumes (preserve in the scaffold):** build
+> `base: '/admin/'` → output `public/admin/` with an `index.html` deep-link fallback; boot reads
+> `/admin/config.json` (`apiBase`/`installed`); the access token stays **in memory** (never
+> `localStorage`). The **backend Task group 0 (0a–0d) is unaffected** by any of this.
+>
+> *Treat the file lists and code in Task groups 1–8 below as historical intent, not instructions.*
+
 - Config: `admin/package.json`, `admin/vite.config.ts`, `admin/tsconfig.json`, `admin/tsconfig.node.json`, `admin/vitest.config.ts`, `admin/playwright.config.ts`, `admin/index.html`, `admin/env.d.ts`, `admin/.gitignore`.
 - Bootstrap: `admin/src/main.ts`, `admin/src/App.vue`, `admin/src/router.ts`, `admin/src/runtimeConfig.ts`, `admin/src/assets/main.css` (Tailwind v4 + Nuxt UI CSS entry).
 - Client: `admin/scripts/strip-admin-paths.mjs` (gen-time path-prefix trimmer), `admin/src/api/schema.d.ts` (generated), `admin/src/api/client.ts` (thin typed client + refresh-on-401).
@@ -1267,6 +1288,15 @@ git commit -m "Add unauthenticated, self-locking first-run web setup (POST /admi
 ---
 
 ## Task group 1 — Vue SPA scaffold (conventions established here)
+
+> **⚠️ SUPERSEDED — do not implement this scaffold.** The Admin SPA project is scaffolded by the
+> maintainer on a current stack (**Vite 8 / Vue Router 5 file-based routing / Nuxt UI**). Task
+> groups 1–8 are **re-planned against that real scaffold** before any frontend code is written;
+> only the app-specific layer (runtime config, typed client + refresh-on-401, Pinia session store,
+> domain composables, the Nuxt-UI-based schema-driven field editor, file-based page screens, the
+> schema-boundary test) is implemented on top. See the SUPERSEDED note under "Frontend (Task groups
+> 1–8)" in the File map for the full division of work + the contracts to preserve. The text below is
+> historical intent, not instructions.
 
 There is no existing frontend. This task creates the entire `admin/` toolchain and proves the typed client + runtime-config loader + Vitest harness. Every later frontend task reuses these conventions.
 

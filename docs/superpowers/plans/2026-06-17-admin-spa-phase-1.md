@@ -435,11 +435,9 @@ Then add the method (before `store()`):
     #[QueryParam('page', 'integer', description: 'Page number (default 1).')]
     #[QueryParam('perPage', 'integer', description: 'Items per page (clamped to lemma.delivery.max_per_page).')]
     #[ApiResponse(200, schema: EntryListData::class, description: 'A page of entries.')]
-    #[ApiResponse(401, schema: ErrorResponse::class, envelope: false, description: 'Missing or invalid authentication.')]
-    #[ApiResponse(403, schema: ErrorResponse::class, envelope: false, description: 'Principal lacks lemma.entries.read.')]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type slug.')]
     #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Missing `type` query parameter.')]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function index(Request $request): Response
     {
         $type = $request->query->get('type');

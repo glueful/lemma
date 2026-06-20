@@ -47,6 +47,18 @@ return [
         'webhooks_enabled' => (bool) env('LEMMA_WEBHOOKS_ENABLED', true),
     ],
 
+    // Admin SPA runtime config (served UNAUTHENTICATED at GET /admin/config.json so the
+    // compiled bundle is not env-baked — one build works across installs). See
+    // docs/superpowers/specs/2026-06-17-admin-spa-phase-1-design.md §"Runtime config".
+    'admin' => [
+        // The admin API base the SPA calls. Lemma's admin routes are hardcoded /v1/admin.
+        'api_base' => env('LEMMA_ADMIN_API_BASE', '/v1/admin'),
+        // The frontend preview URL template; the SPA appends/embeds the minted token.
+        'site_preview_url' => env('LEMMA_SITE_PREVIEW_URL', ''),
+        // Phase 1 is en-only in the UI; locale stays in the data model.
+        'default_locale' => env('LEMMA_ADMIN_DEFAULT_LOCALE', (string) env('I18N_DEFAULT_LOCALE', 'en')),
+    ],
+
     // Scheduled publish/unpublish. The framework scheduler's per-job `enabled` key is not
     // the gate; ScheduleRunner reads this switch before firing any due rows.
     'scheduler' => [

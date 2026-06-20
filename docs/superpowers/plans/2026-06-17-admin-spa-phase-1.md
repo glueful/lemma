@@ -26,9 +26,10 @@
 
 ### Backend (Task group 0)
 - Modify: `app/Content/Repositories/EntryRepository.php` — add `listForType(string $typeUuid, string $defaultLocale, int $page, int $perPage, ?string $q): array` (draft-inclusive paginated list + display-title derivation).
+- Create: `app/Content/Http/DTOs/Requests/EntryListQuery.php` — query-param request DTO (`type`/`q`/`page`/`perPage`) carrying the `#[FromQuery]` OpenAPI docs + `#[Rule]` validation.
 - Create: `app/Content/Http/DTOs/Responses/Entries/EntryListItemData.php` — doc-only response DTO for one list row.
 - Create: `app/Content/Http/DTOs/Responses/Entries/EntryListData.php` — doc-only response DTO for the list envelope.
-- Modify: `app/Content/Http/Controllers/EntryController.php` — add `index(Request $request): Response` (perm `lemma.entries.read`).
+- Modify: `app/Content/Http/Controllers/EntryController.php` — add `index(EntryListQuery $query): Response` (perm `lemma.entries.read`).
 - Modify: `routes/lemma_admin.php` — add `GET /v1/admin/entries`.
 - Create: `app/Content/Http/Controllers/AdminConfigController.php` — `config(): Response` returning the **unauthenticated** runtime config JSON (Task 0d adds `installed` to the payload, injecting `SetupService`).
 - Create: `routes/lemma_admin_spa.php` — registers the unauthenticated `/admin/config.json` route **and** (Task 0d) the unauthenticated `POST /admin/setup` route (auto-discovered by `RouteManifest`). The `/admin` + `/admin/{rest}` SPA routes are registered by the framework `serveFrontend()` call, not in this file.
@@ -67,6 +68,7 @@ Conventions: PHP `declare(strict_types=1)`, `final` classes, PSR-4 `App\`, phpcs
 
 **Files:**
 - Modify: `app/Content/Repositories/EntryRepository.php`
+- Create: `app/Content/Http/DTOs/Requests/EntryListQuery.php` (query-param DTO)
 - Create: `app/Content/Http/DTOs/Responses/Entries/EntryListItemData.php`, `EntryListData.php`
 - Modify: `app/Content/Http/Controllers/EntryController.php`, `routes/lemma_admin.php`
 - Test: `tests/Integration/Http/EntryListApiTest.php`
@@ -83,6 +85,7 @@ namespace App\Tests\Integration\Http;
 
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\DTOs\CreateEntryData;
+use App\Content\Http\DTOs\Requests\EntryListQuery;
 use App\Content\Http\DTOs\SaveDraftData;
 use App\Content\Localization\ContentLocaleService;
 use App\Content\Repositories\ContentTypeRepository;
@@ -145,15 +148,18 @@ final class EntryListApiTest extends LemmaTestCase
         return $uuid;
     }
 
-    private function listRequest(array $query): Request
+    /** @param array<string,mixed> $query */
+    private function listQuery(array $query): EntryListQuery
     {
-        return Request::create('/v1/admin/entries', 'GET', $query);
+        /** @var EntryListQuery $dto */
+        $dto = $this->hydrate(EntryListQuery::class, $query);
+        return $dto;
     }
 
     public function testListReturnsDraftInclusiveRowsWithDisplayTitleAndStatus(): void
     {
         $this->newEntryWithTitle('Home');
-        $resp = $this->controller()->index($this->listRequest(['type' => 'page']));
+        $resp = $this->controller()->index($this->listQuery(['type' => 'page']));
 
         self::assertSame(200, $resp->getStatusCode());
         $data = json_decode((string) $resp->getContent(), true)['data'];
@@ -170,14 +176,16 @@ final class EntryListApiTest extends LemmaTestCase
 
     public function testUnknownTypeReturns404(): void
     {
-        $resp = $this->controller()->index($this->listRequest(['type' => 'nope']));
+        $resp = $this->controller()->index($this->listQuery(['type' => 'nope']));
         self::assertSame(404, $resp->getStatusCode());
     }
 
-    public function testMissingTypeReturns422(): void
+    public function testMissingTypeIsRejectedByValidation(): void
     {
-        $resp = $this->controller()->index($this->listRequest([]));
-        self::assertSame(422, $resp->getStatusCode());
+        // `type` is required on EntryListQuery, so hydration fails (the router turns this into a
+        // 422 in the HTTP flow) BEFORE the controller runs — the 422 is the DTO's job, not index()'s.
+        $this->expectException(\Glueful\Validation\ValidationException::class);
+        $this->hydrate(EntryListQuery::class, []);
     }
 
     public function testDisplayTitleFallsBackToUuidWhenNoTitleOrRoute(): void
@@ -189,7 +197,7 @@ final class EntryListApiTest extends LemmaTestCase
         );
         $uuid = json_decode((string) $create->getContent(), true)['data']['entry']['uuid'];
 
-        $resp = $this->controller()->index($this->listRequest(['type' => 'page']));
+        $resp = $this->controller()->index($this->listQuery(['type' => 'page']));
         $row = json_decode((string) $resp->getContent(), true)['data']['entries'][0];
         self::assertSame($uuid, $row['display_title'], 'falls back to the entry uuid');
     }
@@ -199,7 +207,7 @@ final class EntryListApiTest extends LemmaTestCase
         $this->newEntryWithTitle('Alpha');
         $this->newEntryWithTitle('Beta');
 
-        $resp = $this->controller()->index($this->listRequest(['type' => 'page', 'q' => 'alph']));
+        $resp = $this->controller()->index($this->listQuery(['type' => 'page', 'q' => 'alph']));
         $data = json_decode((string) $resp->getContent(), true)['data'];
         self::assertCount(1, $data['entries']);
         self::assertSame('Alpha', $data['entries'][0]['display_title']);
@@ -208,7 +216,7 @@ final class EntryListApiTest extends LemmaTestCase
     public function testListResponseMatchesDtoShape(): void
     {
         $this->newEntryWithTitle('Home');
-        $resp = $this->controller()->index($this->listRequest(['type' => 'page']));
+        $resp = $this->controller()->index($this->listQuery(['type' => 'page']));
         $data = json_decode((string) $resp->getContent(), true)['data'];
         self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Entries\EntryListData::class);
         self::assertDataMatchesDtoShape(
@@ -407,10 +415,53 @@ final class EntryListData implements ResponseData
 
 > Confirm the `ResponseData` contract FQCN before implementing: `grep -rn "interface ResponseData" vendor/glueful/framework/src`. The existing DTOs (e.g. `EntryResultData`) implement `Glueful\Http\Contracts\ResponseData`; match whatever they use.
 
-- [ ] **Step 5: Implement `EntryController::index`.** Add to `app/Content/Http/Controllers/EntryController.php`. First add the imports near the others:
+- [ ] **Step 5: Implement the query DTO + `EntryController::index`.**
+
+First create the request DTO `app/Content/Http/DTOs/Requests/EntryListQuery.php` — it carries the query-param OpenAPI docs via `#[FromQuery(description:)]` (so the controller needs no `#[QueryParam]`), matching `app/Content/Http/DTOs/Requests/Delivery/DeliveryListQuery.php`:
 ```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Content\Http\DTOs\Requests;
+
+use Glueful\Validation\Attributes\FromQuery;
+use Glueful\Validation\Attributes\Rule;
+use Glueful\Validation\Contracts\RequestData;
+
+/**
+ * Query parameters for the draft-inclusive admin entry list
+ * ({@see \App\Content\Http\Controllers\EntryController::index()}). The router hydrates this from
+ * the query string; the required-`type` rule fails hydration (→ 422) BEFORE the controller runs.
+ * Int clamping for page/perPage stays in the controller.
+ */
+final class EntryListQuery implements RequestData
+{
+    public function __construct(
+        #[FromQuery(description: 'Content type slug to list.')]
+        #[Rule(['required', 'string'])]
+        public readonly string $type,
+        #[FromQuery(description: 'Case-insensitive substring filter on the derived display title.')]
+        #[Rule('string')]
+        public readonly ?string $q = null,
+        // Query-string ints arrive as strings; `numeric` accepts "2" where `integer` (a gettype()
+        // check) would reject it. The `?int` param then coerces it.
+        #[FromQuery(description: 'Page number (default 1).')]
+        #[Rule('numeric')]
+        public readonly ?int $page = null,
+        #[FromQuery(description: 'Items per page (clamped to lemma.delivery.max_per_page; default lemma.delivery.default_per_page).')]
+        #[Rule('numeric')]
+        public readonly ?int $perPage = null,
+    ) {
+    }
+}
+```
+> Confirm the `FromQuery`/`Rule`/`RequestData` FQCNs and the `DTOs/Requests/` location against the existing `DeliveryListQuery` before implementing — match whatever the existing query DTOs use.
+
+Then add to `app/Content/Http/Controllers/EntryController.php` the import (no `QueryParam` import — the docs live on the DTO):
+```php
+use App\Content\Http\DTOs\Requests\EntryListQuery;
 use App\Content\Http\DTOs\Responses\Entries\EntryListData;
-use Glueful\Routing\Attributes\QueryParam;
 ```
 Then add the method (before `store()`):
 ```php
@@ -430,38 +481,31 @@ Then add the method (before `store()`):
             . '`page`/`perPage`; `q` filters on the display title. Requires the `lemma.entries.read` permission.',
         tags: ['Lemma Admin'],
     )]
-    #[QueryParam('type', 'string', description: 'Content type slug to list (required).')]
-    #[QueryParam('q', 'string', description: 'Case-insensitive substring filter on the derived display title.')]
-    #[QueryParam('page', 'integer', description: 'Page number (default 1).')]
-    #[QueryParam('perPage', 'integer', description: 'Items per page (clamped to lemma.delivery.max_per_page).')]
     #[ApiResponse(200, schema: EntryListData::class, description: 'A page of entries.')]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type slug.')]
-    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Missing `type` query parameter.')]
+    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Missing/invalid `type` query parameter.')]
     // 401/403/429/500 inferred from middleware + documentation.errors config.
-    public function index(Request $request): Response
+    // The query params (type/q/page/perPage) are documented + validated by EntryListQuery.
+    public function index(EntryListQuery $query): Response
     {
-        $type = $request->query->get('type');
-        if (!is_string($type) || $type === '') {
-            return Response::validation(['type' => 'the type query parameter is required']);
-        }
-        $typeRow = $this->types->findBySlug($type);
+        // `type` is guaranteed present + a string by the DTO's required rule (else 422 at hydration).
+        $typeRow = $this->types->findBySlug($query->type);
         if ($typeRow === null) {
             return Response::notFound('Content type not found.');
         }
 
-        $page = max(1, (int) $request->query->get('page', '1'));
+        $page = max(1, $query->page ?? 1);
         $max = (int) config($this->context, 'lemma.delivery.max_per_page', 100);
         $default = (int) config($this->context, 'lemma.delivery.default_per_page', 20);
-        $perPage = (int) $request->query->get('perPage', (string) $default);
+        $perPage = $query->perPage ?? $default;
         $perPage = $perPage < 1 ? $default : min($perPage, $max);
 
-        $q = $request->query->get('q');
         $result = $this->entries->listForType(
             (string) $typeRow['uuid'],
             $this->locales->default(),
             $page,
             $perPage,
-            is_string($q) ? $q : null,
+            ($query->q !== null && $query->q !== '') ? $query->q : null,
         );
 
         return Response::success($result, 'Entries retrieved.');
@@ -477,13 +521,14 @@ Then add the method (before `store()`):
 - [ ] **Step 7: Run it; verify it passes.**
 
 Run: `composer test:phpunit -- --filter EntryListApiTest`
-Expected: PASS — draft-inclusive rows, display-title derivation + uuid fallback, unknown-type 404, missing-type 422, `q` filter, and the DTO-shape assertions.
+Expected: PASS — draft-inclusive rows, display-title derivation + uuid fallback, unknown-type 404, missing-`type` rejected by `EntryListQuery` validation (422 at the HTTP layer), `q` filter, and the DTO-shape assertions.
 
 - [ ] **Step 8: phpcs + commit.**
 ```bash
 cd /Users/michaeltawiahsowah/Sites/glueful/lemma
 composer phpcs
 git add app/Content/Repositories/EntryRepository.php app/Content/Http/Controllers/EntryController.php \
+  app/Content/Http/DTOs/Requests/EntryListQuery.php \
   app/Content/Http/DTOs/Responses/Entries/EntryListItemData.php \
   app/Content/Http/DTOs/Responses/Entries/EntryListData.php \
   routes/lemma_admin.php tests/Integration/Http/EntryListApiTest.php

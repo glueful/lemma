@@ -76,6 +76,40 @@ final class SetupServiceTest extends LemmaTestCase
         self::assertSame('en', $localeRow['value']);
     }
 
+    public function testInstallSeedsGenericPagesContentType(): void
+    {
+        $svc = $this->service();
+
+        $svc->install(
+            siteName: 'Lemma Test Site',
+            adminEmail: 'admin@example.com',
+            adminPassword: 'S3cur3P@ssw0rd!',
+            locale: 'en',
+        );
+
+        // A fresh instance must ship with the seeded "Pages" type so the editorial loop
+        // works on day one. It is an ordinary content-type row (status active, not a
+        // system type), with the generic title + body schema.
+        $type = (new \App\Content\Repositories\ContentTypeRepository($this->connection()))
+            ->findBySlug('page');
+
+        self::assertNotNull($type, 'fresh install must seed the "page" content type');
+        self::assertSame('Pages', $type['name']);
+        self::assertSame('active', $type['status']);
+
+        $fieldNames = array_map(static fn(array $f): string => (string) $f['name'], $type['schema']);
+        self::assertSame(['title', 'body'], $fieldNames);
+
+        // The title field is required (it drives the entry display title) and body is long text.
+        $byName = [];
+        foreach ($type['schema'] as $field) {
+            $byName[$field['name']] = $field;
+        }
+        self::assertSame('string', $byName['title']['type']);
+        self::assertTrue((bool) ($byName['title']['required'] ?? false));
+        self::assertSame('text', $byName['body']['type']);
+    }
+
     public function testInstallIsPermanentLock(): void
     {
         $svc = $this->service();

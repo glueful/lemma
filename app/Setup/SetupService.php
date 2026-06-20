@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Setup;
 
+use App\Content\Repositories\ContentTypeRepository;
 use Glueful\Auth\PasswordHasher;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
@@ -25,6 +26,7 @@ final class SetupService
         private readonly Connection $db,
         private readonly UserRepository $users,
         private readonly AegisPermissionProvider $aegis,
+        private readonly ContentTypeRepository $contentTypes,
     ) {
     }
 
@@ -47,7 +49,9 @@ final class SetupService
      *   1. Re-checks isInstalled() to guard against races.
      *   2. Creates the admin user via UserRepository.
      *   3. Assigns the configured admin role slug to the new user via AegisPermissionProvider.
-     *   4. Writes site_name, default_locale, and the `installed` marker to lemma_settings.
+     *   4. Writes site_name and default_locale to lemma_settings.
+     *   5. Seeds a generic "Pages" content type so a fresh instance is immediately editable.
+     *   6. Writes the `installed` marker to lemma_settings.
      *
      * @throws \RuntimeException  When the instance is already installed.
      * @throws \InvalidArgumentException When user creation fails validation.
@@ -84,6 +88,23 @@ final class SetupService
 
             $this->put('site_name', $siteName);
             $this->put('default_locale', $locale);
+
+            // Seed a generic "Pages" content type so a fresh instance has a working
+            // editorial loop on day one. This is an ORDINARY content-type row — fully
+            // editable, renameable, and deletable like any user-defined type, not a
+            // hardcoded/system type — which keeps Lemma's "define your own types" model
+            // intact. Shares this transaction via the singleton Connection.
+            $this->contentTypes->create([
+                'slug'        => 'page',
+                'name'        => 'Pages',
+                'description' => 'Generic static pages (e.g. About, Contact).',
+                'schema'      => [
+                    ['name' => 'title', 'type' => 'string', 'required' => true],
+                    ['name' => 'body',  'type' => 'text'],
+                ],
+                'created_by'  => $userUuid,
+            ]);
+
             $this->put('installed', '1');
         });
     }

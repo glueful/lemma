@@ -1,6 +1,4 @@
-<script lang="ts" setup>
-import logoMain from "../assets/logo_main.svg";
-</script>
+<script lang="ts" setup></script>
 
 <template>
   <div
@@ -24,7 +22,7 @@ import logoMain from "../assets/logo_main.svg";
       <div
         class="relative rounded-[18px] border border-[#dae1ea]/90 bg-white/60 px-7 pb-9 pt-8.5 backdrop-blur-[6px]"
       >
-        <img :src="logoMain" alt="Keed E-Ticketing" />
+        <!-- <img :src="logoMain" alt="Keed E-Ticketing" /> -->
         <RouterView />
       </div>
     </section>

@@ -232,6 +232,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Inferred Error Responses
+    |--------------------------------------------------------------------------
+    |
+    | Body schema + descriptions the reflect generator attaches to auto-inferred
+    | error responses (401/403 on secured routes, 429 on rate-limited routes, plus
+    | any status listed in `always`). Pointed at Lemma's ErrorResponse DTO with
+    | `envelope: false` so the inferred bodies match exactly what the controllers
+    | document by hand — letting those repeated 401/403/429 attributes be dropped
+    | without changing the spec. (`schema: null` would emit a slim inline
+    | {success, message} shape instead.) Set `always: [500]` to document a server
+    | error on every operation and drop the per-endpoint 500 attributes too.
+    |
+    */
+    'errors' => [
+        'schema'   => env('API_DOCS_ERROR_SCHEMA', \App\Http\DTOs\ErrorResponse::class),
+        'envelope' => false,
+        'always'   => [500],
+        'descriptions' => [
+            401 => 'Unauthenticated.',
+            403 => 'Forbidden.',
+            429 => 'Too Many Requests.',
+            500 => 'Unexpected server error.',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Generation Options
     |--------------------------------------------------------------------------
     |

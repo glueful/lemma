@@ -62,26 +62,12 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Create an entry',
-        description: 'Creates a new entry of a content type with an empty draft in the given locale. '
-            . 'Body: `content_type` (required; content type slug), `locale` (defaults to '
-            . 'the i18n default locale). Requires the `lemma.entries.write` permission.',
+        description: 'Seeds an empty draft in the given `locale` (defaults to the i18n default).',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(201, schema: EntryCreateResultData::class, description: 'Entry created with an empty draft.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.write` permission.',
-    )]
     #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type.')]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function store(CreateEntryData $input, Request $request): Response
     {
         // Structural validation (content_type/locale are strings) is done by the hydrated DTO.
@@ -114,25 +100,12 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Get an entry',
-        description: 'Returns the entry record (identity + status), not its field content. '
-            . 'Requires the `lemma.entries.read` permission.',
+        description: 'Identity and status only, not field content — use the draft endpoint for values.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: EntryResultData::class, description: 'The entry.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.read` permission.',
-    )]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function show(Request $request, string $uuid): Response
     {
         $entry = $this->entries->findEntry($uuid);
@@ -151,25 +124,12 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Get an entry\'s draft for a locale',
-        description: 'Returns the current working draft (field values + optimistic-lock version) for the '
-            . 'entry in the given locale. Requires the `lemma.entries.read` permission.',
+        description: 'Returns field values plus the `lock_version` to echo back on save.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: DraftResultData::class, description: 'The draft.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.read` permission.',
-    )]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No draft for that entry/locale.')]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function getDraft(Request $request, string $uuid, string $locale): Response
     {
         if (($errors = $this->locales->validate($locale)) !== []) {
@@ -205,27 +165,11 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Save an entry\'s draft (optimistic-locked)',
-        description: 'Validates and stores the entry\'s draft field values for the locale. Pass the '
-            . '`lock_version` returned by the last read; a stale value yields 409 Conflict with the '
-            . 'current draft so the client can rebase. Field values are validated against the content '
-            . 'type schema. Body: `fields` (required; field values keyed by field name), `lock_version` '
-            . '(required; optimistic-lock counter from the last read). '
-            . 'Requires the `lemma.entries.write` permission.',
+        description: 'Optimistic-locked: pass the `lock_version` from the last read; a stale value yields '
+            . '409 carrying the current draft so the client can rebase.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: DraftResultData::class, description: 'Draft saved.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.write` permission.',
-    )]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry with that UUID.')]
     #[ApiResponse(
         409,
@@ -239,7 +183,7 @@ final class EntryController
         envelope: false,
         description: 'Field validation failed against the content type schema.',
     )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function saveDraft(SaveDraftData $input, Request $request, string $uuid, string $locale): Response
     {
         if (($errors = $this->locales->validate($locale)) !== []) {
@@ -283,8 +227,7 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Discard an entry draft',
-        description: 'Deletes the mutable draft row for the entry+locale. Published content is untouched. '
-            . 'Requires the `lemma.entries.write` permission.',
+        description: 'Drops the working draft only; published content is untouched.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Draft discarded.')]
@@ -308,8 +251,7 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Delete an entry',
-        description: 'Soft-deletes an entry unless another published entry references it. Requires the '
-            . '`lemma.entries.write` permission.',
+        description: 'Soft-delete; refused (409) while published content still references the entry.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Entry deleted.')]
@@ -343,7 +285,7 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'List entry routes',
-        description: 'Lists route slugs assigned to an entry. Requires the `lemma.entries.read` permission.',
+        description: 'Route slugs assigned across all the entry\'s locales.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Entry routes.')]
@@ -360,8 +302,7 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'List entry locale variants',
-        description: 'Lists per-locale draft, publication, and route state for an entry. Requires the '
-            . '`lemma.entries.read` permission.',
+        description: 'Per-locale draft, publication, and route state — the entry\'s translation status.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: EntryLocalesResultData::class, description: 'Entry locale variants.')]
@@ -384,8 +325,7 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Create an entry locale draft',
-        description: 'Creates a draft for the target locale, optionally copying the current draft from '
-            . '`source_locale`. Requires the `lemma.entries.write` permission.',
+        description: 'Optionally seeds the new draft by copying the current draft from `source_locale`.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(201, schema: DraftResultData::class, description: 'Locale draft created.')]
@@ -445,8 +385,7 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Assign an entry route',
-        description: 'Assigns or replaces the delivery route slug for an entry+locale. Requires the '
-            . '`lemma.entries.write` permission.',
+        description: 'Replaces any existing route slug for the entry+locale.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Route assigned.')]
@@ -482,8 +421,7 @@ final class EntryController
      */
     #[ApiOperation(
         summary: 'Remove an entry route',
-        description: 'Removes the delivery route slug for an entry+locale. Requires the '
-            . '`lemma.entries.write` permission.',
+        description: 'Idempotent — succeeds even when no route is assigned.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Route removed.')]

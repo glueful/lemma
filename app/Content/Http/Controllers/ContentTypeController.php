@@ -51,24 +51,11 @@ final class ContentTypeController
      */
     #[ApiOperation(
         summary: 'List content types',
-        description: 'Lists every content type (model) defined in this Lemma instance. '
-            . 'Requires the `lemma.entries.read` permission.',
+        description: 'Each item includes its full field schema.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: ContentTypeListData::class, description: 'All content types.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.read` permission.',
-    )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function index(Request $request): Response
     {
         return Response::success(['content_types' => $this->types->all()], 'Content types retrieved.');
@@ -83,32 +70,18 @@ final class ContentTypeController
      */
     #[ApiOperation(
         summary: 'Create a content type',
-        description: 'Defines a new content type (model) with a field schema. The slug must be a unique '
-            . 'lowercase identifier. Body: `slug` (required), `name` (required), `description`, '
-            . '`schema` (field definitions, each { name, type, required? }). '
-            . 'Requires the `lemma.models.manage` permission.',
+        description: '`slug` must be a unique lowercase identifier. Filterable-field indexes are built '
+            . 'out-of-band after commit.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(201, schema: ContentTypeResultData::class, description: 'Content type created.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.models.manage` permission.',
-    )]
     #[ApiResponse(
         422,
         schema: ErrorResponse::class,
         envelope: false,
         description: 'Invalid slug/name, duplicate slug, or invalid field schema.',
     )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function store(CreateContentTypeData $input, Request $request): Response
     {
         // Structural validation (slug shape, required name, well-formed field defs) is done
@@ -142,25 +115,12 @@ final class ContentTypeController
      */
     #[ApiOperation(
         summary: 'Get a content type by slug',
-        description: 'Returns one content type (model) by its slug, including its field schema. '
-            . 'Requires the `lemma.entries.read` permission.',
+        description: 'Includes the full field schema.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: ContentTypeResultData::class, description: 'The content type.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.read` permission.',
-    )]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No content type with that slug.')]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function show(Request $request, string $slug): Response
     {
         $row = $this->types->findBySlug($slug);
@@ -180,28 +140,14 @@ final class ContentTypeController
      */
     #[ApiOperation(
         summary: 'Update a content type\'s field schema',
-        description: 'Replaces the field schema of an existing content type and bumps its schema version. '
-            . 'Enqueues (re)building of filterable-field expression indexes. Body: `schema` (required; '
-            . 'replacement field definitions, each { name, type, required?, filterable? }). '
-            . 'Requires the `lemma.models.manage` permission.',
+        description: 'Replaces the schema wholesale (not a merge) and bumps the schema version. '
+            . 'Filterable-field indexes are rebuilt out-of-band after commit.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: ContentTypeResultData::class, description: 'Schema updated.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.models.manage` permission.',
-    )]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No content type with that slug.')]
     #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Invalid field schema.')]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function updateSchema(UpdateContentTypeSchemaData $input, Request $request, string $slug): Response
     {
         $row = $this->types->findBySlug($slug);
@@ -229,7 +175,8 @@ final class ContentTypeController
      */
     #[ApiOperation(
         summary: 'Delete a content type',
-        description: 'Soft-deletes a content type (model). Requires the `lemma.models.manage` permission.',
+        description: 'Soft-delete: existing entries stay in storage but the model is hidden from listing '
+            . 'and delivery.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Content type deleted.')]

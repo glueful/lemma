@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Content;
 
 use App\Content\Http\Controllers\DeliveryController;
+use App\Content\Http\DTOs\Requests\Delivery\DeliveryShowQuery;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Preview\PreviewMinter;
@@ -23,7 +24,7 @@ final class ReadProjectionTest extends LemmaTestCase
         [$typeSlug, $entry] = $this->publishedLaggingEntry();
 
         $resp = $this->container()->get(DeliveryController::class)
-            ->show(new Request(), $typeSlug, $entry);
+            ->show(new Request(), new DeliveryShowQuery(), $typeSlug, $entry);
 
         self::assertSame(200, $resp->getStatusCode(), (string) $resp->getContent());
         $data = json_decode((string) $resp->getContent(), true)['data'];

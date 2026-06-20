@@ -54,24 +54,11 @@ final class PublicationController
      */
     #[ApiOperation(
         summary: 'Publish an entry\'s draft',
-        description: 'Snapshots the current draft into an immutable version and pins it as the published '
-            . 'version for the locale, making it visible to the delivery API. Validates fields against '
-            . 'the schema. Requires the `lemma.entries.publish` permission.',
+        description: 'Snapshots the current draft into an immutable version, pins it, and makes it visible '
+            . 'to the delivery API.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: VersionResultData::class, description: 'Entry published.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.publish` permission.',
-    )]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry/draft to publish.')]
     #[ApiResponse(
         422,
@@ -79,7 +66,7 @@ final class PublicationController
         envelope: false,
         description: 'Draft fields fail schema validation.',
     )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function publish(Request $request, string $uuid, string $locale): Response
     {
         if (($errors = $this->locales->validate($locale)) !== []) {
@@ -105,25 +92,12 @@ final class PublicationController
      */
     #[ApiOperation(
         summary: 'Unpublish an entry',
-        description: 'Removes the publication pin for the entry+locale so it is no longer served by the '
-            . 'delivery API. The versions themselves are retained. '
-            . 'Requires the `lemma.entries.publish` permission.',
+        description: 'Removes the publication pin (versions are retained); idempotent — succeeds even when '
+            . 'nothing is published.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Entry unpublished.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.publish` permission.',
-    )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function unpublish(Request $request, string $uuid, string $locale): Response
     {
         if (($errors = $this->locales->validate($locale)) !== []) {
@@ -145,31 +119,18 @@ final class PublicationController
      */
     #[ApiOperation(
         summary: 'Roll back to a previous version',
-        description: 'Re-pins a previously published version as the current published version for the '
-            . 'entry+locale (re-publish of an existing version). Body: `version_uuid` (required; UUID of '
-            . 'the version to re-publish). Requires the `lemma.entries.publish` permission.',
+        description: 'Re-pins an existing `version_uuid` as the published version; no new version is '
+            . 'created.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: VersionResultData::class, description: 'Rolled back to the named version.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.publish` permission.',
-    )]
     #[ApiResponse(
         422,
         schema: ErrorResponse::class,
         envelope: false,
         description: 'Missing or invalid version_uuid (or it does not belong to this entry+locale).',
     )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function rollback(RollbackData $input, Request $request, string $uuid, string $locale): Response
     {
         if (($errors = $this->locales->validate($locale)) !== []) {
@@ -193,8 +154,7 @@ final class PublicationController
      */
     #[ApiOperation(
         summary: 'List entry versions',
-        description: 'Lists immutable published versions for the entry+locale, newest first. Requires the '
-            . '`lemma.entries.read` permission.',
+        description: 'Immutable published versions, newest first.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, description: 'Entry versions.')]

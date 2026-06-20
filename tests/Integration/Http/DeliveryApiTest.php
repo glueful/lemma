@@ -9,6 +9,8 @@ use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\ReferenceResolver;
 use App\Content\Delivery\SortCompiler;
 use App\Content\Http\Controllers\DeliveryController;
+use App\Content\Http\DTOs\Requests\Delivery\DeliveryListQuery;
+use App\Content\Http\DTOs\Requests\Delivery\DeliveryShowQuery;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
@@ -25,6 +27,7 @@ use App\Tests\Support\FakeLocaleManager;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
 use Glueful\Support\FieldSelection\Projector;
+use Glueful\Validation\RequestDataHydrator;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -128,12 +131,24 @@ final class DeliveryApiTest extends LemmaTestCase
         return new Request($query, [], [], [], [], $server);
     }
 
+    /** Hydrate the list-query DTO through the REAL framework hydrator (same source as the router). */
+    private function listQuery(array $query = []): DeliveryListQuery
+    {
+        return (new RequestDataHydrator())->hydrate(DeliveryListQuery::class, [], [], $query);
+    }
+
+    /** Hydrate the show-query DTO through the REAL framework hydrator. */
+    private function showQuery(array $query = []): DeliveryShowQuery
+    {
+        return (new RequestDataHydrator())->hydrate(DeliveryShowQuery::class, [], [], $query);
+    }
+
     public function testIndexReturnsPublishedAndOmitsDraft(): void
     {
         $this->publish(['title' => 'Published one', 'priority' => 5]);
         $this->draftOnly(['title' => 'Draft hidden', 'priority' => 9]);
 
-        $resp = $this->controller()->index($this->get(), 'post');
+        $resp = $this->controller()->index($this->get(), $this->listQuery(), 'post');
         self::assertSame(200, $resp->getStatusCode());
 
         $items = json_decode($resp->getContent(), true)['data']['items'];
@@ -144,7 +159,7 @@ final class DeliveryApiTest extends LemmaTestCase
 
     public function testIndexUnknownTypeReturns404(): void
     {
-        $resp = $this->controller()->index($this->get(), 'nope');
+        $resp = $this->controller()->index($this->get(), $this->listQuery(), 'nope');
         self::assertSame(404, $resp->getStatusCode());
     }
 
@@ -152,7 +167,7 @@ final class DeliveryApiTest extends LemmaTestCase
     {
         $uuid = $this->publish(['title' => 'Hello show', 'priority' => 1]);
 
-        $resp = $this->controller()->show($this->get(), 'post', $uuid);
+        $resp = $this->controller()->show($this->get(), $this->showQuery(), 'post', $uuid);
         self::assertSame(200, $resp->getStatusCode());
 
         $data = json_decode($resp->getContent(), true)['data'];
@@ -164,7 +179,7 @@ final class DeliveryApiTest extends LemmaTestCase
         $uuid = $this->publish(['title' => 'SEO show', 'priority' => 1]);
         (new RouteRepository($this->connection()))->assign($uuid, $this->type, 'en', 'seo-show');
 
-        $resp = $this->controller()->show($this->get(), 'post', 'seo-show');
+        $resp = $this->controller()->show($this->get(), $this->showQuery(), 'post', 'seo-show');
         self::assertSame(200, $resp->getStatusCode());
 
         $data = json_decode($resp->getContent(), true)['data'];
@@ -180,7 +195,7 @@ final class DeliveryApiTest extends LemmaTestCase
         $routes->assign($uuid, $this->type, 'en', 'old');
         $routes->assign($uuid, $this->type, 'en', 'new');
 
-        $resp = $this->controller()->show($this->get(), 'post', 'old');
+        $resp = $this->controller()->show($this->get(), $this->showQuery(), 'post', 'old');
         self::assertSame(200, $resp->getStatusCode());
 
         $body = json_decode($resp->getContent(), true);
@@ -208,7 +223,7 @@ final class DeliveryApiTest extends LemmaTestCase
             'origin' => 'manual',
         ]);
 
-        $resp = $this->controller()->show($this->get(), 'post', 'old');
+        $resp = $this->controller()->show($this->get(), $this->showQuery(), 'post', 'old');
 
         self::assertSame(404, $resp->getStatusCode());
     }
@@ -219,6 +234,7 @@ final class DeliveryApiTest extends LemmaTestCase
 
         $resp = $this->controller(new FakeLocaleManager())->show(
             $this->get(['locale' => 'fr']),
+            $this->showQuery(['locale' => 'fr']),
             'post',
             $uuid
         );
@@ -241,6 +257,7 @@ final class DeliveryApiTest extends LemmaTestCase
 
         $resp = $this->controller(new FakeLocaleManager())->show(
             $this->get(['locale' => 'fr']),
+            $this->showQuery(['locale' => 'fr']),
             'post',
             'hello'
         );
@@ -254,7 +271,7 @@ final class DeliveryApiTest extends LemmaTestCase
     public function testShowUnpublishedReturns404(): void
     {
         $uuid = $this->draftOnly(['title' => 'Not yet']);
-        $resp = $this->controller()->show($this->get(), 'post', $uuid);
+        $resp = $this->controller()->show($this->get(), $this->showQuery(), 'post', $uuid);
         self::assertSame(404, $resp->getStatusCode());
     }
 
@@ -262,7 +279,11 @@ final class DeliveryApiTest extends LemmaTestCase
     {
         $this->publish(['title' => 'Trim me', 'body' => 'long body text', 'priority' => 3]);
 
-        $resp = $this->controller()->index($this->get(['fields' => 'title']), 'post');
+        $resp = $this->controller()->index(
+            $this->get(['fields' => 'title']),
+            $this->listQuery(['fields' => 'title']),
+            'post'
+        );
         $items = json_decode($resp->getContent(), true)['data']['items'];
 
         self::assertArrayHasKey('title', $items[0]['fields']);
@@ -276,6 +297,7 @@ final class DeliveryApiTest extends LemmaTestCase
 
         $resp = $this->controller()->index(
             $this->get(['filter' => ['priority' => ['gte' => '50']]]),
+            $this->listQuery(['filter' => ['priority' => ['gte' => '50']]]),
             'post'
         );
         self::assertSame(200, $resp->getStatusCode());
@@ -291,6 +313,7 @@ final class DeliveryApiTest extends LemmaTestCase
 
         $resp = $this->controller()->index(
             $this->get(['filter' => ['title' => ['eq' => 'X']]]),
+            $this->listQuery(['filter' => ['title' => ['eq' => 'X']]]),
             'post'
         );
         self::assertSame(422, $resp->getStatusCode());
@@ -300,7 +323,7 @@ final class DeliveryApiTest extends LemmaTestCase
     {
         $uuid = $this->publish(['title' => 'Etag me', 'priority' => 2]);
 
-        $resp = $this->controller()->show($this->get(), 'post', $uuid);
+        $resp = $this->controller()->show($this->get(), $this->showQuery(), 'post', $uuid);
         $etag = $resp->headers->get('ETag');
         self::assertNotNull($etag);
         // Symfony normalizes Cache-Control directives alphabetically.
@@ -308,6 +331,7 @@ final class DeliveryApiTest extends LemmaTestCase
 
         $cond = $this->controller()->show(
             $this->get([], ['If-None-Match' => $etag]),
+            $this->showQuery(),
             'post',
             $uuid
         );
@@ -323,13 +347,14 @@ final class DeliveryApiTest extends LemmaTestCase
 
         $uuid = $this->publish(['title' => 'Custom cache', 'priority' => 2]);
 
-        $resp = $this->controller()->show($this->get(), 'post', $uuid);
+        $resp = $this->controller()->show($this->get(), $this->showQuery(), 'post', $uuid);
         self::assertSame(200, $resp->getStatusCode());
         self::assertSame('max-age=300, public', $resp->headers->get('Cache-Control'));
 
         $etag = (string) $resp->headers->get('ETag');
         $cond = $this->controller()->show(
             $this->get([], ['If-None-Match' => $etag]),
+            $this->showQuery(),
             'post',
             $uuid
         );
@@ -343,7 +368,11 @@ final class DeliveryApiTest extends LemmaTestCase
         $this->publish(['title' => 'P1', 'priority' => 1]);
         $this->publish(['title' => 'P2', 'priority' => 2]);
 
-        $resp = $this->controller()->index($this->get(['page' => '1', 'perPage' => '1']), 'post');
+        $resp = $this->controller()->index(
+            $this->get(['page' => '1', 'perPage' => '1']),
+            $this->listQuery(['page' => '1', 'perPage' => '1']),
+            'post'
+        );
         self::assertSame(200, $resp->getStatusCode());
 
         $body = json_decode($resp->getContent(), true);
@@ -361,7 +390,7 @@ final class DeliveryApiTest extends LemmaTestCase
         $this->publish(['title' => 'Drift item', 'priority' => 1]);
 
         // Cursor mode: no page/perPage query params.
-        $resp = $this->controller()->index($this->get(), 'post');
+        $resp = $this->controller()->index($this->get(), $this->listQuery(), 'post');
         self::assertSame(200, $resp->getStatusCode());
 
         $data = json_decode((string) $resp->getContent(), true)['data'];
@@ -378,10 +407,36 @@ final class DeliveryApiTest extends LemmaTestCase
     {
         $uuid = $this->publish(['title' => 'Drift show', 'priority' => 2]);
 
-        $resp = $this->controller()->show($this->get(), 'post', $uuid);
+        $resp = $this->controller()->show($this->get(), $this->showQuery(), 'post', $uuid);
         self::assertSame(200, $resp->getStatusCode());
 
         $data = json_decode((string) $resp->getContent(), true)['data'];
         self::assertDataMatchesDtoShape($data, \App\Content\Http\DTOs\Responses\Delivery\DeliveryShowItemData::class);
+    }
+
+    /**
+     * Linchpin: the real framework hydrator preserves the nested bracket `filter` array
+     * untouched and coerces page/perPage to ints — so the DTO parses identically to the
+     * previous `$request->query` reads.
+     */
+    public function testListQueryHydratesBracketFilter(): void
+    {
+        $dto = $this->listQuery([
+            'filter' => ['price' => ['gte' => '10']],
+            'sort' => 'title:asc',
+            'page' => '2',
+            'perPage' => '5',
+        ]);
+
+        self::assertSame(['price' => ['gte' => '10']], $dto->filter);
+        self::assertSame('title:asc', $dto->sort);
+        self::assertSame(2, $dto->page);
+        self::assertSame(5, $dto->perPage);
+        self::assertTrue($dto->wantsPagination());
+
+        $empty = $this->listQuery([]);
+        self::assertSame([], $empty->filter);
+        self::assertNull($empty->page);
+        self::assertFalse($empty->wantsPagination());
     }
 }

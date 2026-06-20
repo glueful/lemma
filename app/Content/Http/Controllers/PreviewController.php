@@ -58,26 +58,13 @@ final class PreviewController
      */
     #[ApiOperation(
         summary: 'Mint a short-lived preview token',
-        description: 'Issues a signed, expiring preview token bound to this entry+locale. The token is the '
-            . 'capability for the unauthenticated `GET /v1/preview/{token}` endpoint. Body: `version_uuid` '
-            . '(optional; preview a specific historical version instead of the current draft). '
-            . 'Requires the `lemma.entries.read` permission.',
+        description: 'The returned token is the bearer capability for the unauthenticated '
+            . '`GET /v1/preview/{token}`. An optional `version_uuid` pins a historical version instead of '
+            . 'the current draft.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: PreviewMintData::class, description: 'Preview token minted.')]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing or invalid authentication.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Principal lacks the `lemma.entries.read` permission.',
-    )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function mint(MintPreviewData $input, Request $request, string $uuid, string $locale): Response
     {
         if (($errors = $this->locales->validate($locale)) !== []) {
@@ -102,13 +89,8 @@ final class PreviewController
      */
     #[ApiOperation(
         summary: 'Read a draft via a signed preview token',
-        description: 'Resolves a signed, expiring preview token (minted by '
-            . '`POST /v1/admin/entries/{uuid}/preview/{locale}`) and returns the entry\'s current draft — '
-            . 'or the specific historical version the token names. This is the ONLY way to read '
-            . 'unpublished content. UNAUTHENTICATED by design: the token itself is the capability (no '
-            . 'Authorization header). Rate-limited to 60 requests/minute per IP. Fails closed: an '
-            . 'invalid/malformed token returns 403, an expired token returns 410, and a token whose '
-            . 'target no longer exists returns 404 — all with generic messages.',
+        description: 'Unauthenticated — the token in the path is the only credential, and this is the only '
+            . 'way to read unpublished content. Returns the draft, or the version the token pins.',
         tags: ['Lemma Preview'],
     )]
     #[ApiResponse(200, schema: PreviewResultData::class, description: 'The previewed draft (or pinned version).')]
@@ -125,13 +107,8 @@ final class PreviewController
         description: 'The token\'s target entry/version no longer exists.',
     )]
     #[ApiResponse(410, schema: ErrorResponse::class, envelope: false, description: 'The preview token has expired.')]
-    #[ApiResponse(
-        429,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Rate limit exceeded (60/minute per IP).',
-    )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
+    // 429/500 inferred from middleware + documentation.errors config; 403 above is a domain
+    // fail-closed response on this unauthenticated route, so it is NOT inferred and stays explicit.
     public function show(Request $request, string $token): Response
     {
         try {

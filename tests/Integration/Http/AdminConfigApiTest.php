@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Http;
 
 use App\Content\Http\Controllers\AdminConfigController;
+use App\Setup\SetupService;
 use App\Tests\Support\LemmaTestCase;
 
 final class AdminConfigApiTest extends LemmaTestCase
 {
     public function testReturnsRuntimeConfigKeys(): void
     {
-        $controller = new AdminConfigController($this->appContext());
+        $controller = new AdminConfigController(
+            $this->appContext(),
+            $this->container()->get(SetupService::class),
+        );
         $resp = $controller->config();
 
         self::assertSame(200, $resp->getStatusCode());
@@ -19,7 +23,9 @@ final class AdminConfigApiTest extends LemmaTestCase
         self::assertArrayHasKey('apiBase', $body);
         self::assertArrayHasKey('sitePreviewUrl', $body);
         self::assertArrayHasKey('defaultLocale', $body);
+        self::assertArrayHasKey('installed', $body);
         self::assertSame('/v1/admin', $body['apiBase']);
+        self::assertIsBool($body['installed']);
     }
 
     public function testConfigRouteIsRegisteredUnauthenticated(): void

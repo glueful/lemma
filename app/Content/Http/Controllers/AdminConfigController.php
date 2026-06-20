@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Content\Http\Controllers;
 
+use App\Setup\SetupService;
 use Glueful\Bootstrap\ApplicationContext;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
@@ -20,8 +21,10 @@ use Symfony\Component\HttpFoundation\JsonResponse;
  */
 final class AdminConfigController
 {
-    public function __construct(private readonly ApplicationContext $context)
-    {
+    public function __construct(
+        private readonly ApplicationContext $context,
+        private readonly SetupService $setup,
+    ) {
     }
 
     public function config(): JsonResponse
@@ -30,6 +33,8 @@ final class AdminConfigController
             'apiBase' => (string) config($this->context, 'lemma.admin.api_base', '/v1/admin'),
             'sitePreviewUrl' => (string) config($this->context, 'lemma.admin.site_preview_url', ''),
             'defaultLocale' => (string) config($this->context, 'lemma.admin.default_locale', 'en'),
+            // Whether first-run setup has run. The SPA boot guard routes to /setup when false.
+            'installed' => $this->setup->isInstalled(),
         ];
 
         // No-store: install config can change without a rebuild; the SPA must read it fresh.

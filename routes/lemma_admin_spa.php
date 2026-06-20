@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Content\Http\Controllers\AdminConfigController;
+use App\Content\Http\Controllers\SetupController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -21,3 +22,11 @@ use Glueful\Routing\Router;
  * makes IS auth-gated under /v1/admin.
  */
 $router->get('/admin/config.json', [AdminConfigController::class, 'config']);
+
+/*
+ * First-run setup — UNAUTHENTICATED but self-locking: SetupController returns 409 once installed.
+ * Outside /v1/admin (no admin exists yet to auth against). Like config.json, this is a static
+ * route, so the router's static-first lookup matches it before serveFrontend's /admin/{rest}
+ * catch-all — never swallowed by the SPA fallback.
+ */
+$router->post('/admin/setup', [SetupController::class, 'setup']);

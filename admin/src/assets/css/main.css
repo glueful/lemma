@@ -1,2 +1,6 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+@theme {
+  /* Your custom design tokens go here */
+}

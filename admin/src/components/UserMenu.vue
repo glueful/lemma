@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { DropdownMenuItem } from "@nuxt/ui";
+import { useColorMode } from '@vueuse/core'
+
+const colorMode = useColorMode({initialValue: 'system'})
 
 defineProps<{
   collapsed?: boolean;
@@ -16,7 +19,55 @@ const items = computed<DropdownMenuItem[][]>(() => [
       label: "Account",
     },
   ],
+  [{
+    label: 'Appearance',
+    icon: 'i-lucide-monitor',
+    children: [{
+      label: 'System',
+      icon: 'i-lucide-sun',
+      type: 'checkbox',
+      checked: colorMode.value === 'system',
+      onSelect(e: Event) {
+        e.preventDefault()
+
+        colorMode.value = 'system'
+      }
+    },
+    {
+      label: 'Light',
+      icon: 'i-lucide-sun',
+      type: 'checkbox',
+      checked: colorMode.value === 'light',
+      onSelect(e: Event) {
+        e.preventDefault()
+
+        colorMode.value = 'light'
+      }
+    },
+    {
+      label: 'Dark',
+      icon: 'i-lucide-moon',
+      type: 'checkbox',
+      checked: colorMode.value === 'dark',
+      onUpdateChecked(checked: boolean) {
+        if (checked) {
+          colorMode.value = 'dark'
+        }
+      },
+      onSelect(e: Event) {
+        e.preventDefault()
+      }
+    }]
+  }],
   [
+    {
+      label: 'Profile',
+      icon: 'i-lucide-user'
+    },
+    {
+      label: 'Security',
+      icon: 'i-lucide-lock'
+    },
     {
       label: "Log out",
       icon: "i-lucide-log-out",

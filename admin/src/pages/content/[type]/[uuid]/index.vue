@@ -6,6 +6,7 @@ import { useDraft, useSaveDraft } from '@/queries/drafts'
 import { runtimeConfig } from '@/runtime/config'
 import type { FieldDef } from '@/fields/types'
 import FieldEditor from '@/components/FieldEditor.vue'
+import PublishPanel from './components/PublishPanel.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -83,5 +84,7 @@ async function onSave() {
     </div>
 
     <FieldEditor v-else v-model="fields" :schema="schema" />
+
+    <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
   </div>
 </template>

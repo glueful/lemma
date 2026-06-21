@@ -22,6 +22,9 @@
 *.log
 bootstrap/cache/
 
+# --- Admin SPA build (compiled bundle is baked into release tags, not committed in dev) ---
+/public/admin/
+
 # --- Runtime artifacts ---
 /:memory:
 /storage/cache/*

@@ -1,0 +1,4 @@
+# The admin SPA *source* lives in the repo for development, but the distribution archive
+# (composer create-project / git archive) ships only the compiled bundle (public/admin/, baked
+# into release tags). Exclude the source toolchain from the dist tarball.
+/admin export-ignore

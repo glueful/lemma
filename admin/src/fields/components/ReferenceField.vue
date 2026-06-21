@@ -2,8 +2,11 @@
 import type { FieldDef } from '../types'
 
 defineProps<{ field: FieldDef }>()
-// Phase 1: a plain entry-UUID reference. Planned upgrade: a searchable USelectMenu populated
-// from a references query (the registry makes that a one-file swap).
+// A plain entry-UUID reference. A searchable USelectMenu (the plan's intent) needs to know the
+// reference's TARGET content type to list candidates — but the content-type field schema doesn't
+// carry that yet (no target field on the definition). Until the schema/API exposes a target (or a
+// references-candidates endpoint), a UUID input is the honest option. The registry makes the
+// USelectMenu swap a one-file change once that data exists.
 const model = defineModel<string>()
 </script>
 

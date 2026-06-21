@@ -35,7 +35,17 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
   <div class="space-y-4 p-6">
     <header class="flex items-center justify-between gap-4">
       <h1 class="text-xl font-semibold text-highlighted capitalize">{{ type }}</h1>
-      <UInput v-model="search" icon="i-lucide-search" placeholder="Search…" class="w-64" />
+      <div class="flex items-center gap-2">
+        <UInput v-model="search" icon="i-lucide-search" placeholder="Search…" class="w-64" />
+        <UButton
+          variant="subtle"
+          color="neutral"
+          icon="i-lucide-signpost"
+          :to="`/content/${type}/redirects`"
+        >
+          Redirects
+        </UButton>
+      </div>
     </header>
 
     <UTable :data="data?.entries ?? []" :columns="columns" :loading="status === 'pending'">

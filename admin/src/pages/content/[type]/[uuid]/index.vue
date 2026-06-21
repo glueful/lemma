@@ -76,7 +76,17 @@ async function onSave() {
         <h1 class="text-xl font-semibold capitalize text-highlighted">{{ type }}</h1>
         <p class="text-xs text-muted">{{ uuid }}</p>
       </div>
-      <UButton :loading="save.isLoading.value" @click="onSave">Save draft</UButton>
+      <div class="flex items-center gap-2">
+        <UButton
+          variant="ghost"
+          color="neutral"
+          icon="i-lucide-history"
+          :to="`/content/${type}/${uuid}/versions`"
+        >
+          Versions
+        </UButton>
+        <UButton :loading="save.isLoading.value" @click="onSave">Save draft</UButton>
+      </div>
     </header>
 
     <div v-if="draftStatus === 'pending'" class="space-y-3">

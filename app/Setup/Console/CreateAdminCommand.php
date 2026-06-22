@@ -54,7 +54,7 @@ final class CreateAdminCommand extends BaseCommand
         } else {
             $siteName = $this->ask('Site name', (string) $input->getOption('site-name'));
             $adminEmail = $this->ask('First admin email');
-            $adminPassword = $this->secret('First admin password (min 12 chars)');
+            $adminPassword = $this->secret('First admin password (min 8 chars)');
             $locale = $this->ask('Default locale', (string) $input->getOption('locale'));
         }
 

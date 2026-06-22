@@ -74,12 +74,15 @@ final class SetupService
 
             // Use the email as the username so the first admin is unique (the users table
             // enforces both username and email uniqueness) and matches the web setup flow,
-            // which collects an email but no separate username.
+            // which collects an email but no separate username. The email is pre-verified: the
+            // operator creates this account during first-run setup, so there is no one to send a
+            // verification email to — mark it verified now.
             $userUuid = $this->users->create([
-                'username' => $adminEmail,
-                'email'    => $adminEmail,
-                'password' => $hashed,
-                'status'   => 'active',
+                'username'          => $adminEmail,
+                'email'             => $adminEmail,
+                'password'          => $hashed,
+                'status'            => 'active',
+                'email_verified_at' => date('Y-m-d H:i:s'),
             ]);
 
             $adminRoleSlug = (string) config($this->context, 'lemma.roles.admin', 'lemma_admin');

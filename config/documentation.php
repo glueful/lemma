@@ -101,8 +101,10 @@ return [
     */
     'servers' => [
         [
-            // Production first so SDK/codegen defaults to the live base URL.
-            'url' => env('API_SERVER_URL', 'https://api.getlemma.dev'),
+            // Production first so SDK/codegen defaults to the live base URL. Falls back to BASE_URL
+            // (this install's deployment URL, also used by config/app.php) when API_SERVER_URL is
+            // not set — so the docs point at the actual host instead of a hardcoded one.
+            'url' => env('API_SERVER_URL', env('BASE_URL', 'http://localhost')),
             'description' => 'Production',
         ],
         [
@@ -278,9 +280,10 @@ return [
         // Tag allow/deny filter applied to the assembled spec before write. `include` is an
         // allow-list (empty = keep all tags); `exclude` is a deny-list and WINS over include.
         // Lemma's public spec drops the platform's infrastructure groups — generic table CRUD
-        // (`Data`), ops probes (`Health`), the docs endpoints (`Documentation`), and `Security`
-        // (CSRF) — none of which are part of Lemma's consumer API. Committed as the default so
-        // regeneration (locally or in CI) is reproducible; override with API_DOCS_EXCLUDE_TAGS /
+        // (`Data`), ops probes (`Health`), the docs endpoints (`Documentation`), `Security` (CSRF),
+        // and `Admin` (the SPA-serving HTML routes mounted by serveFrontend at /admin — not an API)
+        // — none of which are part of Lemma's consumer API. Committed as the default so regeneration
+        // (locally or in CI) is reproducible; override with API_DOCS_EXCLUDE_TAGS /
         // API_DOCS_INCLUDE_TAGS (comma-separated; pass an empty string to keep everything).
         'tags' => [
             'include' => array_values(array_filter(array_map(
@@ -289,7 +292,7 @@ return [
             ), static fn(string $v): bool => $v !== '')),
             'exclude' => array_values(array_filter(array_map(
                 'trim',
-                explode(',', (string) env('API_DOCS_EXCLUDE_TAGS', 'Data,Documentation,Health,Security'))
+                explode(',', (string) env('API_DOCS_EXCLUDE_TAGS', 'Admin,Data,Documentation,Health,Security'))
             ), static fn(string $v): bool => $v !== '')),
         ],
     ],

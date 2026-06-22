@@ -19,7 +19,7 @@ final class SetupData implements RequestData
         public readonly string $site_name,
         #[Rule('required|email')]
         public readonly string $admin_email,
-        #[Rule('required|string|min:12')]
+        #[Rule('required|string|min:8')]
         public readonly string $admin_password,
         #[Rule('required|string|max:20')]
         public readonly string $locale = 'en',

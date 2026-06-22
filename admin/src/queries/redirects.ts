@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 import { qk } from './keys'
 
 export interface RedirectRow {
@@ -20,10 +21,10 @@ export interface CreateRedirectInput {
 
 // The redirects-list response body isn't typed in the spec; cast to the known contract.
 export async function fetchRedirects(typeSlug: string): Promise<RedirectRow[]> {
-  const { data, error } = await client.GET('/content-types/{slug}/redirects', {
+  const { data, error, response } = await client.GET('/content-types/{slug}/redirects', {
     params: { path: { slug: typeSlug } },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return (
     (data as unknown as { data?: { redirects?: RedirectRow[] } } | undefined)?.data?.redirects ?? []
   )
@@ -37,7 +38,7 @@ export function useRedirects(typeSlug: MaybeRefOrGetter<string>) {
 }
 
 export async function createRedirect(typeSlug: string, input: CreateRedirectInput) {
-  const { data, error } = await client.POST('/content-types/{slug}/redirects', {
+  const { data, error, response } = await client.POST('/content-types/{slug}/redirects', {
     params: { path: { slug: typeSlug } },
     body: {
       locale: input.locale,
@@ -47,15 +48,15 @@ export async function createRedirect(typeSlug: string, input: CreateRedirectInpu
       target: { url: input.url } as unknown as unknown[],
     },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return data
 }
 
 export async function deleteRedirect(redirectUuid: string) {
-  const { data, error } = await client.DELETE('/redirects/{uuid}', {
+  const { data, error, response } = await client.DELETE('/redirects/{uuid}', {
     params: { path: { uuid: redirectUuid } },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return data
 }
 

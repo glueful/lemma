@@ -1,5 +1,6 @@
 import { useQuery } from '@pinia/colada'
 import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 import { qk } from './keys'
 
 /**
@@ -7,8 +8,8 @@ import { qk } from './keys'
  * without a Pinia Colada runtime.
  */
 export async function fetchContentTypes() {
-  const { data, error } = await client.GET('/content-types')
-  if (error) throw error
+  const { data, error, response } = await client.GET('/content-types')
+  if (error) throw toApiError(error, response)
   return data?.data?.content_types ?? []
 }
 

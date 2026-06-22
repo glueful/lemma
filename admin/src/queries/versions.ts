@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 import { qk } from './keys'
 
 export interface VersionRow {
@@ -13,10 +14,10 @@ export interface VersionRow {
 
 // The versions-list response body isn't typed in the spec; cast to the known contract.
 export async function fetchVersions(uuid: string, locale: string): Promise<VersionRow[]> {
-  const { data, error } = await client.GET('/entries/{uuid}/versions/{locale}', {
+  const { data, error, response } = await client.GET('/entries/{uuid}/versions/{locale}', {
     params: { path: { uuid, locale } },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return (
     (data as unknown as { data?: { versions?: VersionRow[] } } | undefined)?.data?.versions ?? []
   )
@@ -30,11 +31,11 @@ export function useVersions(uuid: MaybeRefOrGetter<string>, locale: MaybeRefOrGe
 }
 
 export async function rollbackEntry(uuid: string, locale: string, versionUuid: string) {
-  const { data, error } = await client.POST('/entries/{uuid}/rollback/{locale}', {
+  const { data, error, response } = await client.POST('/entries/{uuid}/rollback/{locale}', {
     params: { path: { uuid, locale } },
     body: { version_uuid: versionUuid },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return data
 }
 

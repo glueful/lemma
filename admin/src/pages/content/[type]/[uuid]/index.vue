@@ -6,6 +6,8 @@ import { useDraft, useSaveDraft } from '@/queries/drafts'
 import { runtimeConfig } from '@/runtime/config'
 import type { FieldDef } from '@/fields/types'
 import FieldEditor from '@/components/FieldEditor.vue'
+import { ApiError } from '@/api/errors'
+import { useNotify } from '@/composables/useNotify'
 import PublishPanel from './components/PublishPanel.vue'
 
 definePage({ meta: { requiresAuth: true } })
@@ -16,7 +18,7 @@ const uuid = computed(() => String(route.params.uuid))
 // Phase 1 is en-only in the UI; locale comes from runtime config.
 const locale = runtimeConfig.defaultLocale
 
-const toast = useToast()
+const { success, warning, error: notifyError } = useNotify()
 
 // The content-type schema drives the field editor.
 const { data: contentTypes } = useContentTypes()
@@ -51,19 +53,15 @@ const save = useSaveDraft(uuid.value, locale, type.value)
 async function onSave() {
   try {
     await save.mutateAsync({ fields: fields.value, lock_version: lockVersion.value })
-    toast.add({ title: 'Draft saved', color: 'success' })
+    success('Draft saved')
   } catch (e: unknown) {
-    const status =
-      (e as { status?: number; response?: { status?: number } })?.status ??
-      (e as { response?: { status?: number } })?.response?.status
-    if (status === 409) {
-      toast.add({
-        title: 'This draft changed elsewhere',
-        description: 'Reload to get the latest version before saving again.',
-        color: 'warning',
-      })
+    if (e instanceof ApiError && e.status === 409) {
+      warning(
+        'This draft changed elsewhere',
+        'Reload to get the latest version before saving again.',
+      )
     } else {
-      toast.add({ title: 'Save failed', color: 'error' })
+      notifyError(e, 'Couldn’t save draft')
     }
   }
 }

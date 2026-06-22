@@ -3,11 +3,12 @@ import { computed, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRedirects, useRedirectMutations } from '@/queries/redirects'
 import { runtimeConfig } from '@/runtime/config'
+import { useNotify } from '@/composables/useNotify'
 
 definePage({ meta: { requiresAuth: true } })
 
 const route = useRoute()
-const toast = useToast()
+const { success, error: notifyError } = useNotify()
 const type = computed(() => String(route.params.type))
 
 const { data: redirects, status } = useRedirects(type)
@@ -28,18 +29,18 @@ async function onCreate() {
     form.source_slug = ''
     form.url = ''
     form.status = '301'
-    toast.add({ title: 'Redirect created', color: 'success' })
-  } catch {
-    toast.add({ title: 'Could not create redirect (slug may conflict)', color: 'error' })
+    success('Redirect created')
+  } catch (e) {
+    notifyError(e, 'Couldn’t create redirect')
   }
 }
 
 async function onDelete(uuid: string) {
   try {
     await remove.mutateAsync(uuid)
-    toast.add({ title: 'Redirect removed', color: 'success' })
-  } catch {
-    toast.add({ title: 'Could not remove redirect', color: 'error' })
+    success('Redirect removed')
+  } catch (e) {
+    notifyError(e, 'Couldn’t remove redirect')
   }
 }
 </script>

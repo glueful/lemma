@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 import { qk } from './keys'
 
 export interface ScheduleRow {
@@ -14,10 +15,10 @@ export interface ScheduleRow {
 
 // The schedules-list response body isn't typed in the spec; cast to the known contract.
 export async function fetchSchedules(uuid: string): Promise<ScheduleRow[]> {
-  const { data, error } = await client.GET('/entries/{uuid}/schedules', {
+  const { data, error, response } = await client.GET('/entries/{uuid}/schedules', {
     params: { path: { uuid } },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return (
     (data as unknown as { data?: { schedules?: ScheduleRow[] } } | undefined)?.data?.schedules ?? []
   )
@@ -35,19 +36,22 @@ export async function createSchedule(
   locale: string,
   body: { action: string; run_at: string },
 ) {
-  const { data, error } = await client.POST('/entries/{uuid}/schedules/{locale}', {
+  const { data, error, response } = await client.POST('/entries/{uuid}/schedules/{locale}', {
     params: { path: { uuid, locale } },
     body,
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return data
 }
 
 export async function cancelSchedule(uuid: string, scheduleUuid: string) {
-  const { data, error } = await client.DELETE('/entries/{uuid}/schedules/{scheduleUuid}', {
-    params: { path: { uuid, scheduleUuid } },
-  })
-  if (error) throw error
+  const { data, error, response } = await client.DELETE(
+    '/entries/{uuid}/schedules/{scheduleUuid}',
+    {
+      params: { path: { uuid, scheduleUuid } },
+    },
+  )
+  if (error) throw toApiError(error, response)
   return data
 }
 

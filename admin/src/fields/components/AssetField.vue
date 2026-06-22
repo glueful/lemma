@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useToast } from '@nuxt/ui/composables/useToast'
 import type { FieldDef } from '../types'
 import { useUploadMedia } from '@/queries/media'
+import { useNotify } from '@/composables/useNotify'
 
 defineProps<{ field: FieldDef }>()
 // Stores the uploaded asset reference (its URL). Upload-and-use: pick a file -> upload -> the
@@ -10,15 +10,15 @@ defineProps<{ field: FieldDef }>()
 const model = defineModel<string>()
 const file = ref<File | null>(null)
 const upload = useUploadMedia()
-const toast = useToast()
+const { error: notifyError } = useNotify()
 
 watch(file, async (f) => {
   if (!f) return
   try {
     const asset = await upload.mutateAsync({ file: f })
     model.value = asset.url
-  } catch {
-    toast.add({ title: 'Upload failed', color: 'error' })
+  } catch (e) {
+    notifyError(e, 'Upload failed')
   } finally {
     file.value = null
   }

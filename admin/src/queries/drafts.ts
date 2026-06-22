@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 import { qk } from './keys'
 
 export interface DraftData {
@@ -14,10 +15,10 @@ export interface SaveDraftBody {
 }
 
 export async function fetchDraft(uuid: string, locale: string): Promise<DraftData> {
-  const { data, error } = await client.GET('/entries/{uuid}/draft/{locale}', {
+  const { data, error, response } = await client.GET('/entries/{uuid}/draft/{locale}', {
     params: { path: { uuid, locale } },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   const draft = data?.data?.draft
   return {
     fields: (draft?.fields ?? {}) as Record<string, unknown>,
@@ -33,12 +34,12 @@ export function useDraft(uuid: MaybeRefOrGetter<string>, locale: MaybeRefOrGette
 }
 
 export async function saveDraft(uuid: string, locale: string, body: SaveDraftBody) {
-  const { data, error } = await client.PUT('/entries/{uuid}/draft/{locale}', {
+  const { data, error, response } = await client.PUT('/entries/{uuid}/draft/{locale}', {
     params: { path: { uuid, locale } },
     // The spec types `fields` as unknown[]; the backend expects a keyed object — cast through.
     body: { fields: body.fields as unknown as unknown[], lock_version: body.lock_version },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return data
 }
 

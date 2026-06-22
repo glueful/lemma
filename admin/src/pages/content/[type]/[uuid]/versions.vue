@@ -3,12 +3,13 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVersions, useRollback } from '@/queries/versions'
 import { runtimeConfig } from '@/runtime/config'
+import { useNotify } from '@/composables/useNotify'
 
 definePage({ meta: { requiresAuth: true } })
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
+const { success, error: notifyError } = useNotify()
 const type = computed(() => String(route.params.type))
 const uuid = computed(() => String(route.params.uuid))
 const locale = runtimeConfig.defaultLocale
@@ -19,10 +20,10 @@ const rollback = useRollback(uuid.value, locale, type.value)
 async function onRollback(versionUuid: string) {
   try {
     await rollback.mutateAsync(versionUuid)
-    toast.add({ title: 'Rolled back', color: 'success' })
+    success('Rolled back')
     router.push(`/content/${type.value}/${uuid.value}`)
-  } catch {
-    toast.add({ title: 'Rollback failed', color: 'error' })
+  } catch (e) {
+    notifyError(e, 'Rollback failed')
   }
 }
 </script>

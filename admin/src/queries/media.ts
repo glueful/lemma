@@ -1,4 +1,5 @@
 import { useMutation } from '@pinia/colada'
+import { responseError } from '@/api/errors'
 import { useSessionStore } from '@/stores/session'
 
 export interface UploadedAsset {
@@ -26,7 +27,7 @@ export async function uploadBlob(
     headers: token ? { authorization: `Bearer ${token}` } : {},
     body: form,
   })
-  if (!res.ok) throw new Error(`upload failed (${res.status})`)
+  if (!res.ok) throw await responseError(res, 'Upload failed. Please try again.')
   const json = await res.json()
   return (json?.data ?? {}) as UploadedAsset
 }

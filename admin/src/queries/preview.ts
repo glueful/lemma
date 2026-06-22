@@ -1,13 +1,14 @@
 import { useMutation } from '@pinia/colada'
 import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 import { runtimeConfig } from '@/runtime/config'
 
 // Mints a short-lived preview token for the entry's current draft (in the given locale).
 export async function mintPreview(uuid: string, locale: string): Promise<string> {
-  const { data, error } = await client.POST('/entries/{uuid}/preview/{locale}', {
+  const { data, error, response } = await client.POST('/entries/{uuid}/preview/{locale}', {
     params: { path: { uuid, locale } },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   return data?.data?.token ?? ''
 }
 

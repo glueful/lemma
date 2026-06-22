@@ -4,9 +4,10 @@ import { useRoutes, useSaveRoute } from '@/queries/routes'
 import { usePublish } from '@/queries/publish'
 import { usePreview, buildPreviewUrl } from '@/queries/preview'
 import { useSchedules, useScheduleMutations } from '@/queries/schedules'
+import { useNotify } from '@/composables/useNotify'
 
 const props = defineProps<{ uuid: string; locale: string; type: string }>()
-const toast = useToast()
+const { success, warning, error: notifyError } = useNotify()
 
 // ── Route / slug ──────────────────────────────────────────────────────────
 const { data: routes } = useRoutes(() => props.uuid)
@@ -23,9 +24,9 @@ const saveRoute = useSaveRoute(props.uuid, props.locale)
 async function onSaveRoute() {
   try {
     await saveRoute.mutateAsync(slug.value)
-    toast.add({ title: 'Route saved', color: 'success' })
-  } catch {
-    toast.add({ title: 'Could not save route (the slug may conflict)', color: 'error' })
+    success('Route saved')
+  } catch (e) {
+    notifyError(e, 'Couldn’t save route')
   }
 }
 
@@ -34,9 +35,9 @@ const publish = usePublish(props.uuid, props.locale, props.type)
 async function onPublish(action: 'publish' | 'unpublish') {
   try {
     await publish.mutateAsync(action)
-    toast.add({ title: action === 'publish' ? 'Published' : 'Unpublished', color: 'success' })
-  } catch {
-    toast.add({ title: 'Action failed', color: 'error' })
+    success(action === 'publish' ? 'Published' : 'Unpublished')
+  } catch (e) {
+    notifyError(e, action === 'publish' ? 'Couldn’t publish' : 'Couldn’t unpublish')
   }
 }
 
@@ -46,9 +47,9 @@ async function onPreview() {
   try {
     const url = buildPreviewUrl(await preview.mutateAsync())
     if (url) window.open(url, '_blank', 'noopener')
-    else toast.add({ title: 'No preview URL is configured', color: 'warning' })
-  } catch {
-    toast.add({ title: 'Preview failed', color: 'error' })
+    else warning('No preview URL is configured')
+  } catch (e) {
+    notifyError(e, 'Preview failed')
   }
 }
 
@@ -67,9 +68,17 @@ async function onSchedule() {
       run_at: new Date(runAt.value).toISOString(),
     })
     runAt.value = ''
-    toast.add({ title: 'Scheduled', color: 'success' })
-  } catch {
-    toast.add({ title: 'Could not schedule', color: 'error' })
+    success('Scheduled')
+  } catch (e) {
+    notifyError(e, 'Couldn’t schedule')
+  }
+}
+async function onCancelSchedule(scheduleUuid: string) {
+  try {
+    await cancelSchedule.mutateAsync(scheduleUuid)
+    success('Schedule canceled')
+  } catch (e) {
+    notifyError(e, 'Couldn’t cancel schedule')
   }
 }
 const localeSchedules = computed(() =>
@@ -143,7 +152,7 @@ const localeSchedules = computed(() =>
               variant="ghost"
               size="xs"
               icon="i-lucide-x"
-              @click="cancelSchedule.mutate(s.uuid)"
+              @click="onCancelSchedule(s.uuid)"
             />
           </li>
         </ul>

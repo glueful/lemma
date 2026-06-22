@@ -1,6 +1,7 @@
 import { useQuery } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 import { qk } from './keys'
 
 // The OpenAPI spec types entry rows as `unknown[]`, so we pin the known contract here
@@ -26,7 +27,7 @@ export async function fetchEntries(params: {
   perPage: number
   q?: string
 }): Promise<EntryListPage> {
-  const { data, error } = await client.GET('/entries', {
+  const { data, error, response } = await client.GET('/entries', {
     params: {
       query: {
         type: params.type,
@@ -36,7 +37,7 @@ export async function fetchEntries(params: {
       },
     },
   })
-  if (error) throw error
+  if (error) throw toApiError(error, response)
   const d = data?.data
   return {
     entries: (d?.entries ?? []) as EntryListRow[],

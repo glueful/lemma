@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Http;
 
-use App\Content\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\AdminConfigController;
 use App\Setup\SetupService;
 use App\Tests\Support\LemmaTestCase;
 
@@ -32,9 +32,9 @@ final class AdminConfigApiTest extends LemmaTestCase
     {
         // The SPA needs apiBase BEFORE it can log in, so this route must NOT be in the
         // /v1/admin auth group. Assert it is registered and carries no `auth` middleware.
-        $route = $this->findRoute('GET', '/admin/config.json');
-        self::assertNotNull($route, '/admin/config.json must be registered');
+        $route = $this->findRoute('GET', '/admin/config');
+        self::assertNotNull($route, '/admin/config must be registered');
         $middleware = (array) ($route['middleware'] ?? []);
-        self::assertNotContains('auth', $middleware, 'config.json must be unauthenticated');
+        self::assertNotContains('auth', $middleware, '/admin/config must be unauthenticated');
     }
 }

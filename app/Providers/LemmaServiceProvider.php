@@ -17,9 +17,9 @@ use App\Setup\Console\CreateAdminCommand;
 use App\Setup\Console\DoctorCommand;
 use App\Setup\Console\ProvisionCommand;
 use App\Content\Backfill\BackfillRunner;
-use App\Content\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\AdminConfigController;
 use App\Content\Http\Controllers\ContentTypeController;
-use App\Content\Http\Controllers\SetupController;
+use App\Http\Controllers\SetupController;
 use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\MigrationController;
@@ -464,8 +464,8 @@ final class LemmaServiceProvider extends ServiceProvider
 
         // Mount the compiled admin SPA at /admin via the framework seam: secure asset serving
         // + index.html deep-link fallback + cache split. No-ops (with a warning) if the bundle
-        // is unbuilt. The /admin/config.json static route (routes/lemma_admin_spa.php) keeps
-        // precedence over the SPA catch-all via the router's static-first lookup.
+        // is unbuilt. The /admin/config + /admin/setup static routes (routes/lemma_admin_spa.php)
+        // keep precedence over the SPA catch-all via the router's static-first lookup.
         // Gated by lemma.admin.enabled so an operator can disable the default admin and bring
         // their own (the admin is a replaceable client of the /v1/admin API).
         if ((bool) config($context, 'lemma.admin.enabled', true)) {

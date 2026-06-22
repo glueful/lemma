@@ -17,11 +17,11 @@ final class AdminSpaServingTest extends LemmaTestCase
         self::assertNotNull($route, '/admin must be mounted by serveFrontend()');
     }
 
-    public function testConfigJsonIsNotShadowedBySpaCatchAll(): void
+    public function testConfigRouteIsNotShadowedBySpaCatchAll(): void
     {
-        // The static config.json route (Task 0b) must still resolve as itself, never as the SPA
-        // fallback — the router's static-first lookup guarantees this.
-        $route = $this->findRoute('GET', '/admin/config.json');
-        self::assertNotNull($route, '/admin/config.json must remain its own static route');
+        // The /admin/config route must still resolve as itself, never as the SPA fallback — the
+        // router's static-first lookup guarantees this.
+        $route = $this->findRoute('GET', '/admin/config');
+        self::assertNotNull($route, '/admin/config must remain its own static route');
     }
 }

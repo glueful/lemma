@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Http;
 
-use App\Content\Http\Controllers\AdminConfigController;
-use App\Content\Http\Controllers\SetupController;
+use App\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\SetupController;
 use App\Content\Http\DTOs\Requests\SetupData;
 use App\Setup\SetupService;
 use App\Tests\Support\LemmaTestCase;
@@ -18,7 +18,7 @@ use Glueful\Validation\RequestDataHydrator;
  * Verifies:
  * - First setup creates the admin user and flips the installed marker.
  * - Subsequent requests are permanently locked with 409.
- * - config.json reports installed:false before and installed:true after.
+ * - /admin/config reports installed:false before and installed:true after.
  * - The gate reads the persisted installed invariant, not controller-local state.
  *
  * Requires `composer test:migrate` to have been run first (lemma_settings + users tables must exist).
@@ -105,12 +105,12 @@ final class SetupApiTest extends LemmaTestCase
         $config = new AdminConfigController($this->appContext(), $this->service());
 
         $before = json_decode((string) $config->config()->getContent(), true);
-        self::assertFalse($before['installed'], 'config.json reports installed:false before setup');
+        self::assertFalse($before['installed'], '/admin/config reports installed:false before setup');
 
         $this->controller()->setup($this->setupData($this->validBody()));
 
         $after = json_decode((string) $config->config()->getContent(), true);
-        self::assertTrue($after['installed'], 'config.json reports installed:true after setup');
+        self::assertTrue($after['installed'], '/admin/config reports installed:true after setup');
     }
 
     public function testGateIsBoundToTheInstalledInvariantNotASoftCheck(): void

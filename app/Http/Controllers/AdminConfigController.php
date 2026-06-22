@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Content\Http\Controllers;
+namespace App\Http\Controllers;
 
 use App\Setup\SetupService;
 use Glueful\Bootstrap\ApplicationContext;
@@ -12,9 +12,10 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 
 /**
  * Serves the admin SPA's runtime config as raw JSON at the UNAUTHENTICATED
- * `GET /admin/config.json`. This must NOT sit behind the `/v1/admin` auth group: the SPA
- * fetches it at boot, before it has a token, to learn the API base. Values come from
- * `config('lemma.admin.*')` (env-overridable), so one compiled bundle works across installs.
+ * `GET /admin/config`. This must NOT sit behind the `/v1/admin` auth group: the SPA
+ * fetches it at boot, before it has a token, to learn the API base and whether first-run setup
+ * has run. Values come from `config('lemma.admin.*')` (env-overridable), so one compiled bundle
+ * works across installs.
  *
  * Returns a bare JSON object (NOT the framework `data`-envelope) because the SPA reads
  * `apiBase`/`sitePreviewUrl`/`defaultLocale` at the top level — a plain config document.

@@ -15,19 +15,22 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.8.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: admin/pnpm-lock.yaml
 
-      - run: pnpm install --frozen-lockfile
+      # Skip dependency build scripts: esbuild ships a prebuilt platform binary and the app works
+      # without vue-demi's switch, so they're unneeded — and pnpm 10+ exits non-zero on un-approved
+      # builds otherwise.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Lint
         run: pnpm lint

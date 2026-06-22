@@ -2,7 +2,8 @@ import createClient, { type Middleware } from 'openapi-fetch'
 import type { paths } from './schema'
 import { runtimeConfig } from '@/runtime/config'
 
-// One typed client for the whole app. baseUrl comes from runtime config (env-agnostic bundle).
+// One typed client for the whole app. baseUrl is the admin API base PATH (e.g. /v1/admin); the app
+// is served same-origin, so calls resolve relative to the page.
 export const client = createClient<paths>({ baseUrl: runtimeConfig.apiBase })
 
 // Attach the bearer from the session store on every request. Imported lazily inside the

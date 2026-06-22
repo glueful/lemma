@@ -13,7 +13,7 @@ async function bootstrap() {
   // Runtime config MUST resolve before mount: the API client's baseUrl and the router guard's
   // `installed` check both read it synchronously after boot. A failure here is fatal — the SPA
   // cannot find its API without it (it is served by the PHP app at /admin, which exposes
-  // /admin/config.json).
+  // /admin/config).
   await loadRuntimeConfig()
 
   const app = createApp(App)

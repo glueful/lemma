@@ -4,7 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const getToken = vi.fn<() => string | null>()
 const onRefresh = vi.fn<() => Promise<boolean>>()
 
-vi.mock('@/runtime/config', () => ({ runtimeConfig: { apiBase: '/v1/admin' } }))
+vi.mock('@/runtime/config', () => ({
+  runtimeConfig: { apiBase: '/v1/admin' },
+}))
 vi.mock('@/stores/session', () => ({
   useSessionStore: () => ({
     accessToken: getToken(),

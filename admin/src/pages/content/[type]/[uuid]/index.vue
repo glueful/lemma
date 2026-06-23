@@ -68,31 +68,34 @@ async function onSave() {
 </script>
 
 <template>
-  <div class="space-y-6 p-6">
-    <header class="flex items-center justify-between gap-4">
-      <div>
-        <h1 class="text-xl font-semibold capitalize text-highlighted">{{ type }}</h1>
-        <p class="text-xs text-muted">{{ uuid }}</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <UButton
-          variant="ghost"
-          color="neutral"
-          icon="i-lucide-history"
-          :to="`/content/${type}/${uuid}/versions`"
+  <UDashboardPanel id="entry-editor">
+    <template #header>
+      <UDashboardNavbar>
+        <template #title
+          ><span class="capitalize">{{ type }}</span></template
         >
-          Versions
-        </UButton>
-        <UButton :loading="save.isLoading.value" @click="onSave">Save draft</UButton>
+        <template #right>
+          <UButton
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-history"
+            :to="`/content/${type}/${uuid}/versions`"
+          >
+            Versions
+          </UButton>
+          <UButton :loading="save.isLoading.value" @click="onSave">Save draft</UButton>
+        </template>
+      </UDashboardNavbar>
+    </template>
+
+    <template #body>
+      <div v-if="draftStatus === 'pending'" class="space-y-3">
+        <USkeleton v-for="n in 4" :key="n" class="h-10" />
       </div>
-    </header>
 
-    <div v-if="draftStatus === 'pending'" class="space-y-3">
-      <USkeleton v-for="n in 4" :key="n" class="h-10" />
-    </div>
+      <FieldEditor v-else v-model="fields" :schema="schema" />
 
-    <FieldEditor v-else v-model="fields" :schema="schema" />
-
-    <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
-  </div>
+      <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
+    </template>
+  </UDashboardPanel>
 </template>

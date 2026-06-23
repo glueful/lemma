@@ -32,56 +32,62 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
 </script>
 
 <template>
-  <div class="space-y-4 p-6">
-    <header class="flex items-center justify-between gap-4">
-      <h1 class="text-xl font-semibold text-highlighted capitalize">{{ type }}</h1>
-      <div class="flex items-center gap-2">
-        <UInput v-model="search" icon="i-lucide-search" placeholder="Search…" class="w-64" />
-        <UButton
-          variant="subtle"
-          color="neutral"
-          icon="i-lucide-signpost"
-          :to="`/content/${type}/redirects`"
+  <UDashboardPanel id="content-entries">
+    <template #header>
+      <UDashboardNavbar>
+        <template #title
+          ><span class="capitalize">{{ type }}</span></template
         >
-          Redirects
-        </UButton>
-      </div>
-    </header>
-
-    <UTable :data="data?.entries ?? []" :columns="columns" :loading="status === 'pending'">
-      <template #display_title-cell="{ row }">
-        <ULink :to="`/content/${type}/${row.original.uuid}`" class="font-medium text-default">
-          {{ row.original.display_title }}
-        </ULink>
-      </template>
-
-      <template #status-cell="{ row }">
-        <UBadge :color="statusColor(row.original.status)" variant="subtle">
-          {{ row.original.status }}
-        </UBadge>
-      </template>
-
-      <template #locales-cell="{ row }">
-        <div class="flex gap-1">
-          <UBadge
-            v-for="loc in row.original.locales"
-            :key="loc"
+        <template #right>
+          <UInput v-model="search" icon="i-lucide-search" placeholder="Search…" class="w-64" />
+          <UButton
+            variant="subtle"
             color="neutral"
-            variant="outline"
-            size="sm"
+            icon="i-lucide-signpost"
+            :to="`/content/${type}/redirects`"
           >
-            {{ loc }}
+            Redirects
+          </UButton>
+        </template>
+      </UDashboardNavbar>
+    </template>
+
+    <template #body>
+      <UTable :data="data?.entries ?? []" :columns="columns" :loading="status === 'pending'">
+        <template #display_title-cell="{ row }">
+          <ULink :to="`/content/${type}/${row.original.uuid}`" class="font-medium text-default">
+            {{ row.original.display_title }}
+          </ULink>
+        </template>
+
+        <template #status-cell="{ row }">
+          <UBadge :color="statusColor(row.original.status)" variant="subtle">
+            {{ row.original.status }}
           </UBadge>
-        </div>
-      </template>
+        </template>
 
-      <template #updated_at-cell="{ row }">
-        <span class="text-sm text-muted">{{ row.original.updated_at ?? '—' }}</span>
-      </template>
-    </UTable>
+        <template #locales-cell="{ row }">
+          <div class="flex gap-1">
+            <UBadge
+              v-for="loc in row.original.locales"
+              :key="loc"
+              color="neutral"
+              variant="outline"
+              size="sm"
+            >
+              {{ loc }}
+            </UBadge>
+          </div>
+        </template>
 
-    <div v-if="(data?.total ?? 0) > perPage" class="flex justify-end">
-      <UPagination v-model:page="page" :total="data?.total ?? 0" :items-per-page="perPage" />
-    </div>
-  </div>
+        <template #updated_at-cell="{ row }">
+          <span class="text-sm text-muted">{{ row.original.updated_at ?? '—' }}</span>
+        </template>
+      </UTable>
+
+      <div v-if="(data?.total ?? 0) > perPage" class="flex justify-end">
+        <UPagination v-model:page="page" :total="data?.total ?? 0" :items-per-page="perPage" />
+      </div>
+    </template>
+  </UDashboardPanel>
 </template>

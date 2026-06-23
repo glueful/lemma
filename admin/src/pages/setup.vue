@@ -99,7 +99,10 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     const body = (await res.json().catch(() => null)) as ApiErrorBody | null
 
     // Follow the standard envelope: success is a 2xx carrying { success: true }, not just any 2xx.
-    if (res.ok && body?.success === true) {
+    if (res.status >= 200 && res.status < 300 && body?.success === true) {
+      // The guard gates on `installed`; flip the stale boot-time `false` so /login isn't bounced
+      // back to /setup. (`/login` is the route — vue-router adds the /admin/ base automatically.)
+      runtimeConfig.installed = true
       await router.push('/login')
       return
     }
@@ -182,7 +185,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       </div>
 
       <template #content>
-        <UProgress :color="color" :indicator="text" :model-value="score" :max="4" size="sm" />
+        <UProgress :color="color" :indicator="text" :model-value="score" :max="7" size="sm" />
 
         <p id="password-strength" class="text-sm font-medium">{{ text }}. Must contain:</p>
 

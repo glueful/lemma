@@ -12,6 +12,7 @@ definePage({ meta: { layout: 'auth' } })
 const router = useRouter()
 const route = useRoute()
 const session = useSessionStore()
+const showPassword = ref(false)
 
 const schema = z.object({
   email: z.email('Enter a valid email.'),
@@ -51,17 +52,40 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     <h1 class="text-lg font-semibold text-highlighted">Sign in</h1>
 
     <UFormField label="Email" name="email">
-      <UInput v-model="state.email" type="email" class="w-full" />
+      <UInput v-model="state.email" type="email" class="w-full" :ui="{ base: 'bg-white/35' }"/>
     </UFormField>
 
     <UFormField label="Password" name="password">
       <UInput
         v-model="state.password"
-        type="password"
+        :type="showPassword ? 'text' : 'password'"
         autocomplete="current-password"
         class="w-full"
-      />
+        :ui="{ base: 'bg-white/35' }"
+      >
+        <template #trailing>
+          <UButton
+            color="neutral"
+            variant="link"
+            size="sm"
+            :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+            :aria-label="showPassword ? 'Hide password' : 'Show password'"
+            :aria-pressed="showPassword"
+            aria-controls="password"
+            @click="showPassword = !showPassword"
+          />
+        </template>
+      </UInput>
     </UFormField>
+
+    <div class="text-right">
+      <ULink
+        to="/forgot-password"
+        class="text-sm text-muted hover:text-default transition-colors"
+      >
+        Forgot password?
+      </ULink>
+    </div>
 
     <UButton type="submit" block :loading="loading">Sign in</UButton>
   </UForm>

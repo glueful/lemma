@@ -21,9 +21,10 @@ export const items = [
       to: "/",
     },
     {
-      // Content types are fetched live from `GET /v1/admin/content-types`.
-      // Left empty until that API is integrated; children are populated at runtime
-      // (a fresh install ships with the seeded "Pages" type as the day-one entry).
+      // `children` ships empty here because this is a plain module (no setup context to call a
+      // composable). `layouts/default.vue` fetches the live content types via `useContentTypes()`
+      // and reactively replaces this node's children at render time — each type links to
+      // `/content/{slug}` (a fresh install ships the seeded "Pages" type as the day-one entry).
       label: "Content",
       icon: "i-lucide-layers",
       defaultOpen: true,
@@ -122,9 +123,6 @@ export const items = [
         },
       ],
     },
-  ],
-  // ── items[1]: ops, pinned to the bottom ──────────────────────────────────
-  [
     {
       label: "Utilities",
       icon: "i-lucide-wrench",

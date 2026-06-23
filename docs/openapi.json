@@ -4179,6 +4179,12 @@
                                                                             "items": {
                                                                                 "type": "string"
                                                                             }
+                                                                        },
+                                                                        "format": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
                                                                         }
                                                                     }
                                                                 }
@@ -4401,6 +4407,12 @@
                                                     "items": {
                                                         "type": "string"
                                                     }
+                                                },
+                                                "format": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             }
                                         }
@@ -4654,6 +4666,12 @@
                                                                         "items": {
                                                                             "type": "string"
                                                                         }
+                                                                    },
+                                                                    "format": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
                                                                     }
                                                                 }
                                                             }
@@ -8197,6 +8215,12 @@
                                                                         "items": {
                                                                             "type": "string"
                                                                         }
+                                                                    },
+                                                                    "format": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
                                                                     }
                                                                 }
                                                             }
@@ -16252,6 +16276,12 @@
                                                     "items": {
                                                         "type": "string"
                                                     }
+                                                },
+                                                "format": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             }
                                         }
@@ -16368,6 +16398,12 @@
                                                                         "items": {
                                                                             "type": "string"
                                                                         }
+                                                                    },
+                                                                    "format": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
                                                                     }
                                                                 }
                                                             }

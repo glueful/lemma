@@ -8,6 +8,8 @@ final class FieldDefinition
 {
     public const TYPES = ['string', 'text', 'number', 'boolean', 'datetime', 'enum', 'reference', 'asset', 'json'];
     public const FILTER_TYPES = ['string', 'number', 'boolean', 'datetime', 'enum'];
+    /** Presentation widget for a `text` field — both store a string; only the editor differs. */
+    public const TEXT_FORMATS = ['plain', 'rich'];
 
     /** @param list<string> $enumValues */
     public function __construct(
@@ -18,6 +20,8 @@ final class FieldDefinition
         public readonly bool $filterable = false,
         public readonly ?string $filterType = null,
         public readonly array $enumValues = [],
+        /** 'plain'|'rich' for text fields; null for every other type. */
+        public readonly ?string $format = null,
     ) {
     }
 
@@ -51,6 +55,19 @@ final class FieldDefinition
                 throw new SchemaParseException("enum field '{$name}' requires non-empty enum values");
             }
         }
+        // `format` is a presentation hint, meaningful only for text fields (plain textarea vs rich
+        // editor). Default to 'plain'; ignore any value supplied on a non-text field.
+        $format = null;
+        if ($type === 'text') {
+            $rawFormat = $raw['format'] ?? null;
+            if ($rawFormat === null || $rawFormat === '') {
+                $format = 'plain';
+            } elseif (is_string($rawFormat) && in_array($rawFormat, self::TEXT_FORMATS, true)) {
+                $format = $rawFormat;
+            } else {
+                throw new SchemaParseException("text field '{$name}' has invalid format (expected plain|rich)");
+            }
+        }
 
         return new self(
             name: $name,
@@ -60,6 +77,7 @@ final class FieldDefinition
             filterable: $filterable,
             filterType: $filterType,
             enumValues: $enum,
+            format: $format,
         );
     }
 }

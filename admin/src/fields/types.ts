@@ -14,4 +14,6 @@ export interface FieldDef {
     | 'json'
   required?: boolean
   enum?: string[]
+  /** Presentation widget for `text` fields: 'plain' (textarea) or 'rich' (editor). */
+  format?: 'plain' | 'rich'
 }

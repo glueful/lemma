@@ -3,6 +3,7 @@
 // reactive (e.g. () => ['entries', typeSlug.value]).
 export const qk = {
   contentTypes: () => ['content-types'] as const,
+  contentType: (slug: string) => ['content-type', slug] as const,
   entries: (type: string) => ['entries', type] as const,
   entry: (uuid: string) => ['entry', uuid] as const,
   draft: (uuid: string, locale: string) => ['draft', uuid, locale] as const,

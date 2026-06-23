@@ -4,15 +4,12 @@ import { join } from 'node:path'
 
 // THE SCHEMA-BOUNDARY TEST.
 //
-// Phase 1 CONSUMES content-type schema (reads it to drive the field editor); it must NEVER MUTATE
-// it. These endpoint shapes are the boundary: a PATCH to a content type, or any /schema or
-// /migrations sub-resource. If this test fails, a Phase-1 file is reaching past the boundary —
-// fix the file, not the test.
-const FORBIDDEN: RegExp[] = [
-  /\/content-types\/[^'"`]*\/schema/,
-  /\/content-types\/[^'"`]*\/migrations/,
-  /\.(PATCH|PUT)\(\s*['"`]\/content-types/,
-]
+// The admin AUTHORS content-type schema: it may create types and replace a type's field schema
+// wholesale via PATCH /content-types/{slug}/schema (the settings → content-types flow). What it
+// must NEVER touch is the DESTRUCTIVE async migration endpoint (/migrations) — renaming/deleting
+// fields with data backfill is an out-of-band ops concern, not something the SPA triggers. If this
+// test fails, a source file is reaching for /migrations — fix the file, not the test.
+const FORBIDDEN: RegExp[] = [/\/content-types\/[^'"`]*\/migrations/]
 
 // The generated OpenAPI types legitimately contain these path strings; only hand-written source
 // is scanned (tests + the generated schema are excluded).
@@ -33,8 +30,8 @@ function walk(dir: string): string[] {
   })
 }
 
-describe('schema-boundary (Phase 1 never mutates content-type schema)', () => {
-  it('no source file calls the schema-mutation endpoints', () => {
+describe('schema-boundary (admin never triggers destructive migrations)', () => {
+  it('no source file calls the /migrations endpoint', () => {
     const offenders: string[] = []
     for (const file of walk(SRC)) {
       const src = readFileSync(file, 'utf8')

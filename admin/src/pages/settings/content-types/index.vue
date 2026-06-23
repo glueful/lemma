@@ -124,7 +124,7 @@ async function confirmDelete() {
     :open="pendingDelete !== null"
     title="Delete content type"
     @update:open="
-      (v) => {
+      (v: boolean) => {
         if (!v) pendingDelete = null
       }
     "

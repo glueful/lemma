@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { responseError } from '@/api/errors'
+import { toApiError } from '@/api/errors'
+import { core } from '@/api/client'
 import type { PersistOptions } from '@/plugins/pinia-persist-plugin'
 
 export interface SessionUser {
@@ -9,15 +10,11 @@ export interface SessionUser {
 }
 
 // Glueful auth is COOKIELESS: login returns the access + refresh tokens in the JSON body, and the
-// refresh endpoint expects the refresh token in the request BODY (there is no httpOnly cookie).
-// So we hold BOTH tokens client-side and send the access token as a Bearer header and the refresh
-// token in the refresh body. These auth routes live OUTSIDE the typed /v1/admin client surface
-// (framework mounts them under /api/v1/auth), so they are raw fetches against same-origin paths.
-const AUTH = {
-  login: '/api/v1/auth/login',
-  refresh: '/api/v1/auth/refresh-token',
-  logout: '/api/v1/auth/logout',
-} as const
+// refresh endpoint expects the refresh token in the request BODY (there is no httpOnly cookie). So
+// we hold BOTH tokens client-side and send the access token as a Bearer header and the refresh
+// token in the refresh body. These auth routes live OUTSIDE the typed /v1/admin surface, so they go
+// through the `core` openapi-fetch client (baseUrl '', full spec paths) — typed, no hand-written
+// path strings to drift.
 
 // Encrypted-localStorage persistence (maintainer's accepted tradeoff). The access + refresh tokens
 // and user are persisted; everything else is derived. Because the backend is cookieless, the
@@ -83,13 +80,14 @@ export const useSessionStore = defineStore(
     }
 
     async function login(email: string, password: string): Promise<void> {
-      const res = await fetch(AUTH.login, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      // The endpoint accepts username OR email in the `username` field.
+      const { data, error, response } = await core.POST('/v1/auth/login', {
+        body: { username: email, password },
       })
-      if (!res.ok) throw await responseError(res, 'Invalid email or password.')
-      const { access, refresh, user: u } = readAuthBody(await res.json())
+      // Surface the backend's own message (toApiError falls back to a cause-neutral generic only
+      // when the response carries none); login.vue adds the "Sign in failed" title.
+      if (error) throw toApiError(error, response)
+      const { access, refresh, user: u } = readAuthBody(data)
       if (access === null || u === null) throw new Error('Malformed login response.')
       setSession(access, refresh, u)
     }
@@ -101,13 +99,11 @@ export const useSessionStore = defineStore(
       const token = refreshToken.value
       if (token === null || token === '') return false
       try {
-        const res = await fetch(AUTH.refresh, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ refresh_token: token }),
+        const { data, error } = await core.POST('/v1/auth/refresh-token', {
+          body: { refresh_token: token },
         })
-        if (!res.ok) return false
-        const { access, refresh: nextRefresh, user: u } = readAuthBody(await res.json())
+        if (error || data === undefined) return false
+        const { access, refresh: nextRefresh, user: u } = readAuthBody(data)
         if (access === null) return false
         accessToken.value = access
         if (nextRefresh !== null) refreshToken.value = nextRefresh
@@ -120,12 +116,8 @@ export const useSessionStore = defineStore(
 
     async function logout(): Promise<void> {
       try {
-        // The server identifies the session to terminate from the Bearer access token.
-        const token = accessToken.value
-        await fetch(AUTH.logout, {
-          method: 'POST',
-          headers: token !== null ? { authorization: `Bearer ${token}` } : {},
-        })
+        // The core client attaches the Bearer; the server identifies the session to terminate from it.
+        await core.POST('/v1/auth/logout', {})
       } finally {
         clear()
       }

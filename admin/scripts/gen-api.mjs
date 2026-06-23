@@ -1,28 +1,39 @@
-// Generates the typed admin API schema (src/api/schema.d.ts) from the OpenAPI spec.
+// Generates two typed API schemas from the OpenAPI spec (docs/openapi.json):
 //
-// The spec lists admin endpoints under the /v1/admin prefix, but the typed client uses apiBase
-// (/v1/admin) as its baseUrl. So we strip that prefix here, making the schema paths RELATIVE to
-// apiBase — queries read clean: client.GET('/content-types'), not '/v1/admin/content-types'.
+//   src/api/schema.d.ts       — the ADMIN surface: paths under /v1/admin, with that prefix STRIPPED
+//                               so the admin client (baseUrl /v1/admin) reads clean:
+//                               client.GET('/content-types').
 //
-// Non-admin paths (auth, rbac, i18n, …) are dropped: the typed client only ever calls admin
-// endpoints (auth uses raw fetch in the session store), so they'd just be dead, mis-based types.
+//   src/api/core-schema.d.ts  — EVERYTHING ELSE (auth, account, 2FA, me, users, blobs, rbac, i18n,
+//                               …): paths kept at their FULL spec value so the core client
+//                               (baseUrl '') reads exactly the spec: core.POST('/v1/auth/login').
+//
+// Splitting by /v1/admin means no path is hand-written in the app — both surfaces are spec-typed,
+// so a backend prefix change can never silently drift the client.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import openapiTS, { astToString } from 'openapi-typescript'
 
 const PREFIX = '/v1/admin'
 const specPath = resolve(process.cwd(), '../docs/openapi.json')
-const outPath = resolve(process.cwd(), 'src/api/schema.d.ts')
-
 const spec = JSON.parse(readFileSync(specPath, 'utf8'))
+const entries = Object.entries(spec.paths ?? {})
 
-const paths = {}
-for (const [key, value] of Object.entries(spec.paths ?? {})) {
-  if (!key.startsWith(PREFIX)) continue
-  paths[key.slice(PREFIX.length) || '/'] = value
+async function emit(outFile, paths, label) {
+  const out = resolve(process.cwd(), outFile)
+  const ast = await openapiTS({ ...spec, paths })
+  writeFileSync(out, astToString(ast))
+  console.log(`Generated ${out} — ${Object.keys(paths).length} ${label}`)
 }
-spec.paths = paths
 
-const ast = await openapiTS(spec)
-writeFileSync(outPath, astToString(ast))
-console.log(`Generated ${outPath} — ${Object.keys(paths).length} admin paths (${PREFIX} stripped)`)
+// Admin: keep /v1/admin, strip the prefix so paths are relative to apiBase.
+const adminPaths = Object.fromEntries(
+  entries
+    .filter(([key]) => key.startsWith(PREFIX))
+    .map(([key, value]) => [key.slice(PREFIX.length) || '/', value]),
+)
+await emit('src/api/schema.d.ts', adminPaths, `admin paths (${PREFIX} stripped)`)
+
+// Core: everything else, kept at full spec paths.
+const corePaths = Object.fromEntries(entries.filter(([key]) => !key.startsWith(PREFIX)))
+await emit('src/api/core-schema.d.ts', corePaths, 'core paths (full)')

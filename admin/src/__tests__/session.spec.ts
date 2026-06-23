@@ -54,9 +54,10 @@ describe('session store', () => {
     expect(ok).toBe(true)
     expect(s.accessToken).toBe('jwt2')
     expect(s.refreshToken).toBe('rjwt2')
-    // The refresh token was sent in the body, not via a cookie.
-    const body = JSON.parse(fetchMock.mock.calls.at(-1)[1].body)
-    expect(body).toEqual({ refresh_token: 'rjwt' })
+    // The refresh token was sent in the body, not via a cookie. The core (openapi-fetch) client
+    // calls fetch(Request), so read the body off the Request object.
+    const req = fetchMock.mock.calls.at(-1)[0] as Request
+    expect(await req.clone().json()).toEqual({ refresh_token: 'rjwt' })
   })
 
   it('refresh returns false when there is no stored refresh token', async () => {

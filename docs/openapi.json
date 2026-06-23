@@ -7,7 +7,7 @@
     },
     "servers": [
         {
-            "url": "https:\/\/api.getlemma.dev",
+            "url": "https:\/\/getlemma.com",
             "description": "Production"
         },
         {
@@ -3195,9 +3195,9 @@
                 }
             }
         },
-        "\/auth\/verify-email": {
+        "\/v1\/auth\/verify-email": {
             "post": {
-                "operationId": "postAuthVerifyemail",
+                "operationId": "postV1AuthVerifyemail",
                 "summary": "Verify Email",
                 "tags": [
                     "Authentication"
@@ -3279,9 +3279,9 @@
                 }
             }
         },
-        "\/auth\/verify-otp": {
+        "\/v1\/auth\/verify-otp": {
             "post": {
-                "operationId": "postAuthVerifyotp",
+                "operationId": "postV1AuthVerifyotp",
                 "summary": "Verify OTP",
                 "tags": [
                     "Authentication"
@@ -3332,9 +3332,9 @@
                 }
             }
         },
-        "\/auth\/resend-otp": {
+        "\/v1\/auth\/resend-otp": {
             "post": {
-                "operationId": "postAuthResendotp",
+                "operationId": "postV1AuthResendotp",
                 "summary": "Resend OTP",
                 "tags": [
                     "Authentication"
@@ -3416,9 +3416,9 @@
                 }
             }
         },
-        "\/auth\/forgot-password": {
+        "\/v1\/auth\/forgot-password": {
             "post": {
-                "operationId": "postAuthForgotpassword",
+                "operationId": "postV1AuthForgotpassword",
                 "summary": "Forgot Password",
                 "tags": [
                     "Authentication"
@@ -3552,9 +3552,9 @@
                 }
             }
         },
-        "\/auth\/reset-password": {
+        "\/v1\/auth\/reset-password": {
             "post": {
-                "operationId": "postAuthResetpassword",
+                "operationId": "postV1AuthResetpassword",
                 "summary": "Reset Password",
                 "tags": [
                     "Authentication"
@@ -3657,7 +3657,245 @@
                 }
             }
         },
-        "\/me": {
+        "\/v1\/2fa\/enable": {
+            "post": {
+                "operationId": "2faEnable",
+                "summary": "Enable Two-Factor Authentication",
+                "tags": [
+                    "Authentication"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Begins 2FA enrollment for the authenticated user: emails a 6-digit PIN and returns a short-lived challenge_token. Submit both to POST \/2fa\/verify to complete enrollment.",
+                "responses": {
+                    "200": {
+                        "description": "Two-factor code sent",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "challenge_token": {
+                                                    "type": "string"
+                                                },
+                                                "expires_in": {
+                                                    "type": "integer"
+                                                },
+                                                "delivered_to": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication required"
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests"
+                    }
+                }
+            }
+        },
+        "\/v1\/2fa\/verify": {
+            "post": {
+                "operationId": "2faVerify",
+                "summary": "Verify Two-Factor Code",
+                "tags": [
+                    "Authentication"
+                ],
+                "description": "Verifies the emailed PIN against a challenge_token. No auth header is required \u2014 the challenge_token authenticates the request. For a login challenge it completes login and returns the full session (identical to POST \/auth\/login); for an enrollment challenge it returns just {success, message}. Body: `challenge_token` (required), `code` (required, 6-digit PIN).",
+                "responses": {
+                    "200": {
+                        "description": "Verification successful"
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests"
+                    },
+                    "401": {
+                        "description": "Invalid or expired verification"
+                    }
+                }
+            }
+        },
+        "\/v1\/2fa\/disable": {
+            "post": {
+                "operationId": "2faDisable",
+                "summary": "Disable Two-Factor Authentication",
+                "tags": [
+                    "Authentication"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Disables 2FA for the authenticated user. Requires a recent 2FA verification on the current session (within the configured freshness window); otherwise re-elevation is required.",
+                "responses": {
+                    "200": {
+                        "description": "Two-factor authentication disabled"
+                    },
+                    "401": {
+                        "description": "Authentication required"
+                    },
+                    "403": {
+                        "description": "Recent two-factor verification is required to perform this action"
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests"
+                    }
+                }
+            }
+        },
+        "\/v1\/me": {
             "get": {
                 "operationId": "usersMe",
                 "summary": "Get Current User",
@@ -3743,6 +3981,84 @@
                     },
                     "404": {
                         "description": "User not found"
+                    }
+                }
+            }
+        },
+        "\/v1\/users": {
+            "get": {
+                "operationId": "usersIndex",
+                "summary": "List Users",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "description": "Page number for pagination (default: 1)",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "description": "Items per page (clamped to configured max)",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Paginated list of users + nested public profile (the `users` audience). Off by default; enabled via `USERS_USER_LIST_ENABLED=true`. Requires the `users.read` permission. Supports `?page`\/`?per_page` (clamped), per-item `?fields=`, and `?filter[...]`\/`?sort`\/`?search` over username + profile name (email only when `allow_email_filter`). Soft-deleted profiles never affect membership or order.",
+                "responses": {
+                    "200": {
+                        "description": "Paginated users"
+                    },
+                    "401": {
+                        "description": "Authentication required"
+                    },
+                    "403": {
+                        "description": "Missing the users.read permission"
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -4911,9 +5227,9 @@
                 }
             }
         },
-        "\/admin\/config.json": {
+        "\/admin\/config": {
             "get": {
-                "operationId": "getAdminConfigjson",
+                "operationId": "getAdminConfig",
                 "summary": "Admin SPA runtime config",
                 "tags": [
                     "Lemma Setup"
@@ -4983,7 +5299,7 @@
                                     },
                                     "admin_password": {
                                         "type": "string",
-                                        "minLength": 12
+                                        "minLength": 8
                                     },
                                     "locale": {
                                         "type": "string",
@@ -5051,9 +5367,9 @@
                 }
             }
         },
-        "\/api\/v1\/auth\/login": {
+        "\/v1\/auth\/login": {
             "post": {
-                "operationId": "postApiV1AuthLogin",
+                "operationId": "postV1AuthLogin",
                 "summary": "User Login",
                 "tags": [
                     "Authentication"
@@ -5193,9 +5509,9 @@
                 }
             }
         },
-        "\/api\/v1\/auth\/validate-token": {
+        "\/v1\/auth\/validate-token": {
             "post": {
-                "operationId": "postApiV1AuthValidatetoken",
+                "operationId": "postV1AuthValidatetoken",
                 "summary": "Validate Token",
                 "tags": [
                     "Authentication"
@@ -5312,9 +5628,9 @@
                 }
             }
         },
-        "\/api\/v1\/auth\/refresh-token": {
+        "\/v1\/auth\/refresh-token": {
             "post": {
-                "operationId": "postApiV1AuthRefreshtoken",
+                "operationId": "postV1AuthRefreshtoken",
                 "summary": "Refresh Token",
                 "tags": [
                     "Authentication"
@@ -5460,9 +5776,9 @@
                 }
             }
         },
-        "\/api\/v1\/auth\/logout": {
+        "\/v1\/auth\/logout": {
             "post": {
-                "operationId": "postApiV1AuthLogout",
+                "operationId": "postV1AuthLogout",
                 "summary": "User Logout",
                 "tags": [
                     "Authentication"
@@ -5547,9 +5863,9 @@
                 }
             }
         },
-        "\/api\/v1\/auth\/refresh-permissions": {
+        "\/v1\/auth\/refresh-permissions": {
             "post": {
-                "operationId": "postApiV1AuthRefreshpermissions",
+                "operationId": "postV1AuthRefreshpermissions",
                 "summary": "Refresh User Permissions",
                 "tags": [
                     "Authentication"
@@ -5675,9 +5991,9 @@
                 }
             }
         },
-        "\/api\/v1\/blobs": {
+        "\/v1\/blobs": {
             "post": {
-                "operationId": "postApiV1Blobs",
+                "operationId": "postV1Blobs",
                 "summary": "Upload File",
                 "tags": [
                     "Blobs"
@@ -7679,6 +7995,79 @@
                     },
                     "404": {
                         "description": "Job not found"
+                    }
+                }
+            }
+        },
+        "\/v1\/users\/{uuid}": {
+            "get": {
+                "operationId": "usersShow",
+                "summary": "Get User by UUID",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "[A-Za-z0-9_-]+"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns another user's account plus their public `profile`. Off by default \u2014 enabled via `USERS_USER_LOOKUP_ENABLED=true` (or `config\/users.php`) \u2014 and requires the `users.read` permission. Supports REST dot-path field selection via `?fields=`; unknown\/disallowed fields are pruned. Exposable columns are config-driven (`config\/users.php`, `users` audience), which is intentionally narrower than the `me` audience.",
+                "responses": {
+                    "200": {
+                        "description": "User account and public profile"
+                    },
+                    "401": {
+                        "description": "Authentication required"
+                    },
+                    "403": {
+                        "description": "Missing the users.read permission"
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "User not found"
                     }
                 }
             }
@@ -11801,9 +12190,9 @@
                 }
             }
         },
-        "\/api\/v1\/blobs\/{uuid}": {
+        "\/v1\/blobs\/{uuid}": {
             "get": {
-                "operationId": "getApiV1BlobsByUuid",
+                "operationId": "getV1BlobsByUuid",
                 "summary": "Retrieve Blob",
                 "tags": [
                     "Blobs"
@@ -11955,7 +12344,7 @@
                 }
             },
             "delete": {
-                "operationId": "deleteApiV1BlobsByUuid",
+                "operationId": "deleteV1BlobsByUuid",
                 "summary": "Delete Blob",
                 "tags": [
                     "Blobs"
@@ -12082,9 +12471,9 @@
                 }
             }
         },
-        "\/api\/v1\/blobs\/{uuid}\/info": {
+        "\/v1\/blobs\/{uuid}\/info": {
             "get": {
-                "operationId": "getApiV1BlobsByUuidInfo",
+                "operationId": "getV1BlobsByUuidInfo",
                 "summary": "Blob Metadata",
                 "tags": [
                     "Blobs"
@@ -15431,9 +15820,9 @@
                 }
             }
         },
-        "\/api\/v1\/blobs\/{uuid}\/signed-url": {
+        "\/v1\/blobs\/{uuid}\/signed-url": {
             "post": {
-                "operationId": "postApiV1BlobsByUuidSignedurl",
+                "operationId": "postV1BlobsByUuidSignedurl",
                 "summary": "Generate Signed URL",
                 "tags": [
                     "Blobs"

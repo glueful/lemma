@@ -1,10 +1,18 @@
 import createClient, { type Middleware } from 'openapi-fetch'
 import type { paths } from './schema'
+import type { paths as corePaths } from './core-schema'
 import { runtimeConfig } from '@/runtime/config'
 
-// One typed client for the whole app. baseUrl is the admin API base PATH (e.g. /v1/admin); the app
-// is served same-origin, so calls resolve relative to the page.
+// Admin client: the bulk of the app. baseUrl = apiBase (/v1/admin), schema paths are relative
+// (client.GET('/content-types')). Full auth: Bearer + refresh-on-401.
 export const client = createClient<paths>({ baseUrl: runtimeConfig.apiBase })
+
+// Core client: everything OUTSIDE /v1/admin (auth, account, 2FA, me, users, blobs, …). baseUrl is
+// empty (same-origin) and schema paths are FULL (core.POST('/v1/auth/login')). It attaches the
+// Bearer when one exists — so protected core endpoints like /v1/me work — but it does NOT
+// refresh-on-401: it also carries the PRE-token auth endpoints (login, forgot-password), where a
+// refresh loop is nonsensical. A 401 here surfaces to the caller / router guard instead.
+export const core = createClient<corePaths>({ baseUrl: '' })
 
 // Attach the bearer from the session store on every request. Imported lazily inside the
 // hook to avoid a Pinia<->client module cycle at load time.
@@ -41,3 +49,6 @@ const refreshMiddleware: Middleware = {
 
 client.use(authMiddleware)
 client.use(refreshMiddleware)
+
+// Core gets the Bearer attach but NOT refresh-on-401 (see note above).
+core.use(authMiddleware)

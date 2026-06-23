@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6a38f0cc4397107d0ee1b9cbb6a41a5e",
+    "content-hash": "6a5840e28f612d816ac0c5bbc738b46c",
     "packages": [
         {
             "name": "composer/semver",
@@ -837,16 +837,16 @@
         },
         {
             "name": "glueful/users",
-            "version": "v1.1.1",
+            "version": "v2.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/users.git",
-                "reference": "861f1cda719a2cbfe1c9669709e6c3deb6af703e"
+                "reference": "e623447a23ae1f09278a3ef9ee852adc67fb8a0d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/users/zipball/861f1cda719a2cbfe1c9669709e6c3deb6af703e",
-                "reference": "861f1cda719a2cbfe1c9669709e6c3deb6af703e",
+                "url": "https://api.github.com/repos/glueful/users/zipball/e623447a23ae1f09278a3ef9ee852adc67fb8a0d",
+                "reference": "e623447a23ae1f09278a3ef9ee852adc67fb8a0d",
                 "shasum": ""
             },
             "require": {
@@ -864,7 +864,7 @@
             "extra": {
                 "glueful": {
                     "name": "Users",
-                    "version": "1.1.1",
+                    "version": "2.0.0",
                     "provider": "Glueful\\Extensions\\Users\\UsersServiceProvider",
                     "requires": {
                         "glueful": ">=1.57.0",
@@ -896,9 +896,9 @@
             "description": "Users: first-party identity store + account lifecycle for Glueful",
             "support": {
                 "issues": "https://github.com/glueful/users/issues",
-                "source": "https://github.com/glueful/users/tree/v1.1.1"
+                "source": "https://github.com/glueful/users/tree/v2.0.0"
             },
-            "time": "2026-06-16T06:56:22+00:00"
+            "time": "2026-06-23T13:22:10+00:00"
         },
         {
             "name": "graham-campbell/result-type",

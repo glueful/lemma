@@ -1,103 +1,108 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import type { DropdownMenuItem } from "@nuxt/ui";
-import { useColorMode } from "@vueuse/core";
-import { useRouter } from "vue-router";
-import { useSessionStore } from "@/stores/session";
+import { computed, ref } from 'vue'
+import type { DropdownMenuItem } from '@nuxt/ui'
+import { useColorMode } from '@vueuse/core'
+import { useRouter } from 'vue-router'
+import { useSessionStore } from '@/stores/session'
 
-const colorMode = useColorMode({ initialValue: "system" });
-const router = useRouter();
-const session = useSessionStore();
+const colorMode = useColorMode({ initialValue: 'system' })
+const router = useRouter()
+const session = useSessionStore()
 
 defineProps<{
-  collapsed?: boolean;
-}>();
+  collapsed?: boolean
+}>()
 
-const showLogoutConfirm = ref(false);
-const loggingOut = ref(false);
+const showLogoutConfirm = ref(false)
+const loggingOut = ref(false)
 
 // Identity shown on the trigger and the menu's account header. Email is the only field the session
 // carries (Glueful auth returns uuid + email); the avatar falls back to its first letter.
-const userEmail = computed(() => session.user?.email ?? "");
-const userInitial = computed(() => (userEmail.value.charAt(0) || "A").toUpperCase());
+const userEmail = computed(() => session.user?.email ?? '')
+const userInitial = computed(() => (userEmail.value.charAt(0) || 'A').toUpperCase())
 
 async function confirmLogout() {
-  loggingOut.value = true;
+  loggingOut.value = true
   try {
     // The store's logout() always clears the session locally (even if the API call fails), so once
     // this resolves the guard treats us as signed out and /login is reachable.
-    await session.logout();
-    showLogoutConfirm.value = false;
-    await router.push("/login");
+    await session.logout()
+    showLogoutConfirm.value = false
+    await router.push('/login')
   } finally {
-    loggingOut.value = false;
+    loggingOut.value = false
   }
 }
-
 
 const items = computed<DropdownMenuItem[][]>(() => [
   [
     {
-      type: "label",
-      label: userEmail.value || "Account",
+      type: 'label',
+      label: userEmail.value || 'Account',
     },
   ],
-  [{
-    label: 'Appearance',
-    icon: 'i-lucide-monitor',
-    children: [{
-      label: 'System',
-      icon: 'i-lucide-sun',
-      type: 'checkbox',
-      checked: colorMode.value === 'system',
-      onSelect(e: Event) {
-        e.preventDefault()
-
-        colorMode.value = 'system'
-      }
-    },
+  [
     {
-      label: 'Light',
-      icon: 'i-lucide-sun',
-      type: 'checkbox',
-      checked: colorMode.value === 'light',
-      onSelect(e: Event) {
-        e.preventDefault()
+      label: 'Appearance',
+      icon: 'i-lucide-monitor',
+      children: [
+        {
+          label: 'System',
+          icon: 'i-lucide-sun',
+          type: 'checkbox',
+          checked: colorMode.value === 'system',
+          onSelect(e: Event) {
+            e.preventDefault()
 
-        colorMode.value = 'light'
-      }
+            colorMode.value = 'system'
+          },
+        },
+        {
+          label: 'Light',
+          icon: 'i-lucide-sun',
+          type: 'checkbox',
+          checked: colorMode.value === 'light',
+          onSelect(e: Event) {
+            e.preventDefault()
+
+            colorMode.value = 'light'
+          },
+        },
+        {
+          label: 'Dark',
+          icon: 'i-lucide-moon',
+          type: 'checkbox',
+          checked: colorMode.value === 'dark',
+          onUpdateChecked(checked: boolean) {
+            if (checked) {
+              colorMode.value = 'dark'
+            }
+          },
+          onSelect(e: Event) {
+            e.preventDefault()
+          },
+        },
+      ],
     },
-    {
-      label: 'Dark',
-      icon: 'i-lucide-moon',
-      type: 'checkbox',
-      checked: colorMode.value === 'dark',
-      onUpdateChecked(checked: boolean) {
-        if (checked) {
-          colorMode.value = 'dark'
-        }
-      },
-      onSelect(e: Event) {
-        e.preventDefault()
-      }
-    }]
-  }],
+  ],
   [
     {
       label: 'Profile',
-      icon: 'i-lucide-user'
+      icon: 'i-lucide-user',
     },
     {
       label: 'Security',
-      icon: 'i-lucide-lock'
+      icon: 'i-lucide-lock',
     },
     {
-      label: "Log out",
-      icon: "i-lucide-log-out",
-      onSelect: () => { showLogoutConfirm.value = true; },
+      label: 'Log out',
+      icon: 'i-lucide-log-out',
+      onSelect: () => {
+        showLogoutConfirm.value = true
+      },
     },
   ],
-]);
+])
 </script>
 
 <template>

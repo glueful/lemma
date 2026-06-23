@@ -52,7 +52,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     <h1 class="text-lg font-semibold text-highlighted">Sign in</h1>
 
     <UFormField label="Email" name="email">
-      <UInput v-model="state.email" type="email" class="w-full" :ui="{ base: 'bg-white/35' }"/>
+      <UInput v-model="state.email" type="email" class="w-full" :ui="{ base: 'bg-white/35' }" />
     </UFormField>
 
     <UFormField label="Password" name="password">
@@ -79,10 +79,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     </UFormField>
 
     <div class="text-right">
-      <ULink
-        to="/forgot-password"
-        class="text-sm text-muted hover:text-default transition-colors"
-      >
+      <ULink to="/forgot-password" class="text-sm text-muted hover:text-default transition-colors">
         Forgot password?
       </ULink>
     </div>

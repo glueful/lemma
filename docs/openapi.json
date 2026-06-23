@@ -827,6 +827,68 @@
                     }
                 ],
                 "description": "Creates a role. Body: `name` (required), `slug` (required), `description`, `parent_uuid`, `status`, `metadata`. Requires the `roles.create` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "slug": {
+                                        "type": "string"
+                                    },
+                                    "description": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "parent_uuid": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "level": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "status": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "metadata": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {}
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "slug"
+                                ]
+                            },
+                            "example": {
+                                "name": "Jane",
+                                "slug": "example-slug",
+                                "description": "A short description.",
+                                "parent_uuid": "example",
+                                "level": "example",
+                                "status": "example",
+                                "metadata": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Successful response"
@@ -894,6 +956,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -1010,6 +1105,39 @@
                     }
                 ],
                 "description": "Performs a bulk action across multiple roles. Body: `action` (required; one of delete, activate, deactivate), `role_ids` (required), `force`. Requires the `roles.edit` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "action": {
+                                        "type": "string"
+                                    },
+                                    "role_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "force": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "action",
+                                    "role_ids"
+                                ]
+                            },
+                            "example": {
+                                "action": "example",
+                                "role_ids": "example",
+                                "force": true
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Bulk operation completed"
@@ -1077,6 +1205,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -1232,6 +1393,61 @@
                     }
                 ],
                 "description": "Creates a permission. Body: `name` (required), `slug` (required), `description`, `category`, `resource_type`, `metadata`. Requires the `system.config` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "slug": {
+                                        "type": "string"
+                                    },
+                                    "description": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "category": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "resource_type": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "metadata": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {}
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "slug"
+                                ]
+                            },
+                            "example": {
+                                "name": "Jane",
+                                "slug": "example-slug",
+                                "description": "A short description.",
+                                "category": "example",
+                                "resource_type": "example",
+                                "metadata": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Successful response"
@@ -1299,6 +1515,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -1676,6 +1925,38 @@
                     }
                 ],
                 "description": "Assigns multiple permissions to a user. Body: `user_uuid` (required), `permissions` (required; array of {permission, resource, options}), `options`. Requires the `system.config` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "user_uuid": {
+                                        "type": "string"
+                                    },
+                                    "permissions": {
+                                        "type": "array",
+                                        "items": {}
+                                    },
+                                    "options": {
+                                        "type": "array",
+                                        "items": {}
+                                    }
+                                },
+                                "required": [
+                                    "user_uuid",
+                                    "permissions"
+                                ]
+                            },
+                            "example": {
+                                "user_uuid": "example",
+                                "permissions": "example",
+                                "options": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Batch permission assignment completed"
@@ -1747,6 +2028,39 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "400": {
                         "description": "Invalid request format"
                     }
@@ -1766,6 +2080,35 @@
                     }
                 ],
                 "description": "Revokes multiple permissions from a user. Body: `user_uuid` (required), `permission_slugs` (required). Requires the `system.config` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "user_uuid": {
+                                        "type": "string"
+                                    },
+                                    "permission_slugs": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "user_uuid",
+                                    "permission_slugs"
+                                ]
+                            },
+                            "example": {
+                                "user_uuid": "example",
+                                "permission_slugs": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Batch permission revocation completed"
@@ -1837,6 +2180,39 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "400": {
                         "description": "Invalid request format"
                     }
@@ -1856,6 +2232,41 @@
                     }
                 ],
                 "description": "Checks whether a user has a specific permission. Body: `user_uuid` (required), `permission` (required), `resource`, `context`. Requires the `users.view` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "user_uuid": {
+                                        "type": "string"
+                                    },
+                                    "permission": {
+                                        "type": "string"
+                                    },
+                                    "resource": {
+                                        "type": "string"
+                                    },
+                                    "context": {
+                                        "type": "array",
+                                        "items": {}
+                                    }
+                                },
+                                "required": [
+                                    "user_uuid",
+                                    "permission"
+                                ]
+                            },
+                            "example": {
+                                "user_uuid": "example",
+                                "permission": "example",
+                                "resource": "example",
+                                "context": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Permission check completed"
@@ -1923,6 +2334,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -4017,7 +4461,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Paginated list of users + nested public profile (the `users` audience). Off by default; enabled via `USERS_USER_LIST_ENABLED=true`. Requires the `users.read` permission. Supports `?page`\/`?per_page` (clamped), per-item `?fields=`, and `?filter[...]`\/`?sort`\/`?search` over username + profile name (email only when `allow_email_filter`). Soft-deleted profiles never affect membership or order.",
+                "description": "Paginated list of users + nested public profile (the `users` audience). Off by default; enabled via `USERS_USER_LIST_ENABLED=true`. Requires the `users.view` permission. Supports `?page`\/`?per_page` (clamped), per-item `?fields=`, and `?filter[...]`\/`?sort`\/`?search` over username + profile name (email only when `allow_email_filter`). Soft-deleted profiles never affect membership or order.",
                 "responses": {
                     "200": {
                         "description": "Paginated users"
@@ -4026,7 +4470,7 @@
                         "description": "Authentication required"
                     },
                     "403": {
-                        "description": "Missing the users.read permission"
+                        "description": "Missing the users.view permission"
                     },
                     "500": {
                         "description": "Unexpected server error.",
@@ -4763,7 +5207,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a page of entries for the content type named by `type` (slug), INCLUDING drafts\/scheduled\/unpublished entries (this is the admin authoring list, not the published delivery feed). Each row has a derived `display_title`, editorial `status` (draft|scheduled|published), the `locales` present, and `updated_at`. Offset paged via `page`\/`perPage`; `q` filters on the display title. Requires the `lemma.entries.read` permission.",
+                "description": "Returns a page of entries for the content type named by `type` (slug), INCLUDING drafts\/scheduled\/unpublished entries (this is the admin authoring list, not the published delivery feed). Each row has a derived `display_title`, editorial `status` (draft|scheduled|published), the `locales` present, and `updated_at`. Offset paged via `page`\/`perPage`; `q` filters on the display title. Requires the `content.view` permission.",
                 "responses": {
                     "200": {
                         "description": "A page of entries.",
@@ -5241,6 +5685,358 @@
                                 }
                             }
                         }
+                    }
+                }
+            }
+        },
+        "\/v1\/admin\/settings\/email": {
+            "get": {
+                "operationId": "getV1AdminSettingsEmail",
+                "summary": "Get email settings",
+                "tags": [
+                    "Lemma Settings"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Current MAIL_* values from .env. The password is never returned \u2014 only `password_set`. Requires `content.manage`.",
+                "responses": {
+                    "200": {
+                        "description": "Current email settings (password omitted)."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "operationId": "putV1AdminSettingsEmail",
+                "summary": "Update email settings",
+                "tags": [
+                    "Lemma Settings"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Writes the submitted MAIL_* values to .env. MAIL_PASSWORD is only rewritten when a non-empty `password` is supplied. Requires `content.manage`.",
+                "responses": {
+                    "200": {
+                        "description": "Settings saved."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Invalid field (e.g. malformed from address or port)."
+                    }
+                }
+            }
+        },
+        "\/v1\/admin\/settings\/email\/test": {
+            "post": {
+                "operationId": "postV1AdminSettingsEmailTest",
+                "summary": "Send a test email",
+                "tags": [
+                    "Lemma Settings"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sends a test email to `to` using a transport built from the CURRENT .env MAIL_* values (so it verifies just-saved SMTP settings). Requires `content.manage`.",
+                "responses": {
+                    "200": {
+                        "description": "Test email sent."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Invalid recipient, missing host, or transport failure."
                     }
                 }
             }
@@ -6333,6 +7129,56 @@
                     }
                 ],
                 "description": "Updates a role. Body: `name`, `description`, `parent_uuid`, `status`, `metadata`. Requires the `roles.edit` permission.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "description": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "parent_uuid": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "status": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "metadata": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {}
+                                    }
+                                }
+                            },
+                            "example": {
+                                "name": "Jane",
+                                "description": "A short description.",
+                                "parent_uuid": "example",
+                                "status": "example",
+                                "metadata": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Role updated successfully"
@@ -6400,6 +7246,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -6643,6 +7522,419 @@
                 }
             }
         },
+        "\/rbac\/roles\/{uuid}\/permissions": {
+            "get": {
+                "operationId": "getRbacRolesByUuidPermissions",
+                "summary": "List role permissions",
+                "tags": [
+                    "RBAC Roles"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves the permission grants for a role. Requires the `roles.view` permission.",
+                "responses": {
+                    "200": {
+                        "description": "Role permissions retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Permission denied"
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Role not found"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "putRbacRolesByUuidPermissions",
+                "summary": "Replace role permissions",
+                "tags": [
+                    "RBAC Roles"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Replaces the role's permissions with exactly the supplied set (grants the missing ones, revokes the rest). Body: `permission_uuids` (required array; empty clears all). Requires the `roles.edit` permission.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "permission_uuids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "example": {
+                                "permission_uuids": "example"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Role permissions updated successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Permission denied"
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request format"
+                    },
+                    "404": {
+                        "description": "Role not found"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "postRbacRolesByUuidPermissions",
+                "summary": "Assign permissions to role",
+                "tags": [
+                    "RBAC Roles"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Grants one or more permissions to a role without removing existing grants. Body: `permission_uuids` (required array). Requires the `roles.edit` permission.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "permission_uuids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "example": {
+                                "permission_uuids": "example"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Permissions assigned to role successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Permission denied"
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request format"
+                    },
+                    "404": {
+                        "description": "Role not found"
+                    }
+                }
+            }
+        },
         "\/rbac\/permissions\/{uuid}": {
             "get": {
                 "operationId": "getRbacPermissionsByUuid",
@@ -6766,6 +8058,49 @@
                     }
                 ],
                 "description": "Updates a permission. Body: `name`, `description`, `category`, `metadata`. Requires the `system.config` permission.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "description": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "category": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "metadata": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {}
+                                    }
+                                }
+                            },
+                            "example": {
+                                "name": "Jane",
+                                "description": "A short description.",
+                                "category": "example",
+                                "metadata": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Permission updated successfully"
@@ -6833,6 +8168,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -7089,6 +8457,39 @@
                     }
                 ],
                 "description": "Replaces all of a user's roles with the specified set. Body: `role_uuids` (required), `scope`, `expires_at`, `assigned_by`. Requires the `roles.assign` permission.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "role_uuids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "scope": {
+                                        "type": "array",
+                                        "items": {}
+                                    },
+                                    "expires_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    }
+                                }
+                            },
+                            "example": {
+                                "role_uuids": "example",
+                                "scope": "example",
+                                "expires_at": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "User roles updated successfully"
@@ -7160,6 +8561,39 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "400": {
                         "description": "Invalid request format"
                     }
@@ -7188,6 +8622,39 @@
                     }
                 ],
                 "description": "Assigns multiple roles to a user. Body: `role_uuids` (required), `scope`, `expires_at`, `assigned_by`. Requires the `roles.assign` permission.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "role_uuids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "scope": {
+                                        "type": "array",
+                                        "items": {}
+                                    },
+                                    "expires_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    }
+                                }
+                            },
+                            "example": {
+                                "role_uuids": "example",
+                                "scope": "example",
+                                "expires_at": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Roles assigned successfully"
@@ -7255,6 +8722,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -8041,7 +9541,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns another user's account plus their public `profile`. Off by default \u2014 enabled via `USERS_USER_LOOKUP_ENABLED=true` (or `config\/users.php`) \u2014 and requires the `users.read` permission. Supports REST dot-path field selection via `?fields=`; unknown\/disallowed fields are pruned. Exposable columns are config-driven (`config\/users.php`, `users` audience), which is intentionally narrower than the `me` audience.",
+                "description": "Returns another user's account plus their public `profile`. Off by default \u2014 enabled via `USERS_USER_LOOKUP_ENABLED=true` (or `config\/users.php`) \u2014 and requires the `users.view` permission. Supports REST dot-path field selection via `?fields=`; unknown\/disallowed fields are pruned. Exposable columns are config-driven (`config\/users.php`, `users` audience), which is intentionally narrower than the `me` audience.",
                 "responses": {
                     "200": {
                         "description": "User account and public profile"
@@ -8050,7 +9550,7 @@
                         "description": "Authentication required"
                     },
                     "403": {
-                        "description": "Missing the users.read permission"
+                        "description": "Missing the users.view permission"
                     },
                     "500": {
                         "description": "Unexpected server error.",
@@ -13103,6 +14603,39 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "400": {
                         "description": "Invalid request format"
                     },
@@ -13207,8 +14740,151 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "400": {
                         "description": "Invalid request format"
+                    },
+                    "404": {
+                        "description": "Role not found"
+                    }
+                }
+            }
+        },
+        "\/rbac\/roles\/{uuid}\/permissions\/{permission_uuid}": {
+            "delete": {
+                "operationId": "deleteRbacRolesByUuidPermissionsByPermissionuuid",
+                "summary": "Revoke permission from role",
+                "tags": [
+                    "RBAC Roles"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "permission_uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Removes a single permission grant from a role. Requires the `roles.edit` permission.",
+                "responses": {
+                    "200": {
+                        "description": "Permission revoked from role successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Permission denied"
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     },
                     "404": {
                         "description": "Role not found"
@@ -13307,6 +14983,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -13780,6 +15489,39 @@
                     }
                 ],
                 "description": "Assigns the role to a user. Body: `user_uuid` (required), `scope`, `expires_at`, `assigned_by`. Requires the `roles.assign` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "user_uuid": {
+                                        "type": "string"
+                                    },
+                                    "scope": {
+                                        "type": "array",
+                                        "items": {}
+                                    },
+                                    "expires_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "user_uuid"
+                                ]
+                            },
+                            "example": {
+                                "user_uuid": "example",
+                                "scope": "example",
+                                "expires_at": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Role assigned successfully"
@@ -13851,6 +15593,39 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "400": {
                         "description": "Invalid request format"
                     },
@@ -13884,6 +15659,39 @@
                     }
                 ],
                 "description": "Assigns a role to multiple users. Body: `user_uuids` (required), `scope`, `expires_at`, `assigned_by`. Requires the `roles.assign` permission.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "user_uuids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "scope": {
+                                        "type": "array",
+                                        "items": {}
+                                    },
+                                    "expires_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    }
+                                }
+                            },
+                            "example": {
+                                "user_uuids": "example",
+                                "scope": "example",
+                                "expires_at": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Bulk role assignment completed"
@@ -13955,6 +15763,39 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "400": {
                         "description": "Invalid request format"
                     },
@@ -13988,6 +15829,46 @@
                     }
                 ],
                 "description": "Assigns the permission directly to a user. Body: `user_uuid` (required), `resource`, `expires_at`, `constraints`, `granted_by`. Requires the `system.config` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "user_uuid": {
+                                        "type": "string"
+                                    },
+                                    "resource": {
+                                        "type": "string"
+                                    },
+                                    "expires_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "constraints": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {}
+                                    }
+                                },
+                                "required": [
+                                    "user_uuid"
+                                ]
+                            },
+                            "example": {
+                                "user_uuid": "example",
+                                "resource": "example",
+                                "expires_at": "example",
+                                "constraints": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Permission assigned successfully"
@@ -14059,6 +15940,39 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "400": {
                         "description": "Invalid request format"
                     },
@@ -14092,6 +16006,32 @@
                     }
                 ],
                 "description": "Checks whether a user has a specific role. Body: `role_slug` (required), `scope`. Requires the `users.view` permission.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "role_slug": {
+                                        "type": "string"
+                                    },
+                                    "scope": {
+                                        "type": "array",
+                                        "items": {}
+                                    }
+                                },
+                                "required": [
+                                    "role_slug"
+                                ]
+                            },
+                            "example": {
+                                "role_slug": "example",
+                                "scope": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Role check completed"
@@ -14159,6 +16099,39 @@
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
                                 }
                             }
                         }
@@ -16634,6 +18607,10 @@
         {
             "name": "Lemma Preview",
             "description": "Operations related to Lemma Preview"
+        },
+        {
+            "name": "Lemma Settings",
+            "description": "Operations related to Lemma Settings"
         },
         {
             "name": "Lemma Setup",

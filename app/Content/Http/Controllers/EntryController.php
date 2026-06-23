@@ -40,7 +40,7 @@ use Symfony\Component\HttpFoundation\Request;
  * The interesting path is {@see EntryController::saveDraft()}: it validates first (a
  * {@see ValidationException} → 422) and then catches the repository's
  * {@see OptimisticLockException} to return a 409 with the current draft so the client can
- * rebase. Routes are permission-gated (`lemma.entries.read` / `lemma.entries.write`) by
+ * rebase. Routes are permission-gated (`content.view` / `content.create` / `content.edit`) by
  * middleware, so authz failures surface as 401/403 before these methods run.
  */
 final class EntryController
@@ -70,7 +70,7 @@ final class EntryController
             . 'drafts/scheduled/unpublished entries (this is the admin authoring list, not the published '
             . 'delivery feed). Each row has a derived `display_title`, editorial `status` '
             . '(draft|scheduled|published), the `locales` present, and `updated_at`. Offset paged via '
-            . '`page`/`perPage`; `q` filters on the display title. Requires the `lemma.entries.read` permission.',
+            . '`page`/`perPage`; `q` filters on the display title. Requires the `content.view` permission.',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(200, schema: EntryListData::class, description: 'A page of entries.')]

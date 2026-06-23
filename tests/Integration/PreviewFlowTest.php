@@ -26,7 +26,7 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  *  - MINT  POST /v1/admin/entries/{uuid}/preview/{locale} — auth-gated + `lemma_permission`
  *    gated. We authenticate as an API-key admin and satisfy the RBAC permission with the
  *    framework's {@see InMemoryPermissionProvider} (the test-only provider the framework
- *    ships precisely for this), granting our seeded user `lemma.entries.read`. With a
+ *    ships precisely for this), granting our seeded user `content.view`. With a
  *    provider active and `provider_mode` defaulting to 'replace', PermissionManager::can()
  *    short-circuits to the provider — a clean GRANT for the seeded uuid, deny for anyone else.
  *
@@ -63,7 +63,7 @@ final class PreviewFlowTest extends LemmaTestCase
         // installed on the process-singleton PermissionManager the middleware resolves, so
         // the kernel's `lemma_permission` gate sees the grant. Cleared in tearDown.
         $this->permissionManager()->setProvider(new InMemoryPermissionProvider([
-            $this->userUuid => ['lemma.entries.read'],
+            $this->userUuid => ['content.view'],
         ]));
 
         $this->type = (new ContentTypeRepository($this->connection()))->create([
@@ -139,10 +139,10 @@ final class PreviewFlowTest extends LemmaTestCase
         $uuid = $this->seedDraft('Permission-gated draft', 'perm-gated-draft');
 
         // Same authenticated admin, but the provider now grants only an UNRELATED
-        // permission — so lemma.entries.read is NOT held. The principal resolves
+        // permission — so content.view is NOT held. The principal resolves
         // (auth succeeds), reaches PermissionManager::can(), and is denied.
         $this->permissionManager()->setProvider(new InMemoryPermissionProvider([
-            $this->userUuid => ['lemma.entries.write'],
+            $this->userUuid => ['content.edit'],
         ]));
 
         $resp = $this->handle($this->adminPost("/v1/admin/entries/{$uuid}/preview/en"));

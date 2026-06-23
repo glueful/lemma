@@ -40,12 +40,12 @@ final class LocaleRbacApiTest extends LemmaTestCase
     public function testGlobalRoleCanPublishAnyLocale(): void
     {
         $user = $this->newUser();
-        self::assertTrue($this->provider()->assignRole($user, 'lemma_editor'));
+        self::assertTrue($this->provider()->assignRole($user, 'editor'));
 
-        self::assertTrue($this->allows($user, 'lemma.entries.publish', '/entries/{uuid}/publish/{locale}', [
+        self::assertTrue($this->allows($user, 'content.publish', '/entries/{uuid}/publish/{locale}', [
             'locale' => 'fr',
         ]));
-        self::assertTrue($this->allows($user, 'lemma.entries.publish', '/entries/{uuid}/publish/{locale}', [
+        self::assertTrue($this->allows($user, 'content.publish', '/entries/{uuid}/publish/{locale}', [
             'locale' => 'de',
         ]));
     }
@@ -53,9 +53,9 @@ final class LocaleRbacApiTest extends LemmaTestCase
     public function testLocaleScopedPublishAllowsTargetLocale(): void
     {
         $user = $this->newUser();
-        $this->assignLocaleRole($user, 'lemma_editor_fr', ['lemma.entries.publish'], 'fr');
+        $this->assignLocaleRole($user, 'lemma_editor_fr', ['content.publish'], 'fr');
 
-        self::assertTrue($this->allows($user, 'lemma.entries.publish', '/entries/{uuid}/publish/{locale}', [
+        self::assertTrue($this->allows($user, 'content.publish', '/entries/{uuid}/publish/{locale}', [
             'locale' => 'fr',
         ]));
     }
@@ -63,9 +63,9 @@ final class LocaleRbacApiTest extends LemmaTestCase
     public function testLocaleScopedPublishDeniesOtherLocale(): void
     {
         $user = $this->newUser();
-        $this->assignLocaleRole($user, 'lemma_editor_fr', ['lemma.entries.publish'], 'fr');
+        $this->assignLocaleRole($user, 'lemma_editor_fr', ['content.publish'], 'fr');
 
-        self::assertFalse($this->allows($user, 'lemma.entries.publish', '/entries/{uuid}/publish/{locale}', [
+        self::assertFalse($this->allows($user, 'content.publish', '/entries/{uuid}/publish/{locale}', [
             'locale' => 'de',
         ]));
     }
@@ -73,12 +73,12 @@ final class LocaleRbacApiTest extends LemmaTestCase
     public function testLocaleScopedReadAllowsOwnLocaleDraft(): void
     {
         $user = $this->newUser();
-        $this->assignLocaleRole($user, 'lemma_editor_fr', ['lemma.entries.read'], 'fr');
+        $this->assignLocaleRole($user, 'lemma_editor_fr', ['content.view'], 'fr');
 
-        self::assertTrue($this->allows($user, 'lemma.entries.read', '/entries/{uuid}/draft/{locale}', [
+        self::assertTrue($this->allows($user, 'content.view', '/entries/{uuid}/draft/{locale}', [
             'locale' => 'fr',
         ]));
-        self::assertFalse($this->allows($user, 'lemma.entries.read', '/entries/{uuid}/draft/{locale}', [
+        self::assertFalse($this->allows($user, 'content.view', '/entries/{uuid}/draft/{locale}', [
             'locale' => 'de',
         ]));
     }
@@ -86,44 +86,44 @@ final class LocaleRbacApiTest extends LemmaTestCase
     public function testLocaleScopedReadCannotDiscoverCoarseInventory(): void
     {
         $user = $this->newUser();
-        $this->assignLocaleRole($user, 'lemma_editor_fr', ['lemma.entries.read'], 'fr');
+        $this->assignLocaleRole($user, 'lemma_editor_fr', ['content.view'], 'fr');
 
-        self::assertFalse($this->allows($user, 'lemma.entries.read', '/entries/{uuid}/locales', []));
-        self::assertFalse($this->allows($user, 'lemma.entries.read', '/entries/{uuid}', []));
+        self::assertFalse($this->allows($user, 'content.view', '/entries/{uuid}/locales', []));
+        self::assertFalse($this->allows($user, 'content.view', '/entries/{uuid}', []));
     }
 
     public function testCoarseReadRestoresDiscovery(): void
     {
         $user = $this->newUser();
-        $this->assignLocaleRole($user, 'lemma_reader_global', ['lemma.entries.read'], '*');
+        $this->assignLocaleRole($user, 'lemma_reader_global', ['content.view'], '*');
 
-        self::assertTrue($this->allows($user, 'lemma.entries.read', '/entries/{uuid}/locales', []));
-        self::assertTrue($this->allows($user, 'lemma.entries.read', '/entries/{uuid}', []));
+        self::assertTrue($this->allows($user, 'content.view', '/entries/{uuid}/locales', []));
+        self::assertTrue($this->allows($user, 'content.view', '/entries/{uuid}', []));
     }
 
     public function testLocaleOnlyUserIsDeniedLocaleAgnosticDestroy(): void
     {
         $user = $this->newUser();
-        $this->assignLocaleRole($user, 'lemma_editor_fr', ['lemma.entries.write'], 'fr');
+        $this->assignLocaleRole($user, 'lemma_editor_fr', ['content.edit'], 'fr');
 
-        self::assertFalse($this->allows($user, 'lemma.entries.write', '/entries/{uuid}', []));
+        self::assertFalse($this->allows($user, 'content.edit', '/entries/{uuid}', []));
     }
 
     public function testCoarseUserCanDestroy(): void
     {
         $user = $this->newUser();
-        self::assertTrue($this->provider()->assignRole($user, 'lemma_editor'));
+        self::assertTrue($this->provider()->assignRole($user, 'editor'));
 
-        self::assertTrue($this->allows($user, 'lemma.entries.write', '/entries/{uuid}', []));
+        self::assertTrue($this->allows($user, 'content.edit', '/entries/{uuid}', []));
     }
 
     public function testGlobalGrantOverridesLocaleScopeOnOtherLocale(): void
     {
         $user = $this->newUser();
-        self::assertTrue($this->provider()->assignRole($user, 'lemma_editor'));
-        $this->assignLocaleRole($user, 'lemma_editor_fr', ['lemma.entries.publish'], 'fr');
+        self::assertTrue($this->provider()->assignRole($user, 'editor'));
+        $this->assignLocaleRole($user, 'lemma_editor_fr', ['content.publish'], 'fr');
 
-        self::assertTrue($this->allows($user, 'lemma.entries.publish', '/entries/{uuid}/publish/{locale}', [
+        self::assertTrue($this->allows($user, 'content.publish', '/entries/{uuid}/publish/{locale}', [
             'locale' => 'de',
         ]));
     }
@@ -132,7 +132,7 @@ final class LocaleRbacApiTest extends LemmaTestCase
     {
         $user = $this->newUser();
 
-        self::assertFalse($this->allows($user, 'lemma.entries.publish', '/entries/{uuid}/publish/{locale}', [
+        self::assertFalse($this->allows($user, 'content.publish', '/entries/{uuid}/publish/{locale}', [
             'locale' => 'fr',
         ]));
     }

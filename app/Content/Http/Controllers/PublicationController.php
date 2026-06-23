@@ -28,7 +28,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Error mapping: a {@see ValidationException} from the schema validator becomes a 422, while
  * the "no such entry/draft/version" {@see \RuntimeException}s the service raises are caught
  * and mapped to 404 (publish) or 422 (rollback) so they never reach the framework handler.
- * Every route is permission-gated (`lemma.entries.publish`) by middleware, so authz failures
+ * Every route is permission-gated (`content.publish`) by middleware, so authz failures
  * surface as 401/403 before these methods run.
  */
 final class PublicationController

@@ -52,7 +52,7 @@ export const items = [
         {
           label: 'Roles & Permissions',
           icon: 'i-lucide-shield-check',
-          to: '/roles',
+          to: '/roles-permissions',
         },
         {
           label: 'Audit Log',

@@ -33,7 +33,7 @@ use Symfony\Component\HttpFoundation\Request;
  *
  * Writes that change the filterable-field set don't build indexes inline: both store() and
  * updateSchema() enqueue an {@see EnsureFilterIndexesJob} so the DDL runs out-of-band. Read
- * routes require `lemma.entries.read`; mutating routes require `lemma.models.manage`
+ * routes require `content.view`; mutating routes require `content.manage`
  * (enforced by route middleware, surfacing as 401/403 before these methods run).
  */
 final class ContentTypeController

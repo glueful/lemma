@@ -6,9 +6,9 @@ return [
 
     // Seeded role names (see docs/V1_DESIGN.md §7).
     'roles' => [
-        'admin' => 'lemma_admin',
-        'editor' => 'lemma_editor',
-        'viewer' => 'lemma_viewer',
+        // The first admin uses Aegis's standard `administrator` role; `editor` is Lemma-owned.
+        'admin' => 'administrator',
+        'editor' => 'editor',
     ],
 
     // Public delivery API defaults (see docs/V1_DESIGN.md §6). Delivery is private by

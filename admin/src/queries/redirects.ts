@@ -3,6 +3,7 @@ import { toValue, type MaybeRefOrGetter } from 'vue'
 import { client } from '@/api/client'
 import { toApiError } from '@/api/errors'
 import { qk } from './keys'
+import { fetchContentTypes } from './contentTypes'
 
 export interface RedirectRow {
   uuid: string
@@ -65,6 +66,48 @@ export function useRedirectMutations(typeSlug: string) {
   const invalidate = () => cache.invalidateQueries({ key: qk.redirects(typeSlug) })
   const create = useMutation({
     mutation: (input: CreateRedirectInput) => createRedirect(typeSlug, input),
+    onSettled: invalidate,
+  })
+  const remove = useMutation({
+    mutation: (redirectUuid: string) => deleteRedirect(redirectUuid),
+    onSettled: invalidate,
+  })
+  return { create, remove }
+}
+
+// ── Global redirects (settings) ──
+// There's no "list all redirects" endpoint, so the global view fans out the per-type GET across
+// every content type and merges the results, tagging each row with its owning type.
+export interface AggregatedRedirectRow extends RedirectRow {
+  type_slug: string
+  type_name: string
+}
+
+const qkAllRedirects = () => ['redirects', 'all'] as const
+
+export async function fetchAllRedirects(): Promise<AggregatedRedirectRow[]> {
+  const types = await fetchContentTypes()
+  const lists = await Promise.all(
+    types.map(async (t): Promise<AggregatedRedirectRow[]> => {
+      const slug = String(t.slug ?? '')
+      if (slug === '') return []
+      const rows = await fetchRedirects(slug)
+      return rows.map((r) => ({ ...r, type_slug: slug, type_name: String(t.name ?? slug) }))
+    }),
+  )
+  return lists.flat()
+}
+
+export function useAllRedirects() {
+  return useQuery({ key: qkAllRedirects(), query: fetchAllRedirects })
+}
+
+export function useAllRedirectMutations() {
+  const cache = useQueryCache()
+  const invalidate = () => cache.invalidateQueries({ key: qkAllRedirects() })
+  const create = useMutation({
+    mutation: (vars: { type: string; input: CreateRedirectInput }) =>
+      createRedirect(vars.type, vars.input),
     onSettled: invalidate,
   })
   const remove = useMutation({

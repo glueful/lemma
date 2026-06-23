@@ -22,7 +22,7 @@ use Symfony\Component\HttpFoundation\Request;
  * The narrow preview door (V1_DESIGN §6). Two endpoints, two trust models:
  *
  *  - mint()  POST /v1/admin/entries/{uuid}/preview/{locale} — permission-gated at the
- *    route (`lemma_permission:lemma.entries.read`). Issues a short-lived HMAC-signed
+ *    route (`lemma_permission:content.view`). Issues a short-lived HMAC-signed
  *    token bound to one {entry, locale, ?version}. Minting is authoritative-free (the
  *    reader validates existence), so the actor identity is not needed here — the route
  *    middleware is the gate.

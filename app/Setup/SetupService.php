@@ -85,7 +85,7 @@ final class SetupService
                 'email_verified_at' => date('Y-m-d H:i:s'),
             ]);
 
-            $adminRoleSlug = (string) config($this->context, 'lemma.roles.admin', 'lemma_admin');
+            $adminRoleSlug = (string) config($this->context, 'lemma.roles.admin', 'administrator');
 
             $this->aegis->assignRole($userUuid, $adminRoleSlug);
 

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6a5840e28f612d816ac0c5bbc738b46c",
+    "content-hash": "bfea4b1c418ccc769533bf7bc81a4df1",
     "packages": [
         {
             "name": "composer/semver",
@@ -341,16 +341,16 @@
         },
         {
             "name": "glueful/aegis",
-            "version": "v1.8.1",
+            "version": "v1.10.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/aegis.git",
-                "reference": "a51ec81c0f6a1eaa882eda89c7fe0867ab8ed96c"
+                "reference": "1c680118d41c5d170e9e06a694a1a84bfc85b4f8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/aegis/zipball/a51ec81c0f6a1eaa882eda89c7fe0867ab8ed96c",
-                "reference": "a51ec81c0f6a1eaa882eda89c7fe0867ab8ed96c",
+                "url": "https://api.github.com/repos/glueful/aegis/zipball/1c680118d41c5d170e9e06a694a1a84bfc85b4f8",
+                "reference": "1c680118d41c5d170e9e06a694a1a84bfc85b4f8",
                 "shasum": ""
             },
             "require": {
@@ -366,7 +366,7 @@
                 "glueful": {
                     "icon": "assets/icon.png",
                     "name": "Aegis",
-                    "version": "1.8.1",
+                    "version": "1.10.0",
                     "provider": "Glueful\\Extensions\\Aegis\\Services\\AegisServiceProvider",
                     "requires": {
                         "glueful": ">=1.60.0",
@@ -404,9 +404,9 @@
             "homepage": "https://github.com/glueful/aegis",
             "support": {
                 "issues": "https://github.com/glueful/aegis/issues",
-                "source": "https://github.com/glueful/aegis/tree/v1.8.1"
+                "source": "https://github.com/glueful/aegis/tree/v1.10.0"
             },
-            "time": "2026-06-20T08:47:33+00:00"
+            "time": "2026-06-23T19:02:19+00:00"
         },
         {
             "name": "glueful/email-notification",
@@ -837,16 +837,16 @@
         },
         {
             "name": "glueful/users",
-            "version": "v2.0.0",
+            "version": "v2.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/users.git",
-                "reference": "e623447a23ae1f09278a3ef9ee852adc67fb8a0d"
+                "reference": "4417987f5f0fc5ad3295a746e246d13dd8d274ec"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/users/zipball/e623447a23ae1f09278a3ef9ee852adc67fb8a0d",
-                "reference": "e623447a23ae1f09278a3ef9ee852adc67fb8a0d",
+                "url": "https://api.github.com/repos/glueful/users/zipball/4417987f5f0fc5ad3295a746e246d13dd8d274ec",
+                "reference": "4417987f5f0fc5ad3295a746e246d13dd8d274ec",
                 "shasum": ""
             },
             "require": {
@@ -864,7 +864,7 @@
             "extra": {
                 "glueful": {
                     "name": "Users",
-                    "version": "2.0.0",
+                    "version": "2.1.1",
                     "provider": "Glueful\\Extensions\\Users\\UsersServiceProvider",
                     "requires": {
                         "glueful": ">=1.57.0",
@@ -896,9 +896,9 @@
             "description": "Users: first-party identity store + account lifecycle for Glueful",
             "support": {
                 "issues": "https://github.com/glueful/users/issues",
-                "source": "https://github.com/glueful/users/tree/v2.0.0"
+                "source": "https://github.com/glueful/users/tree/v2.1.1"
             },
-            "time": "2026-06-23T13:22:10+00:00"
+            "time": "2026-06-23T20:42:54+00:00"
         },
         {
             "name": "graham-campbell/result-type",

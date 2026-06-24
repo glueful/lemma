@@ -1,25 +1,36 @@
 <script setup lang="ts">
 import { reactive, ref, useTemplateRef, watch } from 'vue'
 import * as z from 'zod'
-import type { Form, FormSubmitEvent, TableColumn } from '@nuxt/ui'
+import type { Form, FormSubmitEvent, TableColumn, TabsItem } from '@nuxt/ui'
 import {
-  useRoles,
+  useRolesPage,
   useRoleMutations,
-  usePermissions,
+  usePermissionsPage,
   type Role,
   type Permission,
 } from '@/queries/rbac'
 import { toApiError } from '@/api/errors'
 import { useNotify } from '@/composables/useNotify'
-import RolePermissionsModal from './components/RolePermissionsModal.vue'
+import RolePermissionsSlideover from './components/RolePermissionsSlideover.vue'
+import TablePagination from '@/components/TablePagination.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
 const { success, error: notifyError } = useNotify()
 const tab = ref<'roles' | 'permissions'>('roles')
+const tabItems: TabsItem[] = [
+  { label: 'Roles', icon: 'i-lucide-shield', value: 'roles', slot: 'roles' },
+  { label: 'Permissions', icon: 'i-lucide-key-round', value: 'permissions', slot: 'permissions' },
+]
 
-const { data: roles, status: rolesStatus } = useRoles()
-const { data: permissions, status: permsStatus } = usePermissions()
+// Server-side pagination — the backend owns page/total. (The assignment modals/slideovers fetch the
+// full role/permission list themselves via useRoles()/usePermissions(); that's a separate concern.)
+const rolePage = ref(1)
+const rolePerPage = ref(10)
+const permPage = ref(1)
+const permPerPage = ref(10)
+const { data: rolesData, status: rolesStatus } = useRolesPage(rolePage, rolePerPage)
+const { data: permsData, status: permsStatus } = usePermissionsPage(permPage, permPerPage)
 const { create, update, remove } = useRoleMutations()
 
 const roleColumns: TableColumn<Role>[] = [
@@ -138,110 +149,111 @@ const managingRole = ref<Role | null>(null)
     </template>
 
     <template #body>
-      <div class="flex gap-1">
-        <UButton
-          :variant="tab === 'roles' ? 'solid' : 'ghost'"
-          :color="tab === 'roles' ? 'primary' : 'neutral'"
-          @click="tab = 'roles'"
-        >
-          Roles
-        </UButton>
-        <UButton
-          :variant="tab === 'permissions' ? 'solid' : 'ghost'"
-          :color="tab === 'permissions' ? 'primary' : 'neutral'"
-          @click="tab = 'permissions'"
-        >
-          Permissions
-        </UButton>
-      </div>
-
-      <UTable
-        v-if="tab === 'roles'"
-        :data="roles ?? []"
-        :columns="roleColumns"
-        :loading="rolesStatus === 'pending'"
-      >
-        <template #name-cell="{ row }">
-          <span class="font-medium text-default">{{ row.original.name }}</span>
-        </template>
-        <template #slug-cell="{ row }">
-          <code class="text-xs text-muted">{{ row.original.slug }}</code>
-        </template>
-        <template #description-cell="{ row }">
-          <span class="text-sm text-muted">{{ row.original.description || '—' }}</span>
-        </template>
-        <template #level-cell="{ row }">
-          <span class="text-sm text-muted">{{ row.original.level ?? 0 }}</span>
-        </template>
-        <template #actions-cell="{ row }">
-          <div class="flex justify-end gap-1">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-key"
-              aria-label="Permissions"
-              @click="managingRole = row.original"
-            >
-              Permissions
-            </UButton>
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-pencil"
-              aria-label="Edit"
-              @click="openEdit(row.original)"
-            />
-            <UButton
-              color="error"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-trash-2"
-              aria-label="Delete"
-              @click="pendingDelete = row.original"
-            />
-          </div>
-        </template>
-        <template #empty>
-          <UEmpty
-            icon="i-lucide-shield"
-            title="No roles"
-            description="Create a role to get started."
+      <UTabs v-model="tab" :items="tabItems" variant="link" class="w-full">
+        <template #roles>
+          <UTable
+            :data="rolesData?.data ?? []"
+            :columns="roleColumns"
+            :loading="rolesStatus === 'pending'"
           >
-            <template #actions>
-              <UButton icon="i-lucide-plus" @click="openCreate">New role</UButton>
+            <template #name-cell="{ row }">
+              <span class="font-medium text-default">{{ row.original.name }}</span>
             </template>
-          </UEmpty>
-        </template>
-      </UTable>
-
-      <UTable
-        v-else
-        :data="permissions ?? []"
-        :columns="permColumns"
-        :loading="permsStatus === 'pending'"
-      >
-        <template #name-cell="{ row }">
-          <span class="font-medium text-default">{{ row.original.name ?? row.original.slug }}</span>
-        </template>
-        <template #slug-cell="{ row }">
-          <code class="text-xs text-muted">{{ row.original.slug }}</code>
-        </template>
-        <template #category-cell="{ row }">
-          <UBadge v-if="row.original.category" color="neutral" variant="subtle" size="sm">
-            {{ row.original.category }}
-          </UBadge>
-          <span v-else class="text-muted">—</span>
-        </template>
-        <template #empty>
-          <UEmpty
-            icon="i-lucide-key"
-            title="No permissions"
-            description="No permissions are defined."
+            <template #slug-cell="{ row }">
+              <code class="text-xs text-muted">{{ row.original.slug }}</code>
+            </template>
+            <template #description-cell="{ row }">
+              <span class="text-sm text-muted">{{ row.original.description || '—' }}</span>
+            </template>
+            <template #level-cell="{ row }">
+              <span class="text-sm text-muted">{{ row.original.level ?? 0 }}</span>
+            </template>
+            <template #actions-cell="{ row }">
+              <div class="flex justify-end gap-1">
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  size="xs"
+                  icon="i-lucide-key-round"
+                  aria-label="Permissions"
+                  @click="managingRole = row.original"
+                />
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  size="xs"
+                  icon="i-lucide-pencil"
+                  aria-label="Edit"
+                  @click="openEdit(row.original)"
+                />
+                <UButton
+                  color="error"
+                  variant="ghost"
+                  size="xs"
+                  icon="i-lucide-trash-2"
+                  aria-label="Delete"
+                  @click="pendingDelete = row.original"
+                />
+              </div>
+            </template>
+            <template #empty>
+              <UEmpty
+                icon="i-lucide-shield"
+                title="No roles"
+                description="Create a role to get started."
+              >
+                <template #actions>
+                  <UButton icon="i-lucide-plus" @click="openCreate">New role</UButton>
+                </template>
+              </UEmpty>
+            </template>
+          </UTable>
+          <TablePagination
+            v-if="(rolesData?.total ?? 0) > 0"
+            v-model:page="rolePage"
+            v-model:per-page="rolePerPage"
+            :total="rolesData?.total ?? 0"
+            label="roles"
           />
         </template>
-      </UTable>
+
+        <template #permissions>
+          <UTable
+            :data="permsData?.data ?? []"
+            :columns="permColumns"
+            :loading="permsStatus === 'pending'"
+          >
+            <template #name-cell="{ row }">
+              <span class="font-medium text-default">{{
+                row.original.name ?? row.original.slug
+              }}</span>
+            </template>
+            <template #slug-cell="{ row }">
+              <code class="text-xs text-muted">{{ row.original.slug }}</code>
+            </template>
+            <template #category-cell="{ row }">
+              <UBadge v-if="row.original.category" color="neutral" variant="subtle" size="sm">
+                {{ row.original.category }}
+              </UBadge>
+              <span v-else class="text-muted">—</span>
+            </template>
+            <template #empty>
+              <UEmpty
+                icon="i-lucide-key-round"
+                title="No permissions"
+                description="No permissions are defined."
+              />
+            </template>
+          </UTable>
+          <TablePagination
+            v-if="(permsData?.total ?? 0) > 0"
+            v-model:page="permPage"
+            v-model:per-page="permPerPage"
+            :total="permsData?.total ?? 0"
+            label="permissions"
+          />
+        </template>
+      </UTabs>
     </template>
   </UDashboardPanel>
 
@@ -326,5 +338,5 @@ const managingRole = ref<Role | null>(null)
     </template>
   </UModal>
 
-  <RolePermissionsModal v-if="managingRole" :role="managingRole" @close="managingRole = null" />
+  <RolePermissionsSlideover v-if="managingRole" :role="managingRole" @close="managingRole = null" />
 </template>

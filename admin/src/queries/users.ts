@@ -3,7 +3,7 @@ import { toValue, type MaybeRefOrGetter } from 'vue'
 import { authFetch } from '@/api/authFetch'
 
 // Users are read-only via the API: GET /v1/users (paginated list) + GET /v1/users/{uuid}. The list
-// is off by default (USERS_USER_LIST_ENABLED) and needs the `users.read` permission. Each row is a
+// is off by default (USERS_USER_LIST_ENABLED) and needs the `users.view` permission. Each row is a
 // merged account + nested public `profile`; the exact columns are config-driven, so we pin loosely.
 export interface UserProfile {
   first_name?: string
@@ -16,6 +16,8 @@ export interface UserRow {
   username?: string
   email?: string
   status?: string
+  email_verified_at?: string | null
+  two_factor_enabled?: boolean
   created_at?: string
   profile?: UserProfile | null
   [k: string]: unknown
@@ -35,18 +37,15 @@ export async function fetchUsers(params: {
 }): Promise<UsersPage> {
   const q = new URLSearchParams({ page: String(params.page), per_page: String(params.perPage) })
   if (params.search) q.set('search', params.search)
+  // Flat framework pagination envelope: rows are `data`, the meta is at the response root
+  // (current_page/per_page/total/…), via Response::successWithMeta() — same shape as /rbac/*.
   const json = await authFetch(`/v1/users?${q.toString()}`)
-  const d = (json.data ?? {}) as {
-    data?: UserRow[]
-    total?: number
-    current_page?: number
-    per_page?: number
-  }
+  const rows = Array.isArray(json.data) ? (json.data as UserRow[]) : []
   return {
-    users: d.data ?? [],
-    total: d.total ?? 0,
-    current_page: d.current_page ?? params.page,
-    per_page: d.per_page ?? params.perPage,
+    users: rows,
+    total: Number(json.total ?? rows.length),
+    current_page: Number(json.current_page ?? params.page),
+    per_page: Number(json.per_page ?? params.perPage),
   }
 }
 

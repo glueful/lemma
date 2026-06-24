@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import type { TableColumn } from '@nuxt/ui'
 import { useEntries, type EntryListRow } from '@/queries/entries'
+import TablePagination from '@/components/TablePagination.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -85,9 +86,13 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
         </template>
       </UTable>
 
-      <div v-if="(data?.total ?? 0) > perPage" class="flex justify-end">
-        <UPagination v-model:page="page" :total="data?.total ?? 0" :items-per-page="perPage" />
-      </div>
+      <TablePagination
+        v-if="(data?.total ?? 0) > 0"
+        v-model:page="page"
+        v-model:per-page="perPage"
+        :total="data?.total ?? 0"
+        label="entries"
+      />
     </template>
   </UDashboardPanel>
 </template>

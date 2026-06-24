@@ -22,6 +22,7 @@ const { data, status } = useUsers(
 const columns: TableColumn<UserRow>[] = [
   { accessorKey: 'username', header: 'User' },
   { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'roles', header: 'Roles' },
   { accessorKey: 'status', header: 'Status' },
   { accessorKey: 'email_verified_at', header: 'Verified' },
   { accessorKey: 'two_factor_enabled', header: '2FA' },
@@ -60,6 +61,20 @@ const permsUser = ref<UserRow | null>(null)
 
         <template #email-cell="{ row }">
           <span class="text-sm text-muted">{{ row.original.email ?? '—' }}</span>
+        </template>
+
+        <template #roles-cell="{ row }">
+          <div class="flex flex-wrap gap-1">
+            <UBadge
+              v-for="r in row.original.roles ?? []"
+              :key="r.uuid"
+              :label="r.name"
+              color="neutral"
+              variant="subtle"
+              size="sm"
+            />
+            <span v-if="!(row.original.roles ?? []).length" class="text-sm text-muted">—</span>
+          </div>
         </template>
 
         <template #status-cell="{ row }">

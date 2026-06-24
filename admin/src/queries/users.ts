@@ -11,6 +11,12 @@ export interface UserProfile {
   [k: string]: unknown
 }
 
+export interface UserRole {
+  uuid: string
+  name: string
+  slug: string
+}
+
 export interface UserRow {
   uuid: string
   username?: string
@@ -19,6 +25,8 @@ export interface UserRow {
   email_verified_at?: string | null
   two_factor_enabled?: boolean
   created_at?: string
+  // Attached server-side by the aegis UserRecordEnricher (the `users.record_enricher` seam).
+  roles?: UserRole[]
   profile?: UserProfile | null
   [k: string]: unknown
 }

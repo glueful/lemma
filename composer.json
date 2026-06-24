@@ -13,13 +13,13 @@
   ],
   "require": {
     "php": "^8.3",
-    "glueful/aegis": "^1.10.1",
+    "glueful/aegis": "^1.12.0",
     "glueful/email-notification": "^1.10.0",
-    "glueful/framework": "^1.61.2",
+    "glueful/framework": "^1.62.0",
     "glueful/i18n": "^1.1.1",
     "glueful/import-export": "^1.1.1",
     "glueful/media": "^1.1.0",
-    "glueful/users": "^2.1.2",
+    "glueful/users": "^2.2.0",
     "symfony/brevo-mailer": "^8.1"
   },
   "require-dev": {

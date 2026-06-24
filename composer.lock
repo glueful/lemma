@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bda9c07a3b6a7096155bd2f9f8828ab3",
+    "content-hash": "3580ad9db0c725573a0e644320234f05",
     "packages": [
         {
             "name": "composer/semver",
@@ -341,23 +341,23 @@
         },
         {
             "name": "glueful/aegis",
-            "version": "v1.10.1",
+            "version": "v1.12.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/aegis.git",
-                "reference": "119a121fe8a2651da476d0263771cff33dee09a5"
+                "reference": "2ebf8518548e08537072bb85a8c065ab5f0d98b8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/aegis/zipball/119a121fe8a2651da476d0263771cff33dee09a5",
-                "reference": "119a121fe8a2651da476d0263771cff33dee09a5",
+                "url": "https://api.github.com/repos/glueful/aegis/zipball/2ebf8518548e08537072bb85a8c065ab5f0d98b8",
+                "reference": "2ebf8518548e08537072bb85a8c065ab5f0d98b8",
                 "shasum": ""
             },
             "require": {
                 "php": "^8.3"
             },
             "require-dev": {
-                "glueful/framework": "^1.60.0",
+                "glueful/framework": "^1.62.0",
                 "phpstan/phpstan": "^1.10",
                 "phpunit/phpunit": "^10.0"
             },
@@ -366,10 +366,10 @@
                 "glueful": {
                     "icon": "assets/icon.png",
                     "name": "Aegis",
-                    "version": "1.10.1",
+                    "version": "1.12.0",
                     "provider": "Glueful\\Extensions\\Aegis\\Services\\AegisServiceProvider",
                     "requires": {
-                        "glueful": ">=1.60.0",
+                        "glueful": ">=1.62.0",
                         "extensions": []
                     },
                     "publisher": "glueful-team",
@@ -404,9 +404,9 @@
             "homepage": "https://github.com/glueful/aegis",
             "support": {
                 "issues": "https://github.com/glueful/aegis/issues",
-                "source": "https://github.com/glueful/aegis/tree/v1.10.1"
+                "source": "https://github.com/glueful/aegis/tree/v1.12.0"
             },
-            "time": "2026-06-23T23:09:01+00:00"
+            "time": "2026-06-24T21:35:25+00:00"
         },
         {
             "name": "glueful/email-notification",
@@ -498,16 +498,16 @@
         },
         {
             "name": "glueful/framework",
-            "version": "v1.61.2",
+            "version": "v1.62.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/framework.git",
-                "reference": "14cca1b2a79a9dff1fa6d24146132a2c11ca3301"
+                "reference": "d6eeafab757106e4a3d195e188d237dfa8d56886"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/framework/zipball/14cca1b2a79a9dff1fa6d24146132a2c11ca3301",
-                "reference": "14cca1b2a79a9dff1fa6d24146132a2c11ca3301",
+                "url": "https://api.github.com/repos/glueful/framework/zipball/d6eeafab757106e4a3d195e188d237dfa8d56886",
+                "reference": "d6eeafab757106e4a3d195e188d237dfa8d56886",
                 "shasum": ""
             },
             "require": {
@@ -602,7 +602,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-06-23T23:07:02+00:00"
+            "time": "2026-06-24T21:25:56+00:00"
         },
         {
             "name": "glueful/i18n",
@@ -837,23 +837,23 @@
         },
         {
             "name": "glueful/users",
-            "version": "v2.1.2",
+            "version": "v2.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/users.git",
-                "reference": "7769ad9a832452cfd61547e12e90c72b8e5cc271"
+                "reference": "fdc43c3b9246f13f3c2b6c1e13e2cbe71592bcac"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/users/zipball/7769ad9a832452cfd61547e12e90c72b8e5cc271",
-                "reference": "7769ad9a832452cfd61547e12e90c72b8e5cc271",
+                "url": "https://api.github.com/repos/glueful/users/zipball/fdc43c3b9246f13f3c2b6c1e13e2cbe71592bcac",
+                "reference": "fdc43c3b9246f13f3c2b6c1e13e2cbe71592bcac",
                 "shasum": ""
             },
             "require": {
                 "php": "^8.3"
             },
             "require-dev": {
-                "glueful/framework": "^1.57.0",
+                "glueful/framework": "^1.62.0",
                 "phpstan/phpstan": "^1.10",
                 "phpunit/phpunit": "^10.0"
             },
@@ -864,10 +864,10 @@
             "extra": {
                 "glueful": {
                     "name": "Users",
-                    "version": "2.1.2",
+                    "version": "2.2.0",
                     "provider": "Glueful\\Extensions\\Users\\UsersServiceProvider",
                     "requires": {
-                        "glueful": ">=1.57.0",
+                        "glueful": ">=1.62.0",
                         "extensions": []
                     },
                     "publisher": "glueful-team",
@@ -896,9 +896,9 @@
             "description": "Users: first-party identity store + account lifecycle for Glueful",
             "support": {
                 "issues": "https://github.com/glueful/users/issues",
-                "source": "https://github.com/glueful/users/tree/v2.1.2"
+                "source": "https://github.com/glueful/users/tree/v2.2.0"
             },
-            "time": "2026-06-23T23:10:58+00:00"
+            "time": "2026-06-24T21:37:33+00:00"
         },
         {
             "name": "graham-campbell/result-type",

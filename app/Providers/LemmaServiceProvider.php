@@ -18,6 +18,7 @@ use App\Setup\Console\DoctorCommand;
 use App\Setup\Console\ProvisionCommand;
 use App\Content\Backfill\BackfillRunner;
 use App\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\UserAdminController;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Http\Controllers\SetupController;
 use App\Content\Http\Controllers\DeliveryController;
@@ -240,6 +241,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             AdminConfigController::class => [
                 'class' => AdminConfigController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            UserAdminController::class => [
+                'class' => UserAdminController::class,
                 'shared' => true,
                 'autowire' => true,
             ],

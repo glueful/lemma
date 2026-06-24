@@ -10,6 +10,7 @@ use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
 use App\Http\Controllers\EmailSettingsController;
+use App\Http\Controllers\UserAdminController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -132,4 +133,15 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->post('/settings/email/test', [EmailSettingsController::class, 'test'])
         ->middleware('lemma_permission:content.manage');
+
+    // Admin user management (app-owned policy over glueful/users' store primitives). The list/read
+    // lives in glueful/users (`GET /v1/users`); creating and removing users is product policy.
+    $router->post('/users', [UserAdminController::class, 'store'])
+        ->middleware('lemma_permission:users.create');
+
+    $router->patch('/users/{uuid}', [UserAdminController::class, 'update'])
+        ->middleware('lemma_permission:users.edit');
+
+    $router->delete('/users/{uuid}', [UserAdminController::class, 'destroy'])
+        ->middleware('lemma_permission:users.delete');
 });

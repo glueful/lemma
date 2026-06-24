@@ -64,7 +64,7 @@ const mainItems = computed(() =>
         <UserMenu :collapsed="collapsed" />
       </template>
     </UDashboardSidebar>
-    <div class="flex-1 flex flex-col min-w-0 min-h-0 bg-linear-to-b from-[#F7F7F7] to-white">
+    <div class="flex-1 flex flex-col min-w-0 min-h-0 bg-white dark:bg-default">
       <RouterView />
     </div>
   </UDashboardGroup>

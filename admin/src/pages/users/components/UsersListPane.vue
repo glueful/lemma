@@ -53,7 +53,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage.va
 
     <div
       v-if="total > 0"
-      class="flex items-center justify-between gap-2 border-t border-default pt-3 text-muted"
+      class="flex items-center justify-between gap-2 border-t border-default py-3 text-muted"
     >
       <span class="text-xs font-medium uppercase tracking-wide">{{ total }} users</span>
       <div class="flex items-center gap-1">

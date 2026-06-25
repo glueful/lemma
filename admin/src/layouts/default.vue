@@ -29,15 +29,14 @@ const mainItems = computed(() =>
       id="default"
       v-model:open="open"
       collapsible
-      resizable
-      :ui="{ footer: 'lg:border-t lg:border-default', header: 'lg:border-b lg:border-default' }"
+      :min-size="16"
+      :default-size="16"
+      :max-size="16"
+      class="bg-elevated/25 border-r-0"
     >
       <template #header="{ collapsed }">
-        <UDashboardSidebarCollapse />
-        <div v-if="!collapsed" class="flex items-center justify-center h-7">
-          <span class="text-sm font-semibold text-default">Lemma</span>
-        </div>
-        <!-- <img v-if="!collapsed" src="../assets/logo.svg" alt="Logo" class="h-7" /> -->
+        <AppLogo v-if="!collapsed" class="w-auto h-10 shrink-0" :show-text="true" />
+        <UDashboardSidebarCollapse :class="collapsed ? 'mx-auto' : 'ms-auto'" />
       </template>
 
       <template #default="{ collapsed }">
@@ -64,7 +63,7 @@ const mainItems = computed(() =>
         <UserMenu :collapsed="collapsed" />
       </template>
     </UDashboardSidebar>
-    <div class="flex-1 flex flex-col min-w-0 min-h-0 bg-white dark:bg-default">
+    <div class="flex-1 flex flex-col min-w-0 min-h-0 bg-white rounded-2xl m-3 ring ring-default dark:bg-default">
       <RouterView />
     </div>
   </UDashboardGroup>

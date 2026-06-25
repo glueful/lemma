@@ -1,52 +1,35 @@
 <script setup lang="ts">
-import { reactive, ref, useTemplateRef, watch } from 'vue'
+import { computed, reactive, ref, useTemplateRef, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import * as z from 'zod'
-import type { Form, FormSubmitEvent, TableColumn, TabsItem } from '@nuxt/ui'
-import {
-  useRolesPage,
-  useRoleMutations,
-  usePermissionsPage,
-  type Role,
-  type Permission,
-} from '@/queries/rbac'
+import type { Form, FormSubmitEvent } from '@nuxt/ui'
+import { useRoles, useRoleMutations, type Role } from '@/queries/rbac'
 import { toApiError } from '@/api/errors'
 import { useNotify } from '@/composables/useNotify'
-import RolePermissionsSlideover from './components/RolePermissionsSlideover.vue'
-import TablePagination from '@/components/TablePagination.vue'
+import RolesListPane from './components/RolesListPane.vue'
+import RoleDetailPane from './components/RoleDetailPane.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
+const route = useRoute()
+const router = useRouter()
 const { success, error: notifyError } = useNotify()
-const tab = ref<'roles' | 'permissions'>('roles')
-const tabItems: TabsItem[] = [
-  { label: 'Roles', icon: 'i-lucide-shield', value: 'roles', slot: 'roles' },
-  { label: 'Permissions', icon: 'i-lucide-key-round', value: 'permissions', slot: 'permissions' },
-]
-
-// Server-side pagination — the backend owns page/total. (The assignment modals/slideovers fetch the
-// full role/permission list themselves via useRoles()/usePermissions(); that's a separate concern.)
-const rolePage = ref(1)
-const rolePerPage = ref(10)
-const permPage = ref(1)
-const permPerPage = ref(10)
-const { data: rolesData, status: rolesStatus } = useRolesPage(rolePage, rolePerPage)
-const { data: permsData, status: permsStatus } = usePermissionsPage(permPage, permPerPage)
+const { data: roles, status: rolesStatus } = useRoles()
 const { create, update, remove } = useRoleMutations()
 
-const roleColumns: TableColumn<Role>[] = [
-  { accessorKey: 'name', header: 'Name' },
-  { accessorKey: 'slug', header: 'Slug' },
-  { accessorKey: 'description', header: 'Description' },
-  { accessorKey: 'level', header: 'Level' },
-  { id: 'actions', header: '' },
-]
-const permColumns: TableColumn<Permission>[] = [
-  { accessorKey: 'name', header: 'Name' },
-  { accessorKey: 'slug', header: 'Slug' },
-  { accessorKey: 'category', header: 'Category' },
-]
+const selectedUuid = computed(() => (route.query.role as string | undefined) || undefined)
+const selectedRole = computed(() => (roles.value ?? []).find((r) => r.uuid === selectedUuid.value))
 
-// ── Role create/edit ──
+function selectRole(role: Role) {
+  router.replace({ query: { ...route.query, role: role.uuid } })
+}
+function clearSelection() {
+  const q = { ...route.query }
+  delete q.role
+  router.replace({ query: q })
+}
+
+// ── Role create/edit (modals) ──
 const showRoleForm = ref(false)
 const editingRole = ref<Role | null>(null)
 const schema = z.object({
@@ -100,12 +83,15 @@ async function onSubmitRole(event: FormSubmitEvent<Schema>) {
       })
       success('Role updated')
     } else {
-      await create.mutateAsync({
+      const res = await create.mutateAsync({
         name: event.data.name,
         slug: event.data.slug,
         description: event.data.description || undefined,
       })
       success('Role created')
+      // Select the new role so its permission editor opens.
+      const uuid = (res as { data?: { uuid?: string } })?.data?.uuid
+      if (uuid) router.replace({ query: { ...route.query, role: uuid } })
     }
     showRoleForm.value = false
   } catch (e) {
@@ -123,137 +109,77 @@ async function onSubmitRole(event: FormSubmitEvent<Schema>) {
 const pendingDelete = ref<Role | null>(null)
 async function confirmDelete() {
   if (pendingDelete.value === null) return
+  const deletedUuid = pendingDelete.value.uuid
   try {
-    await remove.mutateAsync(pendingDelete.value.uuid)
+    await remove.mutateAsync(deletedUuid)
     success('Role deleted', `“${pendingDelete.value.name}” was removed.`)
     pendingDelete.value = null
+    if (selectedUuid.value === deletedUuid) clearSelection()
   } catch (e) {
     notifyError(e, 'Couldn’t delete role')
   }
 }
-
-// ── Manage a role's permissions ──
-const managingRole = ref<Role | null>(null)
 </script>
 
 <template>
-  <UDashboardPanel id="roles-permissions">
+  <UDashboardPanel id="roles-permissions" :ui="{ body: 'overflow-hidden' }">
     <template #header>
-      <UDashboardNavbar title="Roles & Permissions">
-        <template #right>
-          <UButton v-if="tab === 'roles'" icon="i-lucide-plus" @click="openCreate"
-            >New role</UButton
-          >
-        </template>
-      </UDashboardNavbar>
+      <UDashboardNavbar title="Roles &amp; Permissions" />
     </template>
 
     <template #body>
-      <UTabs v-model="tab" :items="tabItems" variant="link" class="w-full">
-        <template #roles>
-          <UTable
-            :data="rolesData?.data ?? []"
-            :columns="roleColumns"
-            :loading="rolesStatus === 'pending'"
-          >
-            <template #name-cell="{ row }">
-              <span class="font-medium text-default">{{ row.original.name }}</span>
-            </template>
-            <template #slug-cell="{ row }">
-              <code class="text-xs text-muted">{{ row.original.slug }}</code>
-            </template>
-            <template #description-cell="{ row }">
-              <span class="text-sm text-muted">{{ row.original.description || '—' }}</span>
-            </template>
-            <template #level-cell="{ row }">
-              <span class="text-sm text-muted">{{ row.original.level ?? 0 }}</span>
-            </template>
-            <template #actions-cell="{ row }">
-              <div class="flex justify-end gap-1">
-                <UButton
-                  color="neutral"
-                  variant="ghost"
-                  size="xs"
-                  icon="i-lucide-key-round"
-                  aria-label="Permissions"
-                  @click="managingRole = row.original"
-                />
-                <UButton
-                  color="neutral"
-                  variant="ghost"
-                  size="xs"
-                  icon="i-lucide-pencil"
-                  aria-label="Edit"
-                  @click="openEdit(row.original)"
-                />
-                <UButton
-                  color="error"
-                  variant="ghost"
-                  size="xs"
-                  icon="i-lucide-trash-2"
-                  aria-label="Delete"
-                  @click="pendingDelete = row.original"
-                />
-              </div>
-            </template>
-            <template #empty>
-              <UEmpty
-                icon="i-lucide-shield"
-                title="No roles"
-                description="Create a role to get started."
-              >
-                <template #actions>
-                  <UButton icon="i-lucide-plus" @click="openCreate">New role</UButton>
-                </template>
-              </UEmpty>
-            </template>
-          </UTable>
-          <TablePagination
-            v-if="(rolesData?.total ?? 0) > 0"
-            v-model:page="rolePage"
-            v-model:per-page="rolePerPage"
-            :total="rolesData?.total ?? 0"
-            label="roles"
+      <div class="flex h-full min-h-0 p-1">
+        <!-- List pane: visible always on lg+; on mobile only when nothing is selected. -->
+        <div
+          class="min-h-0 lg:shrink-0 lg:border-e lg:border-default lg:pe-4"
+          :class="selectedUuid ? 'hidden lg:block' : 'block'"
+        >
+          <RolesListPane
+            class="h-full"
+            :selected-uuid="selectedUuid"
+            @select="selectRole"
+            @create="openCreate"
           />
-        </template>
+        </div>
 
-        <template #permissions>
-          <UTable
-            :data="permsData?.data ?? []"
-            :columns="permColumns"
-            :loading="permsStatus === 'pending'"
-          >
-            <template #name-cell="{ row }">
-              <span class="font-medium text-default">{{
-                row.original.name ?? row.original.slug
-              }}</span>
-            </template>
-            <template #slug-cell="{ row }">
-              <code class="text-xs text-muted">{{ row.original.slug }}</code>
-            </template>
-            <template #category-cell="{ row }">
-              <UBadge v-if="row.original.category" color="neutral" variant="subtle" size="sm">
-                {{ row.original.category }}
-              </UBadge>
-              <span v-else class="text-muted">—</span>
-            </template>
-            <template #empty>
-              <UEmpty
-                icon="i-lucide-key-round"
-                title="No permissions"
-                description="No permissions are defined."
+        <!-- Detail pane: visible always on lg+; on mobile only when a role is selected. -->
+        <div
+          class="min-w-0 flex-1 flex-col lg:ps-6"
+          :class="selectedUuid ? 'flex' : 'hidden lg:flex'"
+        >
+          <div v-if="!selectedUuid" class="m-auto text-center text-sm text-muted">
+            <UIcon name="i-lucide-shield" class="mx-auto mb-2 size-6" />
+            Select a role to view its permissions
+          </div>
+          <template v-else>
+            <UButton
+              class="mb-2 self-start lg:hidden"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-arrow-left"
+              label="Back"
+              @click="clearSelection"
+            />
+            <RoleDetailPane
+              v-if="selectedRole"
+              :key="selectedRole.uuid"
+              :role="selectedRole"
+              class="min-h-0 flex-1"
+              @edit="openEdit(selectedRole)"
+              @delete="pendingDelete = selectedRole"
+            />
+            <div v-else class="flex flex-1 items-center justify-center">
+              <UIcon
+                v-if="rolesStatus === 'pending'"
+                name="i-lucide-loader-circle"
+                class="size-6 animate-spin text-muted"
               />
-            </template>
-          </UTable>
-          <TablePagination
-            v-if="(permsData?.total ?? 0) > 0"
-            v-model:page="permPage"
-            v-model:per-page="permPerPage"
-            :total="permsData?.total ?? 0"
-            label="permissions"
-          />
-        </template>
-      </UTabs>
+              <p v-else class="text-sm text-muted">Role not found.</p>
+            </div>
+          </template>
+        </div>
+      </div>
     </template>
   </UDashboardPanel>
 
@@ -262,6 +188,7 @@ const managingRole = ref<Role | null>(null)
     <template #body>
       <UForm
         id="role-form"
+        ref="roleFormRef"
         :schema="schema"
         :state="roleForm"
         class="space-y-4"
@@ -337,6 +264,4 @@ const managingRole = ref<Role | null>(null)
       </div>
     </template>
   </UModal>
-
-  <RolePermissionsSlideover v-if="managingRole" :role="managingRole" @close="managingRole = null" />
 </template>

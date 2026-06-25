@@ -86,8 +86,10 @@ final class GrantI18nPermissionsToAdministrator implements MigrationInterface
     private function ensurePermissions(): array
     {
         $bySlug = [];
-        foreach ($this->db->table('permissions')->select(['uuid', 'slug'])
-            ->whereIn('slug', array_keys(self::PERMISSIONS))->get() as $row) {
+        foreach (
+            $this->db->table('permissions')->select(['uuid', 'slug'])
+            ->whereIn('slug', array_keys(self::PERMISSIONS))->get() as $row
+        ) {
             $bySlug[$row['slug']] = $row['uuid'];
         }
         $insert = [];
@@ -115,8 +117,10 @@ final class GrantI18nPermissionsToAdministrator implements MigrationInterface
     private function assign(string $roleUuid, array $permUuids): void
     {
         $existing = [];
-        foreach ($this->db->table('role_permissions')->select(['permission_uuid'])
-            ->where('role_uuid', '=', $roleUuid)->get() as $row) {
+        foreach (
+            $this->db->table('role_permissions')->select(['permission_uuid'])
+            ->where('role_uuid', '=', $roleUuid)->get() as $row
+        ) {
             $existing[$row['permission_uuid']] = true;
         }
         $new = [];

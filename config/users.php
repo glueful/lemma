@@ -20,7 +20,10 @@ return [
     ],
     // Exposable columns per audience. Apps APPEND custom profile columns here.
     'account_fields' => [
-        'me' => ['id', 'uuid', 'username', 'email', 'status', 'email_verified_at', 'two_factor_enabled', 'created_at', 'updated_at'],
+        'me' => [
+            'id', 'uuid', 'username', 'email', 'status',
+            'email_verified_at', 'two_factor_enabled', 'created_at', 'updated_at',
+        ],
         'users' => ['uuid', 'username', 'email', 'status', 'email_verified_at', 'two_factor_enabled', 'created_at'],
     ],
     'profile_fields' => [

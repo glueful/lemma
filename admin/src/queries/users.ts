@@ -70,6 +70,20 @@ export function useUsers(
   })
 }
 
+/** A single enriched user record (profile + roles), GET /v1/users/{uuid}. */
+export async function fetchUser(uuid: string): Promise<UserRow> {
+  const json = await authFetch(`/v1/users/${encodeURIComponent(uuid)}`)
+  return (json.data ?? json) as UserRow
+}
+
+export function useUser(uuid: MaybeRefOrGetter<string | undefined>) {
+  return useQuery({
+    key: () => ['users', 'detail', toValue(uuid) ?? ''],
+    query: () => fetchUser(toValue(uuid) as string),
+    enabled: () => !!toValue(uuid),
+  })
+}
+
 /** Display name for a user row: profile name → username → email → short uuid. */
 export function userDisplayName(u: UserRow): string {
   const full = [u.profile?.first_name, u.profile?.last_name].filter(Boolean).join(' ').trim()

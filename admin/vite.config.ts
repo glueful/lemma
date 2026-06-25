@@ -72,7 +72,23 @@ export default defineConfig(({ mode }) => {
           },
           button: {
             slots: {
-              base: 'cursor-pointer',
+              base: 'cursor-pointer rounded-xl',
+            },
+          },
+          // App-wide modal look: no header/footer dividers, larger corner radius.
+          // `divide-y` is on the base `content` slot, but the default `rounded-lg` lives on the
+          // `fullscreen:false` variant (composed after the base), so the radius must be overridden
+          // there or the variant wins.
+          modal: {
+            slots: {
+              content: 'divide-y-0',
+            },
+            variants: {
+              fullscreen: {
+                false: {
+                  content: 'rounded-3xl',
+                },
+              },
             },
           },
         },

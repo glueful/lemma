@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { UserRow } from '@/queries/users'
 import UsersListPane from './components/UsersListPane.vue'
 import UserDetailPane from './components/UserDetailPane.vue'
-import UserCreateSlideover from './components/UserCreateSlideover.vue'
+import UserCreateModal from './components/UserCreateModal.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -27,15 +27,18 @@ function onCreated(uuid: string) {
 </script>
 
 <template>
-  <UDashboardPanel id="users">
-    <template #header>
+  <UDashboardPanel id="users" :ui="{ body: 'overflow-hidden' }">
+    <!-- <template #header>
       <UDashboardNavbar title="Users" />
-    </template>
+    </template> -->
 
     <template #body>
-      <div class="flex h-full min-h-0 gap-4 p-1 lg:gap-6">
+      <div class="flex h-full min-h-0 p-1">
         <!-- List pane wrapper: visible always on lg+; on mobile only when nothing is selected. -->
-        <div class="min-h-0 lg:shrink-0" :class="selectedUuid ? 'hidden lg:block' : 'block'">
+        <div
+          class="min-h-0 lg:shrink-0 lg:border-e lg:border-default lg:pe-4"
+          :class="selectedUuid ? 'hidden lg:block' : 'block'"
+        >
           <UsersListPane
             class="h-full"
             :selected-uuid="selectedUuid"
@@ -45,7 +48,10 @@ function onCreated(uuid: string) {
         </div>
 
         <!-- Detail pane wrapper: visible always on lg+; on mobile only when a user is selected. -->
-        <div class="min-w-0 flex-1 flex-col" :class="selectedUuid ? 'flex' : 'hidden lg:flex'">
+        <div
+          class="min-w-0 flex-1 flex-col lg:ps-6"
+          :class="selectedUuid ? 'flex' : 'hidden lg:flex'"
+        >
           <div v-if="!selectedUuid" class="m-auto text-center text-sm text-muted">
             <UIcon name="i-lucide-mouse-pointer-click" class="mx-auto mb-2 size-6" />
             Select a user to view details
@@ -65,7 +71,7 @@ function onCreated(uuid: string) {
         </div>
       </div>
 
-      <UserCreateSlideover v-model:open="showCreate" @created="onCreated" />
+      <UserCreateModal v-model:open="showCreate" @created="onCreated" />
     </template>
   </UDashboardPanel>
 </template>

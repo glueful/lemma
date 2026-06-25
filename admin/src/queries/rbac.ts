@@ -255,6 +255,34 @@ export function useUserPermissions(userUuid: MaybeRefOrGetter<string>) {
   })
 }
 
+// ── A user's ROLE-derived permission slugs ──
+// The permissions a user already holds through their assigned roles (NOT direct grants). Computed by
+// fanning out over the user's roles, collecting each role's permission UUIDs, and mapping those to
+// slugs via the full permissions list. Used to hide already-inherited permissions from the
+// direct-grant picker so admins only grant what a role doesn't already provide.
+const qkUserRolePermissions = (userUuid: string) => ['rbac', 'user-role-permissions', userUuid] as const
+
+export async function fetchUserRolePermissionSlugs(userUuid: string): Promise<string[]> {
+  const [roles, allPerms] = await Promise.all([fetchUserRoles(userUuid), fetchPermissions()])
+  const uuidToSlug = new Map(allPerms.map((p) => [p.uuid, p.slug ?? ''] as const))
+  const permUuidLists = await Promise.all(roles.map((r) => fetchRolePermissionUuids(r.uuid)))
+  const slugs = new Set<string>()
+  for (const list of permUuidLists) {
+    for (const uuid of list) {
+      const slug = uuidToSlug.get(uuid)
+      if (slug) slugs.add(slug)
+    }
+  }
+  return [...slugs]
+}
+
+export function useUserRolePermissions(userUuid: MaybeRefOrGetter<string>) {
+  return useQuery({
+    key: () => qkUserRolePermissions(toValue(userUuid)),
+    query: () => fetchUserRolePermissionSlugs(toValue(userUuid)),
+  })
+}
+
 export function useUserPermissionMutations(userUuid: string) {
   const cache = useQueryCache()
   // There is no single "sync" endpoint for direct user permissions, so apply the diff: batch-assign

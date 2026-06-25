@@ -53,7 +53,9 @@ function fmtDate(v?: string | null): string {
     </div>
 
     <template v-else-if="user">
-      <header class="flex items-start justify-between gap-3 pb-4">
+      <header
+        class="mb-4 flex items-start justify-between gap-3 rounded-xl border border-default p-4"
+      >
         <div class="flex items-center gap-3">
           <UAvatar :text="(user.email || user.username || '?').charAt(0).toUpperCase()" size="lg" />
           <div>
@@ -72,17 +74,16 @@ function fmtDate(v?: string | null): string {
             icon="i-lucide-trash-2"
             :disabled="isSelf"
             :title="isSelf ? 'You cannot delete your own account' : undefined"
-            label="Delete"
             @click="pendingDelete = true"
           />
         </div>
       </header>
 
-      <UTabs v-model="tab" :items="tabItems" :content="false" class="mb-4" />
+      <UTabs v-model="tab" variant="link" :items="tabItems" :content="false" class="mb-4" />
 
       <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <UserDetailsForm v-if="tab === 'details'" :key="user.uuid" :user="user" />
-        <UserPermissionsTab v-else :key="user.uuid" :user="user" />
+        <UserDetailsForm v-if="tab === 'details'" :key="`details-${user.uuid}`" :user="user" />
+        <UserPermissionsTab v-else :key="`perms-${user.uuid}`" :user="user" />
       </div>
 
       <UModal v-model:open="pendingDelete" title="Delete user">

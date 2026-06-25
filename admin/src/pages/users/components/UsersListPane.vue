@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import { refDebounced } from '@vueuse/core'
 import { useUsers, type UserRow } from '@/queries/users'
-import TablePagination from '@/components/TablePagination.vue'
 import UserListItem from './UserListItem.vue'
 
 const props = defineProps<{ selectedUuid?: string }>()
@@ -17,13 +16,16 @@ const { data, status } = useUsers(
   perPage,
   computed(() => debounced.value || undefined),
 )
+
+const total = computed(() => data.value?.total ?? 0)
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage.value)))
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 w-full flex-col gap-3 lg:w-[340px] lg:shrink-0">
+  <div class="flex h-full min-h-0 w-full flex-col gap-3 lg:w-85 lg:shrink-0">
     <div class="flex items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-highlighted">Users</h2>
-      <UButton icon="i-lucide-plus" size="sm" @click="emit('create')">New</UButton>
+      <UButton icon="i-lucide-plus" class="px-3 rounded-xl" size="sm" @click="emit('create')" />
     </div>
 
     <UInput v-model="search" icon="i-lucide-search" placeholder="Search users…" class="w-full" />
@@ -49,12 +51,32 @@ const { data, status } = useUsers(
       </div>
     </div>
 
-    <TablePagination
-      v-if="(data?.total ?? 0) > 0"
-      v-model:page="page"
-      v-model:per-page="perPage"
-      :total="data?.total ?? 0"
-      label="users"
-    />
+    <div
+      v-if="total > 0"
+      class="flex items-center justify-between gap-2 border-t border-default pt-3 text-muted"
+    >
+      <span class="text-xs font-medium uppercase tracking-wide">{{ total }} users</span>
+      <div class="flex items-center gap-1">
+        <span class="text-sm">Page {{ page }} / {{ totalPages }}</span>
+        <UButton
+          icon="i-lucide-chevron-left"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :disabled="page <= 1"
+          aria-label="Previous page"
+          @click="page--"
+        />
+        <UButton
+          icon="i-lucide-chevron-right"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :disabled="page >= totalPages"
+          aria-label="Next page"
+          @click="page++"
+        />
+      </div>
+    </div>
   </div>
 </template>

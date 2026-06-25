@@ -34,7 +34,7 @@ function reset() {
   roles.value = []
   reveal.value = false
 }
-// Clear the form whenever the slideover closes (cancel, ESC, backdrop, or submit) so a reopen
+// Clear the form whenever the modal closes (cancel, ESC, backdrop, or submit) so a reopen
 // starts blank instead of showing stale input.
 watch(open, (isOpen) => {
   if (!isOpen) reset()
@@ -72,7 +72,7 @@ async function onSubmit(e: FormSubmitEvent<Schema>) {
 </script>
 
 <template>
-  <USlideover v-model:open="open" title="Create New User" :ui="{ content: 'sm:max-w-md' }">
+  <UModal v-model:open="open" title="Create New User">
     <template #body>
       <UForm
         id="user-create"
@@ -143,5 +143,5 @@ async function onSubmit(e: FormSubmitEvent<Schema>) {
         </UButton>
       </div>
     </template>
-  </USlideover>
+  </UModal>
 </template>

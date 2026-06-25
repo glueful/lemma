@@ -17,12 +17,12 @@ defineEmits<{ select: [] }>()
       <p class="truncate text-sm font-medium text-default">{{ userDisplayName(user) }}</p>
       <p class="truncate text-xs text-muted">{{ user.email ?? '—' }}</p>
     </div>
-    <div class="flex shrink-0 items-center gap-1.5">
-      <span
-        class="size-2 rounded-full"
-        :class="user.status === 'active' ? 'bg-success' : 'bg-muted'"
-        :title="user.status ?? 'active'"
-      />
-    </div>
+    <UBadge
+      :label="user.status ?? 'active'"
+      :color="(user.status ?? 'active') === 'active' ? 'success' : 'neutral'"
+      variant="subtle"
+      size="xs"
+      class="shrink-0 capitalize"
+    />
   </button>
 </template>

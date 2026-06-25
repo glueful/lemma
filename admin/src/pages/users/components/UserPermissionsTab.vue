@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import {
   usePermissions,
   useUserPermissions,
+  useUserRolePermissions,
   useUserPermissionMutations,
   type Permission,
 } from '@/queries/rbac'
@@ -14,9 +15,19 @@ const props = defineProps<{ user: UserRow }>()
 const { success, error: notifyError } = useNotify()
 const { data: allPerms, status: permsStatus } = usePermissions()
 const { data: current, status: currentStatus } = useUserPermissions(() => props.user.uuid)
+const { data: roleSlugs, status: roleStatus } = useUserRolePermissions(() => props.user.uuid)
 const { save } = useUserPermissionMutations(props.user.uuid)
 
-const loading = computed(() => permsStatus.value === 'pending' || currentStatus.value === 'pending')
+const loading = computed(
+  () =>
+    permsStatus.value === 'pending' ||
+    currentStatus.value === 'pending' ||
+    roleStatus.value === 'pending',
+)
+
+// Permissions the user already inherits from their roles — hidden from the picker so admins only
+// grant what a role doesn't already provide.
+const roleGranted = computed(() => new Set(roleSlugs.value ?? []))
 
 // Working set of granted permission SLUGS (the batch endpoints key off slug), seeded from the user's
 // current DIRECT grants. On save we diff this against the original and batch-assign/revoke the delta.
@@ -49,12 +60,22 @@ function matches(p: Permission, term: string): boolean {
 
 const availablePerms = computed(() =>
   (allPerms.value ?? [])
-    .filter((p) => slugOf(p) !== '' && !assigned.value.has(slugOf(p)))
+    // Exclude direct grants AND permissions already inherited from the user's roles.
+    .filter(
+      (p) =>
+        slugOf(p) !== '' && !assigned.value.has(slugOf(p)) && !roleGranted.value.has(slugOf(p)),
+    )
     .filter((p) => matches(p, availableSearch.value)),
 )
 const assignedPerms = computed(() =>
   (allPerms.value ?? [])
     .filter((p) => slugOf(p) !== '' && assigned.value.has(slugOf(p)))
+    .filter((p) => matches(p, assignedSearch.value)),
+)
+// Read-only group: permissions the user inherits from their roles (can't be removed here).
+const rolePerms = computed(() =>
+  (allPerms.value ?? [])
+    .filter((p) => slugOf(p) !== '' && roleGranted.value.has(slugOf(p)))
     .filter((p) => matches(p, assignedSearch.value)),
 )
 
@@ -254,8 +275,38 @@ async function onSave() {
           </div>
           <div class="flex-1 overflow-y-auto px-1 pb-2">
             <div
-              v-if="!assigned.size"
+              v-if="!assigned.size && !rolePerms.length"
               class="flex items-center justify-center py-8 text-xs text-muted"
+            >
+              No permissions
+            </div>
+
+            <!-- From roles: inherited, read-only (managed via the user's roles, not here). -->
+            <template v-if="rolePerms.length">
+              <p class="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
+                From roles
+              </p>
+              <div
+                v-for="perm in rolePerms"
+                :key="`role-${slugOf(perm)}`"
+                class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted"
+                :title="`Inherited from a role: ${slugOf(perm)}`"
+              >
+                <UIcon name="i-lucide-shield-check" class="size-3.5 shrink-0 text-dimmed" />
+                <code class="truncate">{{ slugOf(perm) }}</code>
+              </div>
+            </template>
+
+            <!-- Direct grants: editable. -->
+            <p
+              v-if="rolePerms.length"
+              class="px-2 pb-1 pt-2.5 text-[11px] font-medium uppercase tracking-wide text-muted"
+            >
+              Direct
+            </p>
+            <div
+              v-if="rolePerms.length && !assignedPerms.length"
+              class="px-2 py-1.5 text-xs text-muted"
             >
               No direct permissions
             </div>
@@ -283,7 +334,8 @@ async function onSave() {
 
       <div class="flex w-full items-center justify-between gap-2">
         <p class="text-xs text-muted">
-          Direct grants are in addition to permissions the user gets from roles.
+          Direct grants add to what the user’s roles already provide. Role-inherited permissions are
+          shown under “From roles” and are managed via the user’s roles, not here.
         </p>
         <UButton
           icon="i-lucide-check"

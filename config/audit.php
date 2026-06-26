@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * App-level overrides for the glueful/audit extension.
  *
@@ -9,6 +7,9 @@ declare(strict_types=1);
  * so this file only needs to carry the values Lemma changes — everything else
  * (capture toggles, ignore_tables, retention, …) keeps the extension defaults.
  */
+
+declare(strict_types=1);
+
 return [
     // Generic blob uploads land in the `blobs` table, which the subscriber would
     // otherwise file under the catch-all `data` category. Lemma surfaces blobs

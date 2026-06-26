@@ -273,7 +273,8 @@ final class EventTaxonomyTest extends TestCase
     {
         // The event carries the actor uuid (the audit subscriber uses this when no request resolves
         // one — after-commit dispatch / CLI). No actor → empty, deferring to request resolution.
-        self::assertSame(['uuid' => 'actor-7'], (new EntryPublished('e-1', 'article', 'en', 1, 'actor-7'))->auditActor());
+        $published = new EntryPublished('e-1', 'article', 'en', 1, 'actor-7');
+        self::assertSame(['uuid' => 'actor-7'], $published->auditActor());
         self::assertSame([], (new EntryCreated('e-2', 'page', null, null, null))->auditActor());
     }
 

@@ -19,6 +19,7 @@ use App\Setup\Console\ProvisionCommand;
 use App\Content\Backfill\BackfillRunner;
 use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\ExtensionAdminController;
+use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\UserAdminController;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Http\Controllers\SetupController;
@@ -50,6 +51,7 @@ use App\Content\Events\AssetDetached;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
 use App\Content\Pipeline\Listeners\PurgeCdnListener;
+use App\Content\Pipeline\Listeners\MediaUsageProjector;
 use App\Content\Pipeline\Listeners\ReindexSearchListener;
 use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Preview\PreviewMinter;
@@ -220,6 +222,11 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            MediaUsageProjector::class => [
+                'class' => MediaUsageProjector::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
             PublishService::class => [
                 'class' => PublishService::class,
                 'shared' => true,
@@ -252,6 +259,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             ExtensionAdminController::class => [
                 'class' => ExtensionAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            MediaAdminController::class => [
+                'class' => MediaAdminController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -579,8 +591,8 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             // Asset delta events (V1_DESIGN §8) are meaningful to external receivers
             // ("where is this asset used") but carry no cache tags — webhook only.
-            AssetAttached::class => [DispatchWebhookListener::class],
-            AssetDetached::class => [DispatchWebhookListener::class],
+            AssetAttached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
+            AssetDetached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
         ];
 
         foreach ($listeners as $eventClass => $serviceIds) {

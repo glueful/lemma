@@ -11,6 +11,7 @@ use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
 use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
+use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\UserAdminController;
 use Glueful\Routing\Router;
 
@@ -162,4 +163,23 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->get('/extensions/{vendor}/{name}/readme', [ExtensionAdminController::class, 'readme'])
         ->middleware('lemma_permission:system.access');
+
+    // Media library — list/search over blobs + CMS metadata (alt/caption/tags) + usage.
+    $router->get('/media', [MediaAdminController::class, 'index'])
+        ->middleware('lemma_permission:content.view');
+
+    $router->get('/media/{uuid}', [MediaAdminController::class, 'show'])
+        ->middleware('lemma_permission:content.view');
+
+    $router->get('/media/{uuid}/usage', [MediaAdminController::class, 'usage'])
+        ->middleware('lemma_permission:content.view');
+
+    $router->post('/media/{uuid}/optimize', [MediaAdminController::class, 'optimize'])
+        ->middleware('lemma_permission:content.manage');
+
+    $router->patch('/media/{uuid}', [MediaAdminController::class, 'update'])
+        ->middleware('lemma_permission:content.manage');
+
+    $router->delete('/media/{uuid}', [MediaAdminController::class, 'destroy'])
+        ->middleware('lemma_permission:content.manage');
 });

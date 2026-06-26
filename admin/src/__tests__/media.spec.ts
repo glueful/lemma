@@ -1,30 +1,44 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { getToken } = vi.hoisted(() => ({ getToken: vi.fn(() => 'tok') }))
-vi.mock('@/stores/session', () => ({ useSessionStore: () => ({ accessToken: getToken() }) }))
+// uploadBlob now goes through the typed `core` openapi-fetch client (path from the spec, bearer via
+// middleware), so mock that rather than global fetch.
+const { post } = vi.hoisted(() => ({ post: vi.fn() }))
+vi.mock('@/api/client', () => ({ core: { POST: post } }))
 
 import { uploadBlob } from '@/queries/media'
 
 describe('uploadBlob', () => {
-  beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
+  beforeEach(() => post.mockReset())
 
-  it('POSTs multipart to /api/v1/blobs with the bearer and returns data', async () => {
-    ;(globalThis.fetch as any).mockResolvedValue(
-      new Response(JSON.stringify({ data: { url: '/u/x.png' } }), { status: 201 }),
-    )
+  it('POSTs the file to /v1/blobs via the core client and returns the data', async () => {
+    post.mockResolvedValue({
+      data: { data: { url: '/u/x.png' } },
+      error: undefined,
+      response: new Response(),
+    })
+
     const file = new File(['x'], 'x.png', { type: 'image/png' })
     const res = await uploadBlob(file, { visibility: 'public' })
 
-    const [url, init] = (globalThis.fetch as any).mock.calls[0]
-    expect(url).toBe('/api/v1/blobs')
-    expect(init.method).toBe('POST')
-    expect((init.headers as Record<string, string>).authorization).toBe('Bearer tok')
-    expect(init.body).toBeInstanceOf(FormData)
+    const [path, opts] = post.mock.calls[0]
+    expect(path).toBe('/v1/blobs')
+
+    // The bodySerializer turns the payload into multipart FormData (file + options).
+    const form = opts.bodySerializer(opts.body)
+    expect(form).toBeInstanceOf(FormData)
+    expect(form.get('file')).toBe(file)
+    expect(form.get('visibility')).toBe('public')
+
     expect(res.url).toBe('/u/x.png')
   })
 
-  it('throws on a non-ok response', async () => {
-    ;(globalThis.fetch as any).mockResolvedValue(new Response('{}', { status: 500 }))
+  it('throws on an error response', async () => {
+    post.mockResolvedValue({
+      data: undefined,
+      error: { message: 'boom' },
+      response: new Response('{}', { status: 500 }),
+    })
+
     await expect(uploadBlob(new File([''], 'x'))).rejects.toBeTruthy()
   })
 })

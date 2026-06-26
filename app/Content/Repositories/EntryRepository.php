@@ -365,6 +365,139 @@ final class EntryRepository
     }
 
     /**
+     * Draft-inclusive admin list for one content type. Returns a page of entries (any
+     * editorial state — draft/scheduled/published), newest-updated first, each carrying a
+     * derived display title, an editorial status, the set of locales present, and
+     * updated_at. `$q` filters on the derived display title (case-insensitive substring).
+     *
+     * Unlike the delivery repository (which reads only the publication spine), this reads
+     * the `entries` identity table so unpublished drafts are included — that is the whole
+     * point of the admin list. The per-entry aggregates (draft titles, publications,
+     * routes, schedules) are gathered in bounded follow-up queries keyed by the page's
+     * entry uuids, so this is O(1) round-trips, not N+1.
+     *
+     * LIMITATION (a): All active entries for the content type are loaded into memory before
+     * the page slice is applied. This is correct and bounded by per-type entry count, which
+     * is manageable for Phase 1. Revisit with SQL-level LIMIT/OFFSET paging if any single
+     * content type grows large (thousands of entries).
+     *
+     * LIMITATION (b): The display title is derived from the `title` field of the default-locale
+     * draft. Content types that use a different field as their display label will fall back to
+     * the route slug (if assigned) or the entry uuid. A configurable display-field name can
+     * be added to the content type schema when needed.
+     *
+     * @return array{
+     *   entries: list<array{uuid:string,display_title:string,status:string,locales:list<string>,updated_at:?string}>,
+     *   total:int, current_page:int, per_page:int
+     * }
+     */
+    public function listForType(string $typeUuid, string $defaultLocale, int $page, int $perPage, ?string $q): array
+    {
+        $base = $this->db->table('entries')
+            ->where('content_type_uuid', '=', $typeUuid)
+            ->where('status', '=', 'active');
+
+        $total = (int) $base->count();
+
+        $entryRows = $this->db->table('entries')
+            ->select(['uuid', 'updated_at'])
+            ->where('content_type_uuid', '=', $typeUuid)
+            ->where('status', '=', 'active')
+            ->orderBy('updated_at', 'DESC')
+            ->orderBy('id', 'DESC')
+            ->get();
+
+        $uuids = array_map(static fn (array $r): string => (string) $r['uuid'], $entryRows);
+        if ($uuids === []) {
+            return ['entries' => [], 'total' => 0, 'current_page' => $page, 'per_page' => $perPage];
+        }
+
+        // Bounded aggregates keyed by entry uuid (no per-row queries).
+        $draftsByEntry = [];   // entry => [locale => fields[]]
+        foreach ($this->db->table('entry_drafts')->whereIn('entry_uuid', $uuids)->get() as $row) {
+            $raw = $row['fields'] ?? [];
+            $fields = is_string($raw) ? (json_decode($raw, true) ?: []) : (array) $raw;
+            $draftsByEntry[(string) $row['entry_uuid']][(string) $row['locale']] = $fields;
+        }
+
+        $localesByEntry = [];  // entry => set of locales (from drafts ∪ publications)
+        foreach ($draftsByEntry as $entry => $byLocale) {
+            foreach (array_keys($byLocale) as $loc) {
+                $localesByEntry[$entry][$loc] = true;
+            }
+        }
+
+        $publishedEntries = [];
+        foreach ($this->db->table('entry_publications')->whereIn('entry_uuid', $uuids)->get() as $row) {
+            $entry = (string) $row['entry_uuid'];
+            $publishedEntries[$entry] = true;
+            $localesByEntry[$entry][(string) $row['locale']] = true;
+        }
+
+        $scheduledEntries = [];
+        foreach (
+            $this->db->table('entry_schedules')
+                ->whereIn('entry_uuid', $uuids)
+                ->where('status', '=', 'pending')
+                ->where('action', '=', 'publish')
+                ->get() as $row
+        ) {
+            $scheduledEntries[(string) $row['entry_uuid']] = true;
+        }
+
+        $routeSlugByEntry = []; // entry => default-locale slug
+        foreach (
+            $this->db->table('entry_routes')
+                ->whereIn('entry_uuid', $uuids)
+                ->where('locale', '=', $defaultLocale)
+                ->get() as $row
+        ) {
+            $routeSlugByEntry[(string) $row['entry_uuid']] = (string) ($row['slug'] ?? '');
+        }
+
+        $items = [];
+        foreach ($entryRows as $row) {
+            $uuid = (string) $row['uuid'];
+            $draftTitle = $draftsByEntry[$uuid][$defaultLocale]['title'] ?? null;
+            $routeFallback = ($routeSlugByEntry[$uuid] ?? '') ?: $uuid;
+            $display = (is_string($draftTitle) && trim($draftTitle) !== '')
+                ? $draftTitle
+                : $routeFallback;
+
+            $status = isset($publishedEntries[$uuid])
+                ? 'published'
+                : (isset($scheduledEntries[$uuid]) ? 'scheduled' : 'draft');
+
+            $locales = array_keys($localesByEntry[$uuid] ?? []);
+            sort($locales);
+
+            if ($q !== null && $q !== '' && stripos($display, $q) === false) {
+                continue;
+            }
+
+            $items[] = [
+                'uuid' => $uuid,
+                'display_title' => (string) $display,
+                'status' => $status,
+                'locales' => array_values($locales),
+                'updated_at' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+            ];
+        }
+
+        // Page the post-filter list (filtering is on the derived title, so it happens in PHP).
+        $filteredTotal = $q !== null && $q !== '' ? count($items) : $total;
+        $offset = ($page - 1) * $perPage;
+        $items = array_slice($items, $offset, $perPage);
+
+        return [
+            'entries' => array_values($items),
+            'total' => $filteredTotal,
+            'current_page' => $page,
+            'per_page' => $perPage,
+        ];
+    }
+
+    /**
      * @return array{publish:?string,unpublish:?string,last_failure:?array}
      */
     private function emptyScheduleSummary(): array

@@ -33,5 +33,6 @@
         <env name="CACHE_TAGS" value="false"/>
         <env name="QUERY_CACHE_ENABLED" value="false"/>
         <env name="QUERY_CACHE_STORE" value="array"/>
+        <env name="LEMMA_ADMIN_BUNDLE_PATH" value="tests/fixtures/admin"/>
     </php>
 </phpunit>

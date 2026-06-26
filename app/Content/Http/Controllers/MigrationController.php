@@ -28,8 +28,8 @@ final class MigrationController
 
     #[ApiOperation(
         summary: 'Start a destructive schema migration',
-        description: 'Starts an explicit delete/rename schema migration for a content type. '
-            . 'Body: {ops:[{op:"rename",from,to}|{op:"delete",name}]}.',
+        description: 'Runs asynchronously. `ops` is a list of `{op:"rename",from,to}` / '
+            . '`{op:"delete",name}`; only one migration per type may run at a time (409).',
         tags: ['Lemma Admin'],
     )]
     #[ApiResponse(201, description: 'Migration started; poll the returned migration row for progress.')]

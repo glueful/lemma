@@ -15,6 +15,8 @@ use App\Content\Http\DeliveryEtag;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Schema\Migration\SchemaProjector;
+use App\Content\Http\DTOs\Requests\Delivery\DeliveryListQuery;
+use App\Content\Http\DTOs\Requests\Delivery\DeliveryShowQuery;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryItemData;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryListData;
 use App\Content\Http\DTOs\Responses\Delivery\DeliveryShowItemData;
@@ -26,7 +28,6 @@ use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
-use Glueful\Routing\Attributes\QueryParam;
 use Glueful\Support\FieldSelection\FieldSelector;
 use Glueful\Support\FieldSelection\Projector;
 use Symfony\Component\HttpFoundation\Request;
@@ -80,69 +81,15 @@ final class DeliveryController
      */
     #[ApiOperation(
         summary: 'List published entries of a content type',
-        description: 'Returns a page of PUBLISHED entries for the content type identified by the {type} '
-            . 'slug. Reads only through the publication spine, so drafts/unpublished/archived entries are '
-            . 'never returned. Private types require an API key carrying `read:content` or '
-            . '`read:content:{type}` (header `X-API-Key`); types with `public_delivery=true` may be '
-            . 'read anonymously. Rate-limited to 120 requests/minute. Two pagination modes: by default a keyset '
-            . 'cursor (stable under publish churn) returns `data.items` + `data.next_cursor`; passing '
-            . '`page`/`perPage` switches to an offset envelope with top-level '
-            . '`current_page`/`per_page`/`total`/`total_pages`. Filtering and sorting are accepted only on '
-            . 'fields the content type marks filterable — anything else returns 422.',
+        description: 'Published entries only. Cursor pagination by default; `page`/`perPage` switches to '
+            . 'offset. Filter and sort are accepted only on filterable fields.',
         tags: ['Lemma Delivery'],
-    )]
-    #[QueryParam(
-        'filter',
-        'string',
-        description: 'Typed filters on filterable fields using bracket syntax `filter[field][op]=value`. '
-            . 'Operators: eq, neq, gt, gte, lt, lte, in. Only fields declared filterable are accepted.',
-    )]
-    #[QueryParam(
-        'sort',
-        'string',
-        description: 'Sort by a filterable field, `sort=field:asc` or `sort=field:desc`. '
-            . 'Defaults to `published_at:desc`.',
-    )]
-    #[QueryParam(
-        'locale',
-        'string',
-        description: 'Content locale to read. Single-entry reads walk the configured i18n fallback chain; '
-            . 'when omitted, this defaults to the i18n default locale.',
-    )]
-    #[QueryParam(
-        'cursor',
-        'string',
-        description: 'Opaque keyset cursor taken from a previous response\'s `next_cursor`. '
-            . 'Cursor (default) mode only.',
-    )]
-    #[QueryParam(
-        'page',
-        'integer',
-        description: 'Page number. Supplying `page` or `perPage` switches the response to the '
-            . 'offset-pagination envelope.',
-    )]
-    #[QueryParam(
-        'perPage',
-        'integer',
-        description: 'Items per page for offset pagination (clamped to delivery.max_per_page).',
     )]
     #[ApiResponse(
         200,
         schema: DeliveryListData::class,
         description: 'A page of published entries (cursor mode by default; offset mode replaces `data` '
             . 'with the item array plus top-level pagination keys).',
-    )]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Invalid supplied API key.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing key for a private content type, or API key lacks `read:content`/`read:content:{type}`.',
     )]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type slug.')]
     #[ApiResponse(
@@ -151,14 +98,8 @@ final class DeliveryController
         envelope: false,
         description: 'Filter or sort references a non-filterable field or an unsupported operator.',
     )]
-    #[ApiResponse(
-        429,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Rate limit exceeded (120/minute per key).',
-    )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
-    public function index(Request $request, string $type): Response
+    // 401/403/429/500 are inferred from middleware + documentation.errors config (ErrorResponse body).
+    public function index(Request $request, DeliveryListQuery $query, string $type): Response
     {
         $typeRow = $this->types->findBySlug($type);
         if ($typeRow === null) {
@@ -166,11 +107,11 @@ final class DeliveryController
         }
         $schema = ContentTypeSchema::fromArray($typeRow['schema']);
         $typeUuid = (string) $typeRow['uuid'];
-        $locale = $this->locale($request);
+        $locale = $this->locale($query->locale);
 
         try {
-            $filter = $this->compileFilter($request, $schema);
-            $order = $this->sorts->compile($schema, $this->stringQuery($request, 'sort'));
+            $filter = $this->compileFilter($query->filter, $schema);
+            $order = $this->sorts->compile($schema, $query->sort);
         } catch (UnfilterableFieldException | InvalidFilterException $e) {
             return Response::validation(['filter' => $e->getMessage()]);
         }
@@ -178,8 +119,8 @@ final class DeliveryController
         $selector = FieldSelector::fromRequest($request);
 
         // Pagination branch: explicit ?page/?perPage uses the framework offset envelope.
-        if ($this->wantsPagination($request)) {
-            [$page, $perPage] = $this->pageParams($request);
+        if ($query->wantsPagination()) {
+            [$page, $perPage] = $this->pageParams($query);
             $result = $this->delivery->paginatePublished($typeUuid, $locale, $page, $perPage, $filter, $order);
             $rows = $this->shape($result['data'], $schema, $selector, $locale, $typeUuid);
             $response = Response::paginated(
@@ -192,8 +133,8 @@ final class DeliveryController
         }
 
         // Default: cursor/keyset list.
-        $limit = $this->limit($request);
-        $cursor = Cursor::decode($this->stringQuery($request, 'cursor') ?? '');
+        $limit = $this->limit($query);
+        $cursor = Cursor::decode($query->cursor ?? '');
         $rows = $this->delivery->listPublished($typeUuid, $locale, $limit, $filter, $order, $cursor);
         $shaped = $this->shape($rows, $schema, $selector, $locale, $typeUuid);
 
@@ -221,31 +162,14 @@ final class DeliveryController
      */
     #[ApiOperation(
         summary: 'Get a single published entry by slug or UUID',
-        description: 'Returns one PUBLISHED entry of the {type} content type, resolved by its route slug or '
-            . 'by its 12-char entry UUID. Only published content is reachable — a draft-only or '
-            . 'unpublished entry yields 404. Private types require an API key carrying `read:content` or '
-            . '`read:content:{type}`; types with `public_delivery=true` may be read anonymously. Emits an '
-            . '`ETag`; send it back as `If-None-Match` to receive a `304 Not Modified` when the published '
-            . 'version is unchanged. Field projection and reference expansion via `fields`/`expand`.',
+        description: 'Resolved by route slug or 12-char entry UUID; published only (draft/unpublished → 404). '
+            . 'Supports `If-None-Match` → 304.',
         tags: ['Lemma Delivery'],
     )]
-    #[QueryParam('locale', 'string', description: 'Content locale to read (defaults to the i18n default locale).')]
     #[ApiResponse(200, schema: DeliveryShowItemData::class, description: 'The published entry with SEO metadata.')]
     #[ApiResponse(
         304,
         description: 'Not Modified — the supplied If-None-Match ETag still matches the published version.',
-    )]
-    #[ApiResponse(
-        401,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Invalid supplied API key.',
-    )]
-    #[ApiResponse(
-        403,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Missing key for a private content type, or API key lacks `read:content`/`read:content:{type}`.',
     )]
     #[ApiResponse(
         404,
@@ -253,14 +177,8 @@ final class DeliveryController
         envelope: false,
         description: 'Unknown content type, or no published entry for the given slug/UUID.',
     )]
-    #[ApiResponse(
-        429,
-        schema: ErrorResponse::class,
-        envelope: false,
-        description: 'Rate limit exceeded (120/minute per key).',
-    )]
-    #[ApiResponse(500, schema: ErrorResponse::class, envelope: false, description: 'Unexpected server error.')]
-    public function show(Request $request, string $type, string $slugOrUuid): Response
+    // 401/403/429/500 are inferred from middleware + documentation.errors config (ErrorResponse body).
+    public function show(Request $request, DeliveryShowQuery $query, string $type, string $slugOrUuid): Response
     {
         $typeRow = $this->types->findBySlug($type);
         if ($typeRow === null) {
@@ -268,7 +186,7 @@ final class DeliveryController
         }
         $schema = ContentTypeSchema::fromArray($typeRow['schema']);
         $typeUuid = (string) $typeRow['uuid'];
-        $locales = $this->localeChain($request);
+        $locales = $this->localeChain($query->locale);
 
         $result = $this->resolver->resolve($typeUuid, $type, $locales, $slugOrUuid);
         if ($result === null || $result->isGone()) {
@@ -439,31 +357,22 @@ final class DeliveryController
     }
 
     /**
+     * @param array<string,mixed> $filter the raw bracket-array filter from the request DTO
      * @return array{sql:string,bindings:list<mixed>}|null
      */
-    private function compileFilter(Request $request, ContentTypeSchema $schema): ?array
+    private function compileFilter(array $filter, ContentTypeSchema $schema): ?array
     {
-        $raw = $request->query->all('filter');
-        if ($raw === []) {
+        if ($filter === []) {
             return null;
         }
-        return $this->filters->compile($schema, $raw);
-    }
-
-    /**
-     * Whether the request opts into offset pagination. Presence of either `page` or `perPage`
-     * switches index() from the default keyset-cursor list to the framework offset envelope.
-     */
-    private function wantsPagination(Request $request): bool
-    {
-        return $request->query->has('page') || $request->query->has('perPage');
+        return $this->filters->compile($schema, $filter);
     }
 
     /** @return array{0:int,1:int} */
-    private function pageParams(Request $request): array
+    private function pageParams(DeliveryListQuery $query): array
     {
-        $page = max(1, (int) $request->query->get('page', '1'));
-        $perPage = (int) $request->query->get('perPage', (string) $this->defaultPerPage());
+        $page = max(1, $query->page ?? 1);
+        $perPage = $query->perPage ?? $this->defaultPerPage();
         return [$page, $this->clampPerPage($perPage)];
     }
 
@@ -472,11 +381,9 @@ final class DeliveryController
      * configured default. Doubles as the "is there a next page?" probe in index(), which asks
      * for exactly this many rows and emits a cursor only when the result is full.
      */
-    private function limit(Request $request): int
+    private function limit(DeliveryListQuery $query): int
     {
-        $perPage = $request->query->has('perPage')
-            ? (int) $request->query->get('perPage')
-            : $this->defaultPerPage();
+        $perPage = $query->perPage ?? $this->defaultPerPage();
         return $this->clampPerPage($perPage);
     }
 
@@ -519,9 +426,8 @@ final class DeliveryController
      * The locale to read: the `locale` query param when present and non-empty, otherwise the
      * configured i18n default locale.
      */
-    private function locale(Request $request): string
+    private function locale(?string $locale): string
     {
-        $locale = $this->stringQuery($request, 'locale');
         if ($locale !== null && $locale !== '') {
             return $locale;
         }
@@ -533,9 +439,9 @@ final class DeliveryController
      *
      * @return non-empty-list<string>
      */
-    private function localeChain(Request $request): array
+    private function localeChain(?string $locale): array
     {
-        $requested = $this->locale($request);
+        $requested = $this->locale($locale);
         $chain = $this->locales->fallbackChain($requested);
         array_unshift($chain, $requested);
         $out = [];
@@ -570,7 +476,7 @@ final class DeliveryController
             'fields=' . (string) $request->query->get('fields', ''),
             'expand=' . (string) $request->query->get('expand', ''),
             'sort=' . (string) $request->query->get('sort', ''),
-            'locale=' . $this->locale($request),
+            'locale=' . $this->locale($this->stringQuery($request, 'locale')),
             'filter=' . json_encode($request->query->all('filter')),
         ];
         return implode('&', $parts);

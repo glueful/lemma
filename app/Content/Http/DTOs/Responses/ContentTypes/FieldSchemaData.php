@@ -33,6 +33,8 @@ final class FieldSchemaData implements ResponseData
         public readonly ?string $filter_type = null,
         #[ArrayOf('string')]
         public readonly array $enum = [],
+        /** Presentation widget for text fields: 'plain' (textarea) or 'rich' (editor). */
+        public readonly ?string $format = null,
     ) {
     }
 }

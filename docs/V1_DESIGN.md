@@ -135,7 +135,7 @@ reporting — none of which should ship half-built against immutable published
 content. When it lands, the admin gains an explicit model-migration step that
 enqueues a backfill job over current published versions only, with history
 staying as written; until then, the `422` is the deliberate, documented V1
-contract. **Settled design:** [`docs/superpowers/specs/2026-06-16-destructive-schema-backfill-design.md`](superpowers/specs/2026-06-16-destructive-schema-backfill-design.md) (delete + rename; retype deferred) — not yet implemented.
+contract. **Implemented design:** [`docs/superpowers/specs/2026-06-16-destructive-schema-backfill-design.md`](superpowers/specs/2026-06-16-destructive-schema-backfill-design.md) (delete + rename; retype deferred) — shipped 2026-06-17.
 
 ---
 
@@ -538,15 +538,15 @@ correct.
 - **Version retention:** V1 keeps unlimited published version history by
   default. Configurable pruning is deferred until after export/import is
   established as the safety net; pruning must never run before a portable
-  content bundle can preserve history. **Settled design:**
+  content bundle can preserve history. **Implemented design:**
   [`docs/superpowers/specs/2026-06-16-version-pruning-design.md`](superpowers/specs/2026-06-16-version-pruning-design.md)
-  (CLI-only this iteration; scheduled pruning deferred) — not yet implemented.
+  (CLI-only this iteration; scheduled pruning deferred) — shipped 2026-06-17.
 - **Redirects:** `entry_routes` carries current route rows only in V1.
   Redirect rows wait for the SEO/routing module so status codes, chains,
   canonical URLs, and admin UX land together instead of as a half-feature in
-  core content routing. **Settled design:**
+  core content routing. **Implemented design:**
   [`docs/superpowers/specs/2026-06-16-seo-routing-module-design.md`](superpowers/specs/2026-06-16-seo-routing-module-design.md)
-  (full SEO/routing module) — not yet implemented.
+  (full SEO/routing module) — shipped 2026-06-17.
 - **License/distribution:** the backend source is distributed under the
   repository license (`MIT` today). Product packaging, hosted/commercial tiers,
   or admin-build distribution can be decided separately; they do not block the

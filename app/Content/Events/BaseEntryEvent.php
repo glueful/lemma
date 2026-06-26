@@ -36,4 +36,12 @@ abstract class BaseEntryEvent extends BaseContentEvent
             'timestamp' => $this->getTimestamp(),
         ];
     }
+
+    /**
+     * @return array{type:string,uuid:string,label:string}
+     */
+    public function auditTarget(): array
+    {
+        return ['type' => 'content_entry', 'uuid' => $this->entry, 'label' => $this->type];
+    }
 }

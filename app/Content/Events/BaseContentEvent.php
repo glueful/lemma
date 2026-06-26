@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Events;
 
 use Glueful\Events\Contracts\BaseEvent;
+use Glueful\Extensions\Audit\Contracts\AuditableEvent;
 
 /**
  * Base class for every Lemma content domain event.
@@ -22,8 +23,13 @@ use Glueful\Events\Contracts\BaseEvent;
  *  - {@see BaseEntryEvent}  entry lifecycle  (entry, type, locale, version)
  *  - {@see BaseModelEvent}  content-type change (type only)
  *  - {@see BaseAssetEvent}  asset attach/detach (asset, source entry)
+ *
+ * Every content event is also an {@see AuditableEvent}: dispatching one through
+ * the event bus records a `content`-category audit row via glueful/audit, with
+ * no extra wiring. The verb is derived from name() and the identity payload
+ * becomes the audit context; each shape base supplies {@see auditTarget()}.
  */
-abstract class BaseContentEvent extends BaseEvent
+abstract class BaseContentEvent extends BaseEvent implements AuditableEvent
 {
     public function __construct()
     {
@@ -45,4 +51,48 @@ abstract class BaseContentEvent extends BaseEvent
      * @return array<string, mixed>
      */
     abstract public function payload(): array;
+
+    /**
+     * Audit verb, taken from the segment after the dot in name():
+     * `entry.published` → `published`, `model.created` → `created`.
+     */
+    public function auditAction(): string
+    {
+        $name = $this->name();
+        $dot = strrpos($name, '.');
+
+        return $dot === false ? $name : substr($name, $dot + 1);
+    }
+
+    public function auditCategory(): string
+    {
+        return 'content';
+    }
+
+    /** @return array<string, array<string, mixed>>|null */
+    public function auditChanges(): ?array
+    {
+        return null;
+    }
+
+    /**
+     * The identity payload becomes the audit context, minus actor/timestamp
+     * (which become their own columns) and any null values.
+     *
+     * @return array<string, mixed>
+     */
+    public function auditMetadata(): array
+    {
+        $payload = $this->payload();
+        unset($payload['actor'], $payload['timestamp']);
+
+        return array_filter($payload, static fn ($value): bool => $value !== null);
+    }
+
+    /**
+     * What the event acted on — entry, content type, or asset.
+     *
+     * @return array{type?:string|null,uuid?:string|null,label?:string|null}
+     */
+    abstract public function auditTarget(): array;
 }

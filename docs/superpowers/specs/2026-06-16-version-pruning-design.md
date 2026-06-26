@@ -5,7 +5,7 @@ age-based — that prunes old published-version snapshots **without ever touchin
 currently-pinned version**, with the `glueful/import-export` bundle as the archival
 safety net.
 
-**Status:** Settled design — ready for the implementation plan.
+**Status:** ✅ Shipped (2026-06-17) — implemented and reviewed.
 
 **Backlog item:** [POST_V1.md](../../POST_V1.md) §3. Resolves the deferral documented in
 [V1_DESIGN.md](../../V1_DESIGN.md) ("Version retention").

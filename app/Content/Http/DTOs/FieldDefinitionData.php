@@ -39,6 +39,8 @@ final class FieldDefinitionData implements RequestData
         #[ArrayOf('string')]
         #[Rule('array')]
         public readonly array $enum = [],
+        #[Rule('string')]
+        public readonly ?string $format = null,
     ) {
     }
 
@@ -57,6 +59,7 @@ final class FieldDefinitionData implements RequestData
             'filterable' => $this->filterable ?? false,
             'filter_type' => $this->filter_type,
             'enum' => $this->enum,
+            'format' => $this->format,
         ];
     }
 }

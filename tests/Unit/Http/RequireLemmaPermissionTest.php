@@ -31,7 +31,7 @@ final class RequireLemmaPermissionTest extends TestCase
     {
         $mw = new RequireLemmaPermission($this->contextWithoutContainer());
         // Valid permission param, but no `auth.user` attribute on the request.
-        $resp = $mw->handle(new Request(), fn() => new Response(), 'lemma.entries.write');
+        $resp = $mw->handle(new Request(), fn() => new Response(), 'content.edit');
         self::assertSame(403, $resp->getStatusCode());
     }
 
@@ -40,14 +40,14 @@ final class RequireLemmaPermissionTest extends TestCase
         $request = new Request();
         $request->attributes->set('auth.user', new \Glueful\Auth\UserIdentity(
             uuid: 'usr_test01',
-            roles: ['lemma_admin'],
+            roles: ['administrator'],
             username: 'tester',
         ));
 
         // Valid param + authenticated user, but the context has no container, so the
         // PermissionManager cannot be resolved -> fail closed.
         $mw = new RequireLemmaPermission($this->contextWithoutContainer());
-        $resp = $mw->handle($request, fn() => new Response(), 'lemma.entries.write');
+        $resp = $mw->handle($request, fn() => new Response(), 'content.edit');
         self::assertSame(403, $resp->getStatusCode());
     }
 

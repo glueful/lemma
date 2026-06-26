@@ -40,4 +40,40 @@ final class ContentTypeSchemaTest extends TestCase
             ['name' => 'a', 'type' => 'number'],
         ]);
     }
+
+    public function testTextFieldDefaultsToPlainFormat(): void
+    {
+        $schema = ContentTypeSchema::fromArray([
+            ['name' => 'body', 'type' => 'text'],
+        ]);
+
+        self::assertSame('plain', $schema->field('body')->format);
+        self::assertSame('plain', $schema->toArray()[0]['format']);
+    }
+
+    public function testTextFieldAcceptsRichFormat(): void
+    {
+        $schema = ContentTypeSchema::fromArray([
+            ['name' => 'body', 'type' => 'text', 'format' => 'rich'],
+        ]);
+
+        self::assertSame('rich', $schema->field('body')->format);
+    }
+
+    public function testRejectsInvalidTextFormat(): void
+    {
+        $this->expectException(SchemaParseException::class);
+        ContentTypeSchema::fromArray([
+            ['name' => 'body', 'type' => 'text', 'format' => 'markdown'],
+        ]);
+    }
+
+    public function testNonTextFieldIgnoresFormat(): void
+    {
+        $schema = ContentTypeSchema::fromArray([
+            ['name' => 'title', 'type' => 'string', 'format' => 'rich'],
+        ]);
+
+        self::assertNull($schema->field('title')->format);
+    }
 }

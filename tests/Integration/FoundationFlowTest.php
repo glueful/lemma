@@ -26,7 +26,7 @@ use App\Tests\Support\LemmaTestCase;
  * proving routing + the auth/middleware chain are wired, not bypassed).
  *
  * Why wiring-proof and not a full authenticated round-trip: a real bearer-token round
- * trip would need to seed a user, the lemma_admin role with permissions and mint a valid
+ * trip would need to seed a user, the administrator role with permissions and mint a valid
  * JWT — none of which the harness provides, and inventing those helpers was out of scope
  * for this task (and explicitly discouraged by the plan). The create-type -> create-entry
  * -> save-draft -> publish behavior is already covered by the controller-level tests in
@@ -64,27 +64,27 @@ final class FoundationFlowTest extends LemmaTestCase
     public static function adminRoutes(): array
     {
         return [
-            ['GET', '/v1/admin/content-types', 'lemma_permission:lemma.entries.read'],
-            ['POST', '/v1/admin/content-types', 'lemma_permission:lemma.models.manage'],
-            ['GET', '/v1/admin/content-types/{slug}', 'lemma_permission:lemma.entries.read'],
-            ['PATCH', '/v1/admin/content-types/{slug}/schema', 'lemma_permission:lemma.models.manage'],
-            ['POST', '/v1/admin/entries', 'lemma_permission:lemma.entries.write'],
-            ['GET', '/v1/admin/entries/{uuid}', 'lemma_permission:lemma.entries.read'],
-            ['GET', '/v1/admin/entries/{uuid}/draft/{locale}', 'lemma_permission:lemma.entries.read'],
-            ['PUT', '/v1/admin/entries/{uuid}/draft/{locale}', 'lemma_permission:lemma.entries.write'],
-            ['DELETE', '/v1/admin/entries/{uuid}/draft/{locale}', 'lemma_permission:lemma.entries.write'],
-            ['DELETE', '/v1/admin/entries/{uuid}', 'lemma_permission:lemma.entries.write'],
-            ['GET', '/v1/admin/entries/{uuid}/versions/{locale}', 'lemma_permission:lemma.entries.read'],
-            ['GET', '/v1/admin/entries/{uuid}/routes', 'lemma_permission:lemma.entries.read'],
-            ['PUT', '/v1/admin/entries/{uuid}/routes/{locale}', 'lemma_permission:lemma.entries.write'],
-            ['DELETE', '/v1/admin/entries/{uuid}/routes/{locale}', 'lemma_permission:lemma.entries.write'],
-            ['POST', '/v1/admin/content-types/{slug}/redirects', 'lemma_permission:lemma.routes.manage'],
-            ['GET', '/v1/admin/content-types/{slug}/redirects', 'lemma_permission:lemma.routes.manage'],
-            ['DELETE', '/v1/admin/redirects/{uuid}', 'lemma_permission:lemma.routes.manage'],
-            ['DELETE', '/v1/admin/content-types/{slug}', 'lemma_permission:lemma.models.manage'],
-            ['POST', '/v1/admin/entries/{uuid}/publish/{locale}', 'lemma_permission:lemma.entries.publish'],
-            ['POST', '/v1/admin/entries/{uuid}/unpublish/{locale}', 'lemma_permission:lemma.entries.publish'],
-            ['POST', '/v1/admin/entries/{uuid}/rollback/{locale}', 'lemma_permission:lemma.entries.publish'],
+            ['GET', '/v1/admin/content-types', 'lemma_permission:content.view'],
+            ['POST', '/v1/admin/content-types', 'lemma_permission:content.manage'],
+            ['GET', '/v1/admin/content-types/{slug}', 'lemma_permission:content.view'],
+            ['PATCH', '/v1/admin/content-types/{slug}/schema', 'lemma_permission:content.manage'],
+            ['POST', '/v1/admin/entries', 'lemma_permission:content.create'],
+            ['GET', '/v1/admin/entries/{uuid}', 'lemma_permission:content.view'],
+            ['GET', '/v1/admin/entries/{uuid}/draft/{locale}', 'lemma_permission:content.view'],
+            ['PUT', '/v1/admin/entries/{uuid}/draft/{locale}', 'lemma_permission:content.edit'],
+            ['DELETE', '/v1/admin/entries/{uuid}/draft/{locale}', 'lemma_permission:content.edit'],
+            ['DELETE', '/v1/admin/entries/{uuid}', 'lemma_permission:content.delete'],
+            ['GET', '/v1/admin/entries/{uuid}/versions/{locale}', 'lemma_permission:content.view'],
+            ['GET', '/v1/admin/entries/{uuid}/routes', 'lemma_permission:content.view'],
+            ['PUT', '/v1/admin/entries/{uuid}/routes/{locale}', 'lemma_permission:content.edit'],
+            ['DELETE', '/v1/admin/entries/{uuid}/routes/{locale}', 'lemma_permission:content.edit'],
+            ['POST', '/v1/admin/content-types/{slug}/redirects', 'lemma_permission:content.routes'],
+            ['GET', '/v1/admin/content-types/{slug}/redirects', 'lemma_permission:content.routes'],
+            ['DELETE', '/v1/admin/redirects/{uuid}', 'lemma_permission:content.routes'],
+            ['DELETE', '/v1/admin/content-types/{slug}', 'lemma_permission:content.manage'],
+            ['POST', '/v1/admin/entries/{uuid}/publish/{locale}', 'lemma_permission:content.publish'],
+            ['POST', '/v1/admin/entries/{uuid}/unpublish/{locale}', 'lemma_permission:content.publish'],
+            ['POST', '/v1/admin/entries/{uuid}/rollback/{locale}', 'lemma_permission:content.publish'],
         ];
     }
 
@@ -125,12 +125,12 @@ final class FoundationFlowTest extends LemmaTestCase
             FROM role_permissions rp
             JOIN roles r ON r.uuid = rp.role_uuid
             JOIN permissions p ON p.uuid = rp.permission_uuid
-            WHERE p.slug = 'lemma.routes.manage'
+            WHERE p.slug = 'content.routes'
             ORDER BY r.slug
             SQL
         );
         self::assertNotFalse($rows);
 
-        self::assertSame(['lemma_admin'], $rows->fetchAll(\PDO::FETCH_COLUMN));
+        self::assertSame(['administrator'], $rows->fetchAll(\PDO::FETCH_COLUMN));
     }
 }

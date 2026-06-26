@@ -7,27 +7,39 @@ use Glueful\Database\Migrations\MigrationInterface;
 use Glueful\Database\Schema\Interfaces\SchemaBuilderInterface;
 use Glueful\Helpers\Utils;
 
+/**
+ * Lemma's content permissions + the `editor` role, layered onto Aegis's standard roles.
+ *
+ * Aegis (003) owns the role ladder (superuser / administrator / user) and the core `content.*`
+ * permissions (view/create/edit/delete). Lemma does NOT define its own admin/viewer roles — the
+ * first admin uses Aegis's `administrator` and read-only users use Aegis's `user`. This migration
+ * only:
+ *   - adds the content-specific permissions Lemma gates on (`content.publish/manage/routes`),
+ *   - grants them onto the existing `administrator` role, and
+ *   - seeds a Lemma-owned `editor` role (content view/create/edit/publish).
+ *
+ * Runs as a dependent migration, i.e. AFTER Aegis's 003, so `content.view/create/edit` already
+ * exist when we reference them here.
+ */
 final class SeedLemmaRolesAndPermissions implements MigrationInterface
 {
-    /** permission slug => human label */
+    /** Permissions OWNED by Lemma (created + removed by this migration). slug => label */
     private const PERMISSIONS = [
-        'lemma.models.manage' => 'Manage content models',
-        'lemma.entries.write' => 'Create and edit entries',
-        'lemma.entries.publish' => 'Publish and unpublish entries',
-        'lemma.entries.read' => 'Read entries (admin)',
-        'lemma.routes.manage' => 'Manage redirects and SEO routes',
+        'content.publish' => 'Publish and unpublish content',
+        'content.manage' => 'Manage content types',
+        'content.routes' => 'Manage redirects and SEO routes',
     ];
 
-    /** role slug => [name, level, granted permission slugs] */
+    /** Lemma-owned roles. slug => [name, level, granted permission slugs (Aegis + Lemma)] */
     private const ROLES = [
-        'lemma_admin' => ['Lemma Admin', 80, [
-            'lemma.models.manage', 'lemma.entries.write', 'lemma.entries.publish', 'lemma.entries.read',
-            'lemma.routes.manage',
+        'editor' => ['Editor', 50, [
+            'content.view', 'content.create', 'content.edit', 'content.publish',
         ]],
-        'lemma_editor' => ['Lemma Editor', 50, [
-            'lemma.entries.write', 'lemma.entries.publish', 'lemma.entries.read',
-        ]],
-        'lemma_viewer' => ['Lemma Viewer', 20, ['lemma.entries.read']],
+    ];
+
+    /** Lemma permissions granted onto EXISTING Aegis roles. aegis role slug => [perm slugs] */
+    private const ROLE_GRANTS = [
+        'administrator' => ['content.publish', 'content.manage', 'content.routes'],
     ];
 
     private Connection $db;
@@ -36,43 +48,72 @@ final class SeedLemmaRolesAndPermissions implements MigrationInterface
     {
         $this->db = new Connection();
 
-        $roleUuids = $this->ensureRows(
-            'roles',
-            array_map(static fn(string $slug, array $r): array => [
+        // Create Lemma's own permissions (idempotent).
+        $this->ensureRows('permissions', array_map(
+            static fn(string $slug, string $label): array => [
+                'slug' => $slug, 'name' => $label, 'category' => 'content',
+                'description' => $label, 'is_system' => true,
+            ],
+            array_keys(self::PERMISSIONS),
+            array_values(self::PERMISSIONS),
+        ));
+
+        // Create Lemma's editor role (idempotent), then resolve the existing Aegis roles we add to.
+        $roleUuids = $this->ensureRows('roles', array_map(
+            static fn(string $slug, array $r): array => [
                 'slug' => $slug, 'name' => $r[0], 'description' => $r[0],
                 'level' => $r[1], 'is_system' => true, 'status' => 'active',
-            ], array_keys(self::ROLES), self::ROLES)
-        );
+            ],
+            array_keys(self::ROLES),
+            array_values(self::ROLES),
+        ));
+        $roleUuids += $this->lookupUuids('roles', array_keys(self::ROLE_GRANTS));
 
-        $permUuids = $this->ensureRows(
-            'permissions',
-            array_map(static fn(string $slug, string $label): array => [
-                'slug' => $slug, 'name' => $label, 'category' => 'lemma',
-                'description' => $label, 'is_system' => true,
-            ], array_keys(self::PERMISSIONS), self::PERMISSIONS)
-        );
+        // Build role => [perm slugs] from both sources, then resolve every referenced permission.
+        $grantsByRole = [];
+        foreach (self::ROLES as $slug => [, , $grants]) {
+            $grantsByRole[$slug] = $grants;
+        }
+        foreach (self::ROLE_GRANTS as $slug => $grants) {
+            $grantsByRole[$slug] = array_merge($grantsByRole[$slug] ?? [], $grants);
+        }
+        $permSlugs = array_values(array_unique(array_merge(...array_values($grantsByRole))));
+        $permUuids = $this->lookupUuids('permissions', $permSlugs);
 
-        // role_permissions assignments (idempotent on the (role_uuid, permission_uuid) pair).
-        $existing = [];
-        foreach ($this->db->table('role_permissions')->select(['role_uuid', 'permission_uuid'])->get() as $row) {
-            $existing[$row['role_uuid'] . '|' . $row['permission_uuid']] = true;
+        $this->assign($roleUuids, $permUuids, $grantsByRole);
+    }
+
+    public function down(SchemaBuilderInterface $schema): void
+    {
+        $this->db = new Connection();
+
+        // Remove Lemma's permissions from every role (incl. administrator), then the perms.
+        $permUuids = array_column(
+            $this->db->table('permissions')->select(['uuid'])
+                ->whereIn('slug', array_keys(self::PERMISSIONS))->get(),
+            'uuid'
+        );
+        if ($permUuids !== []) {
+            $this->db->table('role_permissions')->whereIn('permission_uuid', $permUuids)->delete();
         }
-        $newAssignments = [];
-        foreach (self::ROLES as $roleSlug => [, , $grants]) {
-            foreach ($grants as $permSlug) {
-                $pair = $roleUuids[$roleSlug] . '|' . $permUuids[$permSlug];
-                if (!isset($existing[$pair])) {
-                    $newAssignments[] = [
-                        'uuid' => Utils::generateNanoID(),
-                        'role_uuid' => $roleUuids[$roleSlug],
-                        'permission_uuid' => $permUuids[$permSlug],
-                    ];
-                }
-            }
+
+        // Remove the editor role's grants + the role itself (leaving Aegis roles untouched).
+        $roleUuids = array_column(
+            $this->db->table('roles')->select(['uuid'])
+                ->whereIn('slug', array_keys(self::ROLES))->get(),
+            'uuid'
+        );
+        if ($roleUuids !== []) {
+            $this->db->table('role_permissions')->whereIn('role_uuid', $roleUuids)->delete();
         }
-        if ($newAssignments !== []) {
-            $this->db->table('role_permissions')->insertBatch($newAssignments);
-        }
+
+        $this->db->table('permissions')->whereIn('slug', array_keys(self::PERMISSIONS))->delete();
+        $this->db->table('roles')->whereIn('slug', array_keys(self::ROLES))->delete();
+    }
+
+    public function getDescription(): string
+    {
+        return 'Seed Lemma content permissions + the editor role onto Aegis standard roles.';
     }
 
     /**
@@ -84,10 +125,7 @@ final class SeedLemmaRolesAndPermissions implements MigrationInterface
     private function ensureRows(string $table, array $rows): array
     {
         $slugs = array_column($rows, 'slug');
-        $bySlug = [];
-        foreach ($this->db->table($table)->select(['uuid', 'slug'])->whereIn('slug', $slugs)->get() as $r) {
-            $bySlug[$r['slug']] = $r['uuid'];
-        }
+        $bySlug = $this->lookupUuids($table, $slugs);
         $insert = [];
         foreach ($rows as $row) {
             if (!isset($bySlug[$row['slug']])) {
@@ -102,23 +140,61 @@ final class SeedLemmaRolesAndPermissions implements MigrationInterface
         return $bySlug;
     }
 
-    public function down(SchemaBuilderInterface $schema): void
+    /**
+     * Look up existing rows by slug (never creates). Returns slug => uuid.
+     *
+     * @param list<string> $slugs
+     * @return array<string,string>
+     */
+    private function lookupUuids(string $table, array $slugs): array
     {
-        $this->db = new Connection();
-        $permUuids = array_column(
-            $this->db->table('permissions')->select(['uuid'])
-                ->whereIn('slug', array_keys(self::PERMISSIONS))->get(),
-            'uuid'
-        );
-        if ($permUuids !== []) {
-            $this->db->table('role_permissions')->whereIn('permission_uuid', $permUuids)->delete();
+        if ($slugs === []) {
+            return [];
         }
-        $this->db->table('permissions')->whereIn('slug', array_keys(self::PERMISSIONS))->delete();
-        $this->db->table('roles')->whereIn('slug', array_keys(self::ROLES))->delete();
+        $out = [];
+        foreach ($this->db->table($table)->select(['uuid', 'slug'])->whereIn('slug', $slugs)->get() as $r) {
+            $out[$r['slug']] = $r['uuid'];
+        }
+        return $out;
     }
 
-    public function getDescription(): string
+    /**
+     * Idempotently assign permissions to roles by the (role_uuid, permission_uuid) pair.
+     *
+     * @param array<string,string>       $roleUuids    role slug => uuid
+     * @param array<string,string>       $permUuids    perm slug => uuid
+     * @param array<string,list<string>> $grantsByRole role slug => list of perm slugs
+     */
+    private function assign(array $roleUuids, array $permUuids, array $grantsByRole): void
     {
-        return 'Seed Lemma roles (admin/editor/viewer) and namespaced permissions into aegis.';
+        $existing = [];
+        foreach ($this->db->table('role_permissions')->select(['role_uuid', 'permission_uuid'])->get() as $row) {
+            $existing[$row['role_uuid'] . '|' . $row['permission_uuid']] = true;
+        }
+        $new = [];
+        foreach ($grantsByRole as $roleSlug => $permSlugs) {
+            $roleUuid = $roleUuids[$roleSlug] ?? null;
+            if ($roleUuid === null) {
+                continue;
+            }
+            foreach ($permSlugs as $permSlug) {
+                $permUuid = $permUuids[$permSlug] ?? null;
+                if ($permUuid === null) {
+                    continue;
+                }
+                $pair = $roleUuid . '|' . $permUuid;
+                if (!isset($existing[$pair])) {
+                    $new[] = [
+                        'uuid' => Utils::generateNanoID(),
+                        'role_uuid' => $roleUuid,
+                        'permission_uuid' => $permUuid,
+                    ];
+                    $existing[$pair] = true;
+                }
+            }
+        }
+        if ($new !== []) {
+            $this->db->table('role_permissions')->insertBatch($new);
+        }
     }
 }

@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** ✅ Shipped (2026-06-17) — implemented, reviewed, and merged. Steps left as `[ ]` for historical reference.
+
 **Goal:** Let editors schedule an entry+locale to publish/unpublish at a future time, as deferred execution of the existing `PublishService` actions.
 
 **Architecture:** A new `entry_schedules` table holds pending actions. A shared `ScheduleRunner` claims due rows by flipping `pending → processing` (`FOR UPDATE SKIP LOCKED`, repository-owned raw PDO, short transaction), fires each **outside** any enclosing transaction through `PublishService::publish()`/`unpublish()`, then records `done`/`failed`/`canceled` in a separate write — so the terminal-status write survives an action failure without depending on framework savepoint behavior; stale `processing` rows (crash mid-fire) are reclaimed on the next run. Two thin wrappers drive the runner: `lemma:schedules:run` (operator/manual) and `RunDueSchedulesJob` (the every-minute cron `JobInterface`). A `schedules` admin API creates/lists/cancels schedules (create and cancel are entry-scoped); `run_at` is normalized to UTC. No changes to the draft/version/publication lifecycle, the delivery read path, or the §5 event taxonomy.

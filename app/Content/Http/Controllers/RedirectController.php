@@ -9,7 +9,10 @@ use App\Content\Http\DTOs\CreateRedirectData;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Seo\RedirectRepository;
+use App\Http\DTOs\ErrorResponse;
 use Glueful\Http\Response;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 final class RedirectController
@@ -22,6 +25,27 @@ final class RedirectController
     ) {
     }
 
+    #[ApiOperation(
+        summary: 'Create a redirect for a content type',
+        description: 'Adds a manual SEO redirect (301/302/308) from a source slug to a target URL or '
+            . 'entry, scoped to the content type named by `slug`.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(201, description: 'Redirect created.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type or target.')]
+    #[ApiResponse(
+        409,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Source slug conflicts with a live route.',
+    )]
+    #[ApiResponse(
+        422,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'Invalid status, unsafe target URL, or ambiguous target.',
+    )]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function store(CreateRedirectData $input, Request $request, string $slug): Response
     {
         $type = $this->types->findBySlug($slug);
@@ -58,6 +82,15 @@ final class RedirectController
         );
     }
 
+    #[ApiOperation(
+        summary: 'List redirects for a content type',
+        description: 'Returns the manual redirects defined for the content type named by `slug` '
+            . '(optionally filtered by `?locale=`), each with its resolved target state (live/broken).',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Redirects retrieved.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'Unknown content type slug.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function index(Request $request, string $slug): Response
     {
         $type = $this->types->findBySlug($slug);
@@ -76,6 +109,14 @@ final class RedirectController
         ], 'Redirects retrieved.');
     }
 
+    #[ApiOperation(
+        summary: 'Delete a redirect',
+        description: 'Removes the manual redirect identified by `uuid`.',
+        tags: ['Lemma Admin'],
+    )]
+    #[ApiResponse(200, description: 'Redirect deleted.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No redirect with that UUID.')]
+    // 401/403/429/500 inferred from middleware + documentation.errors config.
     public function destroy(Request $request, string $uuid): Response
     {
         unset($request);

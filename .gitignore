@@ -22,6 +22,9 @@
 *.log
 bootstrap/cache/
 
+# --- Admin SPA build (compiled bundle is baked into release tags, not committed in dev) ---
+/public/admin/
+
 # --- Runtime artifacts ---
 /:memory:
 /storage/cache/*
@@ -32,3 +35,5 @@ bootstrap/cache/
 !/storage/import-export/exports/.gitkeep
 /storage/import-export/imports/*
 !/storage/import-export/imports/.gitkeep
+/storage/uploads/*
+!/storage/uploads/.gitkeep

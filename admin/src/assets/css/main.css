@@ -1,0 +1,12 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+@theme {
+  /* Your custom design tokens go here */
+}
+
+@layer base {
+  body {
+    @apply bg-neutral-50 dark:bg-neutral-950;
+  }
+}

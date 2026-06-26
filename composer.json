@@ -1,9 +1,9 @@
 {
-  "name": "glueful/api-skeleton",
-  "description": "Glueful API Application Skeleton — Create high-performance APIs",
+  "name": "glueful/lemma",
+  "description": "Lemma — a hybrid CMS and canonical content source, built on the Glueful framework.",
   "type": "project",
-  "keywords": ["api", "skeleton", "glueful", "rest", "php"],
-  "homepage": "https://glueful.com/",
+  "keywords": ["lemma", "cms", "hybrid-cms", "content", "glueful", "php"],
+  "homepage": "https://getlemma.dev",
   "license": "MIT",
   "authors": [
     {
@@ -13,13 +13,15 @@
   ],
   "require": {
     "php": "^8.3",
-    "glueful/aegis": "^1.8.0",
+    "glueful/aegis": "^1.13.1",
+    "glueful/audit": "^1.1.0",
     "glueful/email-notification": "^1.10.0",
-    "glueful/framework": "^1.58.1",
+    "glueful/framework": "^1.63.2",
     "glueful/i18n": "^1.1.1",
     "glueful/import-export": "^1.1.1",
     "glueful/media": "^1.1.0",
-    "glueful/users": "^1.1.1",
+    "glueful/users": "^2.3.0",
+    "league/commonmark": "^2.8",
     "symfony/brevo-mailer": "^8.1"
   },
   "require-dev": {
@@ -62,9 +64,7 @@
       "@test"
     ],
     "post-create-project-cmd": [
-      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
-      "@php -r \"is_dir('storage/database') || mkdir('storage/database', 0775, true); file_exists('storage/database/glueful.sqlite') || touch('storage/database/glueful.sqlite');\"",
-      "@php glueful install --force"
+      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
     ]
   },
   "config": {

@@ -50,6 +50,7 @@ final class ContentTypeSchema
             'filterable' => $f->filterable,
             'filter_type' => $f->filterType,
             'enum' => $f->enumValues,
+            'format' => $f->format,
         ], static fn($v): bool => $v !== false && $v !== null && $v !== []), $this->fields());
     }
 }

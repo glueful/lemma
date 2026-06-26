@@ -5,7 +5,7 @@ publish `fr` but not `de` — using Aegis's **native resource-level filters**, s
 permission names (`lemma.entries.publish`, etc.) never have to be renamed or
 type/locale-encoded.
 
-**Status:** Settled design — ready for the implementation plan.
+**Status:** ✅ Shipped (2026-06-17) — implemented and reviewed.
 
 **Backlog item:** [POST_V1.md](../../POST_V1.md) §6. Resolves the deferral documented in
 [V1_DESIGN.md](../../V1_DESIGN.md) §3 ("does not add per-locale RBAC") + §7.

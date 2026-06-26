@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Setup\SetupService;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\ReferenceResolver;
@@ -12,8 +13,16 @@ use App\Content\Console\PruneVersionsCommand;
 use App\Content\Console\ResyncCommand;
 use App\Content\Console\RunBackfillCommand;
 use App\Content\Console\RunDueSchedulesCommand;
+use App\Setup\Console\CreateAdminCommand;
+use App\Setup\Console\DoctorCommand;
+use App\Setup\Console\ProvisionCommand;
 use App\Content\Backfill\BackfillRunner;
+use App\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\ExtensionAdminController;
+use App\Http\Controllers\MediaAdminController;
+use App\Http\Controllers\UserAdminController;
 use App\Content\Http\Controllers\ContentTypeController;
+use App\Http\Controllers\SetupController;
 use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
 use App\Content\Http\Controllers\MigrationController;
@@ -42,6 +51,7 @@ use App\Content\Events\AssetDetached;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
 use App\Content\Pipeline\Listeners\PurgeCdnListener;
+use App\Content\Pipeline\Listeners\MediaUsageProjector;
 use App\Content\Pipeline\Listeners\ReindexSearchListener;
 use App\Content\Pipeline\PublishEventEmitter;
 use App\Content\Preview\PreviewMinter;
@@ -114,6 +124,11 @@ final class LemmaServiceProvider extends ServiceProvider
     public static function services(): array
     {
         return [
+            SetupService::class => [
+                'class'    => SetupService::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             ContentTypeRepository::class => [
                 'class' => ContentTypeRepository::class,
                 'shared' => true,
@@ -207,6 +222,11 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            MediaUsageProjector::class => [
+                'class' => MediaUsageProjector::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
             PublishService::class => [
                 'class' => PublishService::class,
                 'shared' => true,
@@ -224,6 +244,31 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             MigrationController::class => [
                 'class' => MigrationController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            AdminConfigController::class => [
+                'class' => AdminConfigController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            UserAdminController::class => [
+                'class' => UserAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ExtensionAdminController::class => [
+                'class' => ExtensionAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            MediaAdminController::class => [
+                'class' => MediaAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            SetupController::class => [
+                'class' => SetupController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -377,6 +422,21 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            DoctorCommand::class => [
+                'class' => DoctorCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ProvisionCommand::class => [
+                'class' => ProvisionCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CreateAdminCommand::class => [
+                'class' => CreateAdminCommand::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
         ];
     }
 
@@ -426,6 +486,20 @@ final class LemmaServiceProvider extends ServiceProvider
             'app:dependent'
         );
 
+        // Mount the compiled admin SPA at /admin via the framework seam: secure asset serving
+        // + index.html deep-link fallback + cache split. No-ops (with a warning) if the bundle
+        // is unbuilt. The /admin/config + /admin/setup static routes (routes/lemma_admin_spa.php)
+        // keep precedence over the SPA catch-all via the router's static-first lookup.
+        // Gated by lemma.admin.enabled so an operator can disable the default admin and bring
+        // their own (the admin is a replaceable client of the /v1/admin API).
+        if ((bool) config($context, 'lemma.admin.enabled', true)) {
+            $this->serveFrontend(
+                '/admin',
+                (string) config($context, 'lemma.admin.bundle_path', dirname(__DIR__, 2) . '/public/admin'),
+                ['name' => 'Lemma Admin'],
+            );
+        }
+
         $this->registerEventListeners($context);
 
         // Console: register Lemma's app commands. commands() is a console-only no-op in
@@ -435,6 +509,9 @@ final class LemmaServiceProvider extends ServiceProvider
             PruneVersionsCommand::class,
             RunBackfillCommand::class,
             RunDueSchedulesCommand::class,
+            DoctorCommand::class,
+            ProvisionCommand::class,
+            CreateAdminCommand::class,
         ]);
     }
 
@@ -514,8 +591,8 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             // Asset delta events (V1_DESIGN §8) are meaningful to external receivers
             // ("where is this asset used") but carry no cache tags — webhook only.
-            AssetAttached::class => [DispatchWebhookListener::class],
-            AssetDetached::class => [DispatchWebhookListener::class],
+            AssetAttached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
+            AssetDetached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
         ];
 
         foreach ($listeners as $eventClass => $serviceIds) {

@@ -6,9 +6,9 @@ return [
 
     // Seeded role names (see docs/V1_DESIGN.md §7).
     'roles' => [
-        'admin' => 'lemma_admin',
-        'editor' => 'lemma_editor',
-        'viewer' => 'lemma_viewer',
+        // The first admin uses Aegis's standard `administrator` role; `editor` is Lemma-owned.
+        'admin' => 'administrator',
+        'editor' => 'editor',
     ],
 
     // Public delivery API defaults (see docs/V1_DESIGN.md §6). Delivery is private by
@@ -45,6 +45,28 @@ return [
         // Forward content events to the core WebhookDispatcher. Deliveries only occur for
         // events that have an active subscription, so this is safe to leave on.
         'webhooks_enabled' => (bool) env('LEMMA_WEBHOOKS_ENABLED', true),
+    ],
+
+    // Admin SPA runtime config (served UNAUTHENTICATED at GET /admin/config so the
+    // compiled bundle is not env-baked — one build works across installs). See
+    // docs/superpowers/specs/2026-06-17-admin-spa-phase-1-design.md §"Runtime config".
+    'admin' => [
+        // The admin API base PATH the SPA calls. Lemma's admin routes are hardcoded /v1/admin.
+        // The admin is served same-origin (the PHP app serves both /admin and the API), so this is
+        // a relative path.
+        'api_base' => env('LEMMA_ADMIN_API_BASE', '/v1/admin'),
+        // The frontend preview URL template; the SPA appends/embeds the minted token.
+        'site_preview_url' => env('LEMMA_SITE_PREVIEW_URL', ''),
+        // Phase 1 is en-only in the UI; locale stays in the data model.
+        'default_locale' => env('LEMMA_ADMIN_DEFAULT_LOCALE', (string) env('I18N_DEFAULT_LOCALE', 'en')),
+        // Whether the default first-party admin SPA is mounted at /admin. The bundled admin is a
+        // REPLACEABLE client of the /v1/admin API — set this false to bring your own (point
+        // bundle_path at your build, or disable and register a different mount in a provider).
+        'enabled' => (bool) env('LEMMA_ADMIN_ENABLED', true),
+        // Filesystem dir of the compiled SPA bundle the framework serveFrontend() seam mounts
+        // at /admin. Defaults to public/admin (baked into the release tag by .github/workflows/
+        // release.yml; gitignored in dev). Override for tests/relocation/a custom admin.
+        'bundle_path' => env('LEMMA_ADMIN_BUNDLE_PATH', dirname(__DIR__) . '/public/admin'),
     ],
 
     // Scheduled publish/unpublish. The framework scheduler's per-job `enabled` key is not

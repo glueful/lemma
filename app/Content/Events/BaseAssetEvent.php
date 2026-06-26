@@ -32,4 +32,12 @@ abstract class BaseAssetEvent extends BaseContentEvent
             'timestamp' => $this->getTimestamp(),
         ];
     }
+
+    /**
+     * @return array{type:string,uuid:string,label:null}
+     */
+    public function auditTarget(): array
+    {
+        return ['type' => 'asset', 'uuid' => $this->asset, 'label' => null];
+    }
 }

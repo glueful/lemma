@@ -5,7 +5,7 @@ locale variant is created from a source locale, copy the **non-localized** field
 and leave the **localized** fields for the editor to translate — so editors only
 re-author what is actually locale-specific.
 
-**Status:** Settled design — ready for the implementation plan.
+**Status:** ✅ Shipped (2026-06-17) — implemented and reviewed.
 
 **Backlog item:** [POST_V1.md](../../POST_V1.md) §5. Resolves the deferral documented in
 [V1_DESIGN.md](../../V1_DESIGN.md) §3 ("Field-level localization … already representable").

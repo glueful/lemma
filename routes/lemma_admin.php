@@ -10,6 +10,7 @@ use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
 use App\Http\Controllers\EmailSettingsController;
+use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\UserAdminController;
 use Glueful\Routing\Router;
 
@@ -144,4 +145,21 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->delete('/users/{uuid}', [UserAdminController::class, 'destroy'])
         ->middleware('lemma_permission:users.delete');
+
+    // Extensions — list/toggle installed glueful-extension packages + browse the Packagist catalog.
+    // Enable/disable rewrites config/extensions.php (dev only). All gated by system.access.
+    $router->get('/extensions', [ExtensionAdminController::class, 'index'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/extensions/registry', [ExtensionAdminController::class, 'registry'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/extensions/enable', [ExtensionAdminController::class, 'enable'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/extensions/disable', [ExtensionAdminController::class, 'disable'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/extensions/{vendor}/{name}/readme', [ExtensionAdminController::class, 'readme'])
+        ->middleware('lemma_permission:system.access');
 });

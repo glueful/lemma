@@ -14,6 +14,7 @@ use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\UserAdminController;
+use Glueful\Api\Webhooks\Http\Controllers\WebhookController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -199,5 +200,42 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
         ->middleware('lemma_permission:system.access');
 
     $router->delete('/api-keys/{uuid}', [ApiKeyAdminController::class, 'destroy'])
+        ->middleware('lemma_permission:system.access');
+
+    // Webhooks — surface the framework's webhook engine (subscriptions + deliveries) in the admin.
+    // Routes delegate to the framework's WebhookController; the tables are materialized by the
+    // 007_CreateWebhookTables migration so listing works before the first dispatch. All gated by
+    // system.access.
+    $router->get('/webhooks/subscriptions', [WebhookController::class, 'listSubscriptions'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/webhooks/subscriptions', [WebhookController::class, 'createSubscription'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/webhooks/subscriptions/{id}', [WebhookController::class, 'getSubscription'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->patch('/webhooks/subscriptions/{id}', [WebhookController::class, 'updateSubscription'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->delete('/webhooks/subscriptions/{id}', [WebhookController::class, 'deleteSubscription'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/webhooks/subscriptions/{id}/rotate-secret', [WebhookController::class, 'rotateSecret'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/webhooks/subscriptions/{id}/test', [WebhookController::class, 'testSubscription'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/webhooks/subscriptions/{id}/stats', [WebhookController::class, 'getSubscriptionStats'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/webhooks/deliveries', [WebhookController::class, 'listDeliveries'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/webhooks/deliveries/{id}', [WebhookController::class, 'getDelivery'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/webhooks/deliveries/{id}/retry', [WebhookController::class, 'retryDelivery'])
         ->middleware('lemma_permission:system.access');
 });

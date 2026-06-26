@@ -169,7 +169,8 @@ final class ExtensionAdminController
 
         // README content is static until the package is reinstalled/updated, so an mtime+size ETag
         // lets the browser revalidate cheaply (and we skip rendering on a hit).
-        $etag = '"' . substr(sha1($source . '|' . (string) filemtime($file) . '|' . (string) filesize($file)), 0, 20) . '"';
+        $fingerprint = sha1($source . '|' . (string) filemtime($file) . '|' . (string) filesize($file));
+        $etag = '"' . substr($fingerprint, 0, 20) . '"';
         $ifNoneMatch = $request->headers->get('If-None-Match');
         $notModified = is_string($ifNoneMatch) && trim($ifNoneMatch) === $etag;
 

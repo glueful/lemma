@@ -126,7 +126,11 @@ final class MediaAdminController
         }
 
         // media_meta is upserted only when a sidecar field is actually present in the payload.
-        if (array_key_exists('alt_text', $input) || array_key_exists('caption', $input) || array_key_exists('tags', $input)) {
+        if (
+            array_key_exists('alt_text', $input)
+            || array_key_exists('caption', $input)
+            || array_key_exists('tags', $input)
+        ) {
             $this->upsertMeta($uuid, [
                 'alt_text' => $this->stringField($input, 'alt_text'),
                 'caption' => $this->stringField($input, 'caption'),
@@ -235,8 +239,13 @@ final class MediaAdminController
         };
     }
 
-    private function optimizeResult(Request $request, string $uuid, int $originalSize, int $newSize, bool $changed): Response
-    {
+    private function optimizeResult(
+        Request $request,
+        string $uuid,
+        int $originalSize,
+        int $newSize,
+        bool $changed,
+    ): Response {
         $blob = $this->findBlob($uuid);
         $meta = $blob !== null
             ? db($this->context)->table('media_meta')->where('blob_uuid', '=', $uuid)->first()
@@ -245,7 +254,12 @@ final class MediaAdminController
 
         return Response::success([
             'media' => $blob !== null
-                ? $this->present($blob, is_array($meta) ? $meta : null, (int) $usageCount, $request->getSchemeAndHttpHost())
+                ? $this->present(
+                    $blob,
+                    is_array($meta) ? $meta : null,
+                    (int) $usageCount,
+                    $request->getSchemeAndHttpHost(),
+                )
                 : null,
             'original_size' => $originalSize,
             'new_size' => $newSize,
@@ -281,7 +295,8 @@ final class MediaAdminController
         // Resolve content-type uuids to slugs for a human-readable label.
         $typeSlugs = [];
         if ($typeUuids !== []) {
-            foreach (db($this->context)->table('content_types')->whereIn('uuid', array_keys($typeUuids))->get() as $ct) {
+            $types = db($this->context)->table('content_types')->whereIn('uuid', array_keys($typeUuids))->get();
+            foreach ($types as $ct) {
                 $typeSlugs[(string) $ct['uuid']] = is_string($ct['slug'] ?? null) ? $ct['slug'] : null;
             }
         }
@@ -289,7 +304,9 @@ final class MediaAdminController
         $usage = array_map(static function (array $r) use ($entries, $typeSlugs): array {
             $uuid = (string) ($r['entry_uuid'] ?? '');
             $entry = $entries[$uuid] ?? null;
-            $typeUuid = is_array($entry) && is_string($entry['content_type_uuid'] ?? null) ? $entry['content_type_uuid'] : null;
+            $typeUuid = is_array($entry) && is_string($entry['content_type_uuid'] ?? null)
+                ? $entry['content_type_uuid']
+                : null;
             return [
                 'entry_uuid' => $uuid,
                 'type' => $typeUuid !== null ? ($typeSlugs[$typeUuid] ?? null) : null,

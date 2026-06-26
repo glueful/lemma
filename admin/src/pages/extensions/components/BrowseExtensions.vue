@@ -51,7 +51,7 @@ async function copyInstall(name: string) {
         description="Nothing on Packagist matches — try a different search."
       />
 
-      <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 pb-5">
         <div
           v-for="pkg in results"
           :key="pkg.name"
@@ -75,7 +75,7 @@ async function copyInstall(name: string) {
             />
           </div>
 
-          <p class="line-clamp-2 min-h-[2.5rem] text-sm text-muted">
+          <p class="line-clamp-2 min-h-10 text-sm text-muted">
             {{ pkg.description ?? 'No description provided.' }}
           </p>
 
@@ -88,25 +88,26 @@ async function copyInstall(name: string) {
                 <UIcon name="i-lucide-star" class="size-3.5" />{{ fmt(pkg.favers) }}
               </span>
             </div>
-            <UButton
-              v-if="!pkg.installed"
-              icon="i-lucide-clipboard-copy"
-              label="Install"
-              color="neutral"
-              variant="outline"
-              size="xs"
-              @click="copyInstall(pkg.name)"
-            />
-            <UButton
-              v-else
-              icon="i-lucide-external-link"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :to="pkg.url ?? pkg.repository ?? undefined"
-              target="_blank"
-              aria-label="View on Packagist"
-            />
+            <div class="flex items-center gap-1">
+              <UButton
+                v-if="!pkg.installed"
+                icon="i-lucide-clipboard-copy"
+                label="Install"
+                color="neutral"
+                variant="outline"
+                size="xs"
+                @click="copyInstall(pkg.name)"
+              />
+              <UButton
+                icon="i-lucide-external-link"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :to="pkg.url ?? pkg.repository ?? undefined"
+                target="_blank"
+                aria-label="View on Packagist"
+              />
+            </div>
           </div>
         </div>
       </div>

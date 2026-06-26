@@ -92,6 +92,11 @@ $manager->addMigrationPath(
     'glueful/import-export'
 );
 $manager->addMigrationPath(
+    $root . '/vendor/glueful/audit/migrations',
+    MigrationPriority::DEFAULT,
+    'glueful/audit'
+);
+$manager->addMigrationPath(
     $root . '/vendor/glueful/aegis/migrations',
     MigrationPriority::DEPENDENT,
     'glueful/aegis'
@@ -130,6 +135,7 @@ $requiredTables = [
     'roles',
     'permissions',
     'blobs',
+    'audit_logs',
     'import_export_jobs',
     'import_export_reports',
     'i18n_locales',

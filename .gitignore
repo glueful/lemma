@@ -35,3 +35,5 @@ bootstrap/cache/
 !/storage/import-export/exports/.gitkeep
 /storage/import-export/imports/*
 !/storage/import-export/imports/.gitkeep
+/storage/uploads/*
+!/storage/uploads/.gitkeep

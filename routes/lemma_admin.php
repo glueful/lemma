@@ -9,6 +9,7 @@ use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ApiKeyAdminController;
 use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\MediaAdminController;
@@ -182,4 +183,21 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->delete('/media/{uuid}', [MediaAdminController::class, 'destroy'])
         ->middleware('lemma_permission:content.manage');
+
+    // API keys — system-wide list/create/rotate/revoke over the framework `api_keys` store. The
+    // plaintext key is returned only on create/rotate. All gated by system.access.
+    $router->get('/api-keys', [ApiKeyAdminController::class, 'index'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/api-keys', [ApiKeyAdminController::class, 'store'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/api-keys/{uuid}', [ApiKeyAdminController::class, 'show'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/api-keys/{uuid}/rotate', [ApiKeyAdminController::class, 'rotate'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->delete('/api-keys/{uuid}', [ApiKeyAdminController::class, 'destroy'])
+        ->middleware('lemma_permission:system.access');
 });

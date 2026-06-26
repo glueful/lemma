@@ -31,4 +31,14 @@ abstract class BaseModelEvent extends BaseContentEvent
             'timestamp' => $this->getTimestamp(),
         ];
     }
+
+    /**
+     * A content type is identified by its slug — there is no uuid.
+     *
+     * @return array{type:string,uuid:string,label:string}
+     */
+    public function auditTarget(): array
+    {
+        return ['type' => 'content_type', 'uuid' => $this->type, 'label' => $this->type];
+    }
 }

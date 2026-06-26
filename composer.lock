@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3580ad9db0c725573a0e644320234f05",
+    "content-hash": "7a1a3650a8e88f7008979ecdb4fb24d6",
     "packages": [
         {
             "name": "composer/semver",
@@ -341,23 +341,23 @@
         },
         {
             "name": "glueful/aegis",
-            "version": "v1.12.0",
+            "version": "v1.13.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/aegis.git",
-                "reference": "2ebf8518548e08537072bb85a8c065ab5f0d98b8"
+                "reference": "8933565bd42058e4dc6908de45fe17c561963def"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/aegis/zipball/2ebf8518548e08537072bb85a8c065ab5f0d98b8",
-                "reference": "2ebf8518548e08537072bb85a8c065ab5f0d98b8",
+                "url": "https://api.github.com/repos/glueful/aegis/zipball/8933565bd42058e4dc6908de45fe17c561963def",
+                "reference": "8933565bd42058e4dc6908de45fe17c561963def",
                 "shasum": ""
             },
             "require": {
                 "php": "^8.3"
             },
             "require-dev": {
-                "glueful/framework": "^1.62.0",
+                "glueful/framework": "^1.63.0",
                 "phpstan/phpstan": "^1.10",
                 "phpunit/phpunit": "^10.0"
             },
@@ -366,10 +366,10 @@
                 "glueful": {
                     "icon": "assets/icon.png",
                     "name": "Aegis",
-                    "version": "1.12.0",
+                    "version": "1.13.1",
                     "provider": "Glueful\\Extensions\\Aegis\\Services\\AegisServiceProvider",
                     "requires": {
-                        "glueful": ">=1.62.0",
+                        "glueful": ">=1.63.0",
                         "extensions": []
                     },
                     "publisher": "glueful-team",
@@ -404,9 +404,87 @@
             "homepage": "https://github.com/glueful/aegis",
             "support": {
                 "issues": "https://github.com/glueful/aegis/issues",
-                "source": "https://github.com/glueful/aegis/tree/v1.12.0"
+                "source": "https://github.com/glueful/aegis/tree/v1.13.1"
             },
-            "time": "2026-06-24T21:35:25+00:00"
+            "time": "2026-06-26T00:30:24+00:00"
+        },
+        {
+            "name": "glueful/audit",
+            "version": "v1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/glueful/audit.git",
+                "reference": "c3d45919a39eca76629666cc32abdca524962ffa"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/glueful/audit/zipball/c3d45919a39eca76629666cc32abdca524962ffa",
+                "reference": "c3d45919a39eca76629666cc32abdca524962ffa",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "glueful/aegis": "^1.13.0",
+                "glueful/framework": "^1.63.0",
+                "phpstan/phpstan": "^1.0",
+                "phpunit/phpunit": "^10.5",
+                "squizlabs/php_codesniffer": "^3.6"
+            },
+            "suggest": {
+                "glueful/aegis": "Enables rich RBAC audit rows (role/permission assigned/revoked). Optional."
+            },
+            "type": "glueful-extension",
+            "extra": {
+                "glueful": {
+                    "name": "Audit",
+                    "version": "1.1.0",
+                    "provider": "Glueful\\Extensions\\Audit\\AuditServiceProvider",
+                    "requires": {
+                        "glueful": ">=1.63.0",
+                        "extensions": []
+                    },
+                    "publisher": "glueful-team",
+                    "categories": [
+                        "security",
+                        "operations"
+                    ],
+                    "description": "Event-sourced audit trail for Glueful apps.",
+                    "displayName": "Audit"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Extensions\\Audit\\": "src/"
+                },
+                "classmap": [
+                    "migrations/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
+            ],
+            "description": "Event-sourced audit trail for Glueful apps.",
+            "homepage": "https://github.com/glueful/audit",
+            "keywords": [
+                "Audit",
+                "audit-trail",
+                "glueful",
+                "security"
+            ],
+            "support": {
+                "issues": "https://github.com/glueful/audit/issues",
+                "source": "https://github.com/glueful/audit/tree/v1.1.0"
+            },
+            "time": "2026-06-26T01:19:38+00:00"
         },
         {
             "name": "glueful/email-notification",
@@ -498,16 +576,16 @@
         },
         {
             "name": "glueful/framework",
-            "version": "v1.62.0",
+            "version": "v1.63.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/framework.git",
-                "reference": "d6eeafab757106e4a3d195e188d237dfa8d56886"
+                "reference": "094759865d9d72a686e8fe8a4cb4f5586400da4e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/framework/zipball/d6eeafab757106e4a3d195e188d237dfa8d56886",
-                "reference": "d6eeafab757106e4a3d195e188d237dfa8d56886",
+                "url": "https://api.github.com/repos/glueful/framework/zipball/094759865d9d72a686e8fe8a4cb4f5586400da4e",
+                "reference": "094759865d9d72a686e8fe8a4cb4f5586400da4e",
                 "shasum": ""
             },
             "require": {
@@ -602,7 +680,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-06-24T21:25:56+00:00"
+            "time": "2026-06-26T00:13:05+00:00"
         },
         {
             "name": "glueful/i18n",
@@ -837,16 +915,16 @@
         },
         {
             "name": "glueful/users",
-            "version": "v2.2.0",
+            "version": "v2.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/users.git",
-                "reference": "fdc43c3b9246f13f3c2b6c1e13e2cbe71592bcac"
+                "reference": "90cf88349ac08aeb2f4da415113b7692c45dd476"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/users/zipball/fdc43c3b9246f13f3c2b6c1e13e2cbe71592bcac",
-                "reference": "fdc43c3b9246f13f3c2b6c1e13e2cbe71592bcac",
+                "url": "https://api.github.com/repos/glueful/users/zipball/90cf88349ac08aeb2f4da415113b7692c45dd476",
+                "reference": "90cf88349ac08aeb2f4da415113b7692c45dd476",
                 "shasum": ""
             },
             "require": {
@@ -864,7 +942,7 @@
             "extra": {
                 "glueful": {
                     "name": "Users",
-                    "version": "2.2.0",
+                    "version": "2.3.0",
                     "provider": "Glueful\\Extensions\\Users\\UsersServiceProvider",
                     "requires": {
                         "glueful": ">=1.62.0",
@@ -896,9 +974,9 @@
             "description": "Users: first-party identity store + account lifecycle for Glueful",
             "support": {
                 "issues": "https://github.com/glueful/users/issues",
-                "source": "https://github.com/glueful/users/tree/v2.2.0"
+                "source": "https://github.com/glueful/users/tree/v2.3.0"
             },
-            "time": "2026-06-24T21:37:33+00:00"
+            "time": "2026-06-25T22:47:06+00:00"
         },
         {
             "name": "graham-campbell/result-type",
@@ -1175,16 +1253,16 @@
         },
         {
             "name": "league/flysystem",
-            "version": "3.35.0",
+            "version": "3.35.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/thephpleague/flysystem.git",
-                "reference": "d0a405f03d980461e4b6e08cfed2c162650f9f6b"
+                "reference": "f23af6c5aafd958a7593029a271d77baf5ed793c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/thephpleague/flysystem/zipball/d0a405f03d980461e4b6e08cfed2c162650f9f6b",
-                "reference": "d0a405f03d980461e4b6e08cfed2c162650f9f6b",
+                "url": "https://api.github.com/repos/thephpleague/flysystem/zipball/f23af6c5aafd958a7593029a271d77baf5ed793c",
+                "reference": "f23af6c5aafd958a7593029a271d77baf5ed793c",
                 "shasum": ""
             },
             "require": {
@@ -1252,9 +1330,9 @@
             ],
             "support": {
                 "issues": "https://github.com/thephpleague/flysystem/issues",
-                "source": "https://github.com/thephpleague/flysystem/tree/3.35.0"
+                "source": "https://github.com/thephpleague/flysystem/tree/3.35.1"
             },
-            "time": "2026-06-22T20:12:06+00:00"
+            "time": "2026-06-25T06:52:23+00:00"
         },
         {
             "name": "league/flysystem-local",

@@ -7,6 +7,8 @@ namespace App\Tests\Unit\Content;
 use App\Content\Events\AssetAttached;
 use App\Content\Events\AssetDetached;
 use App\Content\Events\BaseContentEvent;
+use App\Content\Events\BaseEntryEvent;
+use App\Content\Events\BaseModelEvent;
 use App\Content\Events\EntryCreated;
 use App\Content\Events\EntryDeleted;
 use App\Content\Events\EntryPublished;
@@ -15,6 +17,7 @@ use App\Content\Events\EntryUpdated;
 use App\Content\Events\ModelCreated;
 use App\Content\Events\ModelDeleted;
 use App\Content\Events\ModelUpdated;
+use Glueful\Extensions\Audit\Contracts\AuditableEvent;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -195,5 +198,89 @@ final class EventTaxonomyTest extends TestCase
         // BaseEvent assigns an event id + timestamp via parent::__construct().
         self::assertNotEmpty($event->getEventId());
         self::assertGreaterThan(0.0, $event->getTimestamp());
+    }
+
+    // ---- glueful/audit integration (AuditableEvent) ---------------------------
+
+    public function testEveryContentEventIsAuditable(): void
+    {
+        foreach (array_keys(self::FROZEN_NAMES) as $class) {
+            self::assertInstanceOf(AuditableEvent::class, $this->makeEvent($class), $class);
+        }
+    }
+
+    public function testAuditActionIsTheSegmentAfterTheDotForEveryEvent(): void
+    {
+        foreach (self::FROZEN_NAMES as $class => $name) {
+            $expected = substr($name, (int) strrpos($name, '.') + 1);
+            self::assertSame($expected, $this->makeEvent($class)->auditAction(), $name);
+        }
+    }
+
+    public function testEntryEventAuditMapping(): void
+    {
+        $event = new EntryPublished('entry-uuid-1', 'article', 'en', 3, 'actor-1');
+
+        self::assertSame('published', $event->auditAction());
+        self::assertSame('content', $event->auditCategory());
+        self::assertSame(
+            ['type' => 'content_entry', 'uuid' => 'entry-uuid-1', 'label' => 'article'],
+            $event->auditTarget(),
+        );
+        self::assertNull($event->auditChanges());
+        // Identity context only — actor/timestamp become their own audit columns.
+        self::assertSame(
+            ['entry' => 'entry-uuid-1', 'type' => 'article', 'locale' => 'en', 'version' => 3],
+            $event->auditMetadata(),
+        );
+    }
+
+    public function testModelEventAuditMapping(): void
+    {
+        $event = new ModelUpdated(type: 'article', actor: 'actor-1');
+
+        self::assertSame('updated', $event->auditAction());
+        self::assertSame('content', $event->auditCategory());
+        self::assertSame(
+            ['type' => 'content_type', 'uuid' => 'article', 'label' => 'article'],
+            $event->auditTarget(),
+        );
+        self::assertSame(['type' => 'article'], $event->auditMetadata());
+    }
+
+    public function testAssetEventAuditMapping(): void
+    {
+        $event = new AssetAttached(asset: 'blob-9', entry: 'entry-1', actor: 'actor-1');
+
+        self::assertSame('attached', $event->auditAction());
+        self::assertSame('content', $event->auditCategory());
+        self::assertSame(
+            ['type' => 'asset', 'uuid' => 'blob-9', 'label' => null],
+            $event->auditTarget(),
+        );
+        self::assertSame(['asset' => 'blob-9', 'entry' => 'entry-1'], $event->auditMetadata());
+    }
+
+    public function testAuditMetadataDropsNullIdentityFields(): void
+    {
+        // A create with no locale/version must not leak nulls into the audit context.
+        $event = new EntryCreated('entry-2', 'page', null, null, null);
+
+        self::assertSame(['entry' => 'entry-2', 'type' => 'page'], $event->auditMetadata());
+    }
+
+    /**
+     * @param class-string<BaseContentEvent> $class
+     */
+    private function makeEvent(string $class): BaseContentEvent
+    {
+        if (is_subclass_of($class, BaseEntryEvent::class)) {
+            return new $class('entry-1', 'article', 'en', 1, 'actor-1');
+        }
+        if (is_subclass_of($class, BaseModelEvent::class)) {
+            return new $class('article', 'actor-1');
+        }
+
+        return new $class('blob-1', 'entry-1', 'actor-1'); // asset events
     }
 }

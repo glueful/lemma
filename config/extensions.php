@@ -18,6 +18,7 @@
 return [
     'enabled' => [
         'Glueful\Extensions\Aegis\Services\AegisServiceProvider',
+        'Glueful\Extensions\Audit\AuditServiceProvider',
         'Glueful\Extensions\EmailNotification\EmailNotificationServiceProvider',
         'Glueful\Extensions\I18n\I18nServiceProvider',
         'Glueful\Extensions\ImportExport\ImportExportServiceProvider',

@@ -269,6 +269,14 @@ final class EventTaxonomyTest extends TestCase
         self::assertSame(['entry' => 'entry-2', 'type' => 'page'], $event->auditMetadata());
     }
 
+    public function testAuditActorComesFromTheEventActor(): void
+    {
+        // The event carries the actor uuid (the audit subscriber uses this when no request resolves
+        // one — after-commit dispatch / CLI). No actor → empty, deferring to request resolution.
+        self::assertSame(['uuid' => 'actor-7'], (new EntryPublished('e-1', 'article', 'en', 1, 'actor-7'))->auditActor());
+        self::assertSame([], (new EntryCreated('e-2', 'page', null, null, null))->auditActor());
+    }
+
     /**
      * @param class-string<BaseContentEvent> $class
      */

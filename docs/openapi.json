@@ -6857,6 +6857,242 @@
                 }
             }
         },
+        "\/v1\/admin\/api-keys": {
+            "get": {
+                "operationId": "getV1AdminApikeys",
+                "summary": "List API keys",
+                "tags": [
+                    "API Keys"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "System-wide, paginated list of API keys with their owner and status. Optional `status` (active|expired|revoked), `q` (name search), `page`, `per_page`. Requires the `system.access` permission.",
+                "responses": {
+                    "200": {
+                        "description": "API key page."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "operationId": "postV1AdminApikeys",
+                "summary": "Create an API key",
+                "tags": [
+                    "API Keys"
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mints a new key owned by the authenticated admin. Body: `name` (required), optional `scopes` (string[]), `allowed_ips` (string[] of IPs\/CIDRs), `expires_at` (date). The plaintext key is returned once as `plain` and never stored. Requires `system.access`.",
+                "responses": {
+                    "200": {
+                        "description": "Successful response"
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Created key + one-time plaintext."
+                    },
+                    "422": {
+                        "description": "Validation failed."
+                    }
+                }
+            }
+        },
         "\/admin\/config": {
             "get": {
                 "operationId": "getAdminConfig",
@@ -14357,6 +14593,263 @@
                 }
             }
         },
+        "\/v1\/admin\/api-keys\/{uuid}": {
+            "get": {
+                "operationId": "getV1AdminApikeysByUuid",
+                "summary": "Get an API key",
+                "tags": [
+                    "API Keys"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "API key."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such key."
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deleteV1AdminApikeysByUuid",
+                "summary": "Revoke an API key",
+                "tags": [
+                    "API Keys"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks the key revoked so it stops authenticating immediately. The row is kept (revoked_at is set) for audit. Requires `system.access`.",
+                "responses": {
+                    "200": {
+                        "description": "Revoked."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such key."
+                    }
+                }
+            }
+        },
         "\/v1\/content\/{type}": {
             "get": {
                 "operationId": "getV1ContentByType",
@@ -19753,6 +20246,139 @@
                 }
             }
         },
+        "\/v1\/admin\/api-keys\/{uuid}\/rotate": {
+            "post": {
+                "operationId": "postV1AdminApikeysByUuidRotate",
+                "summary": "Rotate an API key",
+                "tags": [
+                    "API Keys"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "description": "",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Issues a new key inheriting the scopes\/IPs\/expiry of the old one, and sets the old key to expire after a grace window (body `grace_hours`, default 24, max 720). Both keys work during the window. Returns the new plaintext once. Requires `system.access`.",
+                "responses": {
+                    "200": {
+                        "description": "New key + one-time plaintext + old key expiry."
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such key."
+                    },
+                    "409": {
+                        "description": "Key is revoked."
+                    }
+                }
+            }
+        },
         "\/v1\/blobs\/{uuid}\/signed-url": {
             "post": {
                 "operationId": "postV1BlobsByUuidSignedurl",
@@ -20516,6 +21142,10 @@
         }
     },
     "tags": [
+        {
+            "name": "API Keys",
+            "description": "Operations related to API Keys"
+        },
         {
             "name": "Audit",
             "description": "Operations related to Audit"

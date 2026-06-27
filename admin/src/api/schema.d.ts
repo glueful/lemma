@@ -2689,7 +2689,14 @@ export interface operations {
     };
     getV1AdminWebhooksSubscriptions: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description When true, return only active subscriptions. */
+                active?: boolean;
+                /** @description Page number (default 1). */
+                page?: number;
+                /** @description Items per page (default 25, max 100). */
+                per_page?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2701,7 +2708,21 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            subscriptions?: unknown[];
+                            pagination?: {
+                                current_page?: number;
+                                per_page?: number;
+                                total?: number;
+                                total_pages?: number;
+                            } | null;
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {
@@ -2763,7 +2784,15 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    url?: string;
+                    events?: unknown[];
+                    metadata?: unknown[] | null;
+                };
+            };
+        };
         responses: {
             /** @description Successful response */
             200: {
@@ -2777,7 +2806,22 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid?: string;
+                            url?: string;
+                            events?: unknown[];
+                            is_active?: boolean;
+                            metadata?: unknown[] | null;
+                            created_at?: string | null;
+                            updated_at?: string | null;
+                            secret?: string;
+                        };
+                    };
+                };
             };
             /** @description Invalid URL or events. */
             400: {
@@ -2841,7 +2885,16 @@ export interface operations {
     };
     getV1AdminWebhooksDeliveries: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Filter by status (pending|delivered|failed|retrying). */
+                status?: string;
+                /** @description Filter by subscription UUID. */
+                subscription?: string;
+                /** @description Page number (default 1). */
+                page?: number;
+                /** @description Items per page (default 25, max 100). */
+                per_page?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2853,7 +2906,21 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            deliveries?: unknown[];
+                            pagination?: {
+                                current_page?: number;
+                                per_page?: number;
+                                total?: number;
+                                total_pages?: number;
+                            } | null;
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {
@@ -5155,7 +5222,21 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid?: string;
+                            url?: string;
+                            events?: unknown[];
+                            is_active?: boolean;
+                            metadata?: unknown[] | null;
+                            created_at?: string | null;
+                            updated_at?: string | null;
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {
@@ -5304,14 +5385,37 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    url?: string | null;
+                    events?: unknown[] | null;
+                    is_active?: boolean | null;
+                    metadata?: unknown[] | null;
+                };
+            };
+        };
         responses: {
             /** @description Updated subscription. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid?: string;
+                            url?: string;
+                            events?: unknown[];
+                            is_active?: boolean;
+                            metadata?: unknown[] | null;
+                            created_at?: string | null;
+                            updated_at?: string | null;
+                        };
+                    };
+                };
             };
             /** @description Invalid URL or events. */
             400: {
@@ -5382,7 +5486,10 @@ export interface operations {
     };
     getV1AdminWebhooksSubscriptionsByIdStats: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Window in days (default 30). */
+                days?: number;
+            };
             header?: never;
             path: {
                 id: string;
@@ -5396,7 +5503,21 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid?: string;
+                            period_days?: number;
+                            total_deliveries?: number;
+                            delivered?: number;
+                            failed?: number;
+                            pending?: number;
+                            success_rate?: number;
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {
@@ -5474,7 +5595,24 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid?: string;
+                            event?: string;
+                            status?: string;
+                            attempts?: number;
+                            response_code?: number | null;
+                            delivered_at?: string | null;
+                            next_retry_at?: string | null;
+                            created_at?: string | null;
+                            payload?: unknown[] | null;
+                            response_body?: string | null;
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {

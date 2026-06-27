@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
-import { authFetch } from '@/api/authFetch'
-import { runtimeConfig } from '@/runtime/config'
+import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 
 // ── Webhooks (framework WebhookController, mounted at /v1/admin/webhooks) ─────────────────────────
 //
-// These routes delegate to Glueful\Api\Webhooks\Http\Controllers\WebhookController, which wraps the
-// subscriptions in a `{ subscriptions, pagination }` (resp. `{ deliveries, pagination }`) envelope —
-// slightly different from the app's own `{ items, total, … }` shape, so the fetchers normalise it.
+// Calls go through the typed `client` (openapi-fetch). The framework controller wraps lists in a
+// `{ subscriptions|deliveries, pagination }` envelope and returns single subscriptions/deliveries
+// flat in `data`. Responses come back inside `{ success, message, data }`; nested-DTO list rows
+// render as `unknown[]`, so they're cast to the row interfaces below. The three small action
+// endpoints (rotate-secret/test/retry) are documented description-only, so their bodies are cast.
 
 export type WebhookDeliveryStatus = 'pending' | 'delivered' | 'failed' | 'retrying'
 
@@ -96,13 +98,14 @@ export interface TestResult {
   response: string | null
 }
 
-const base = () => `${runtimeConfig.apiBase}/webhooks`
+interface Pagination {
+  current_page?: number
+  per_page?: number
+  total?: number
+  total_pages?: number
+}
 
-function pageMeta(
-  pagination: Record<string, unknown> | undefined,
-  fallbackPage: number,
-  fallbackPer: number,
-) {
+function pageMeta(pagination: Pagination | undefined, fallbackPage: number, fallbackPer: number) {
   const p = pagination ?? {}
   return {
     total: Number(p.total ?? 0),
@@ -119,13 +122,20 @@ export async function fetchSubscriptions(params: {
   perPage: number
   activeOnly?: boolean
 }): Promise<WebhookSubscriptionPage> {
-  const qs = new URLSearchParams({ page: String(params.page), per_page: String(params.perPage) })
-  if (params.activeOnly) qs.set('active', 'true')
-  const json = await authFetch(`${base()}/subscriptions?${qs.toString()}`)
-  const d = (json.data ?? json) as Record<string, unknown>
+  const { data, error, response } = await client.GET('/webhooks/subscriptions', {
+    params: {
+      query: {
+        page: params.page,
+        per_page: params.perPage,
+        ...(params.activeOnly ? { active: true } : {}),
+      },
+    },
+  })
+  if (error) throw toApiError(error, response)
+  const d = data?.data
   return {
-    subscriptions: Array.isArray(d.subscriptions) ? (d.subscriptions as WebhookSubscription[]) : [],
-    ...pageMeta(d.pagination as Record<string, unknown> | undefined, params.page, params.perPage),
+    subscriptions: (d?.subscriptions ?? []) as WebhookSubscription[],
+    ...pageMeta(d?.pagination as Pagination | undefined, params.page, params.perPage),
   }
 }
 
@@ -146,8 +156,11 @@ export function useSubscriptionList(
 }
 
 export async function fetchSubscription(uuid: string): Promise<WebhookSubscription> {
-  const json = await authFetch(`${base()}/subscriptions/${encodeURIComponent(uuid)}`)
-  return ((json.data ?? json) as WebhookSubscription) ?? null
+  const { data, error, response } = await client.GET('/webhooks/subscriptions/{id}', {
+    params: { path: { id: uuid } },
+  })
+  if (error) throw toApiError(error, response)
+  return (data?.data ?? {}) as WebhookSubscription
 }
 
 export function useSubscription(uuid: MaybeRefOrGetter<string | undefined>) {
@@ -159,10 +172,11 @@ export function useSubscription(uuid: MaybeRefOrGetter<string | undefined>) {
 }
 
 export async function fetchSubscriptionStats(uuid: string, days = 30): Promise<SubscriptionStats> {
-  const json = await authFetch(
-    `${base()}/subscriptions/${encodeURIComponent(uuid)}/stats?days=${days}`,
-  )
-  return (json.data ?? json) as SubscriptionStats
+  const { data, error, response } = await client.GET('/webhooks/subscriptions/{id}/stats', {
+    params: { path: { id: uuid }, query: { days } },
+  })
+  if (error) throw toApiError(error, response)
+  return (data?.data ?? {}) as SubscriptionStats
 }
 
 export function useSubscriptionStats(uuid: MaybeRefOrGetter<string | undefined>, days = 30) {
@@ -176,48 +190,54 @@ export function useSubscriptionStats(uuid: MaybeRefOrGetter<string | undefined>,
 export async function createSubscription(
   input: CreateSubscriptionInput,
 ): Promise<{ subscription: WebhookSubscription; secret: string }> {
-  const json = await authFetch(`${base()}/subscriptions`, {
-    method: 'POST',
-    body: JSON.stringify(input),
+  const { data, error, response } = await client.POST('/webhooks/subscriptions', {
+    body: { url: input.url, events: input.events },
   })
-  const d = (json.data ?? json) as WebhookSubscription & { secret?: string }
-  return { subscription: d, secret: String(d.secret ?? '') }
+  if (error) throw toApiError(error, response)
+  const d = data?.data as (WebhookSubscription & { secret?: string }) | undefined
+  return { subscription: (d ?? {}) as WebhookSubscription, secret: String(d?.secret ?? '') }
 }
 
 export async function updateSubscription(
   uuid: string,
   input: UpdateSubscriptionInput,
 ): Promise<WebhookSubscription> {
-  const json = await authFetch(`${base()}/subscriptions/${encodeURIComponent(uuid)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(input),
+  const { data, error, response } = await client.PATCH('/webhooks/subscriptions/{id}', {
+    params: { path: { id: uuid } },
+    body: { url: input.url, events: input.events, is_active: input.is_active },
   })
-  return (json.data ?? json) as WebhookSubscription
+  if (error) throw toApiError(error, response)
+  return (data?.data ?? {}) as WebhookSubscription
 }
 
 export async function deleteSubscription(uuid: string): Promise<void> {
-  await authFetch(`${base()}/subscriptions/${encodeURIComponent(uuid)}`, { method: 'DELETE' })
+  const { error, response } = await client.DELETE('/webhooks/subscriptions/{id}', {
+    params: { path: { id: uuid } },
+  })
+  if (error) throw toApiError(error, response)
 }
 
 export async function rotateSubscriptionSecret(uuid: string): Promise<string> {
-  const json = await authFetch(
-    `${base()}/subscriptions/${encodeURIComponent(uuid)}/rotate-secret`,
+  const { data, error, response } = await client.POST(
+    '/webhooks/subscriptions/{id}/rotate-secret',
     {
-      method: 'POST',
+      params: { path: { id: uuid } },
     },
   )
-  const d = (json.data ?? json) as { secret?: string }
-  return String(d.secret ?? '')
+  if (error) throw toApiError(error, response)
+  const d = (data as { data?: { secret?: string } } | undefined)?.data
+  return String(d?.secret ?? '')
 }
 
 export async function testSubscription(uuid: string): Promise<TestResult> {
-  const json = await authFetch(`${base()}/subscriptions/${encodeURIComponent(uuid)}/test`, {
-    method: 'POST',
+  const { data, error, response } = await client.POST('/webhooks/subscriptions/{id}/test', {
+    params: { path: { id: uuid } },
   })
-  const d = (json.data ?? json) as Record<string, unknown>
+  if (error) throw toApiError(error, response)
+  const d = (data as { data?: { status_code?: number; response?: string } } | undefined)?.data
   return {
-    status_code: d.status_code != null ? Number(d.status_code) : null,
-    response: d.response != null ? String(d.response) : null,
+    status_code: d?.status_code != null ? Number(d.status_code) : null,
+    response: d?.response != null ? String(d.response) : null,
   }
 }
 
@@ -229,14 +249,21 @@ export async function fetchDeliveries(params: {
   page: number
   perPage: number
 }): Promise<WebhookDeliveryPage> {
-  const qs = new URLSearchParams({ page: String(params.page), per_page: String(params.perPage) })
-  if (params.subscription) qs.set('subscription', params.subscription)
-  if (params.status) qs.set('status', params.status)
-  const json = await authFetch(`${base()}/deliveries?${qs.toString()}`)
-  const d = (json.data ?? json) as Record<string, unknown>
+  const { data, error, response } = await client.GET('/webhooks/deliveries', {
+    params: {
+      query: {
+        page: params.page,
+        per_page: params.perPage,
+        ...(params.subscription ? { subscription: params.subscription } : {}),
+        ...(params.status ? { status: params.status } : {}),
+      },
+    },
+  })
+  if (error) throw toApiError(error, response)
+  const d = data?.data
   return {
-    deliveries: Array.isArray(d.deliveries) ? (d.deliveries as WebhookDelivery[]) : [],
-    ...pageMeta(d.pagination as Record<string, unknown> | undefined, params.page, params.perPage),
+    deliveries: (d?.deliveries ?? []) as WebhookDelivery[],
+    ...pageMeta(d?.pagination as Pagination | undefined, params.page, params.perPage),
   }
 }
 
@@ -266,8 +293,11 @@ export function useDeliveryList(
 }
 
 export async function fetchDelivery(uuid: string): Promise<WebhookDeliveryDetail> {
-  const json = await authFetch(`${base()}/deliveries/${encodeURIComponent(uuid)}`)
-  return (json.data ?? json) as WebhookDeliveryDetail
+  const { data, error, response } = await client.GET('/webhooks/deliveries/{id}', {
+    params: { path: { id: uuid } },
+  })
+  if (error) throw toApiError(error, response)
+  return (data?.data ?? {}) as WebhookDeliveryDetail
 }
 
 export function useDelivery(uuid: MaybeRefOrGetter<string | undefined>) {
@@ -279,7 +309,10 @@ export function useDelivery(uuid: MaybeRefOrGetter<string | undefined>) {
 }
 
 export async function retryDelivery(uuid: string): Promise<void> {
-  await authFetch(`${base()}/deliveries/${encodeURIComponent(uuid)}/retry`, { method: 'POST' })
+  const { error, response } = await client.POST('/webhooks/deliveries/{id}/retry', {
+    params: { path: { id: uuid } },
+  })
+  if (error) throw toApiError(error, response)
 }
 
 export function useWebhookMutations() {

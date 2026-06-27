@@ -19,17 +19,20 @@ const { success, warning, error: notifyError } = useNotify()
 const cache = useQueryCache()
 const running = ref(false)
 
+const publishableCount = computed(() => props.summaries.filter((s) => s.has_draft).length)
+
 const items = computed(() => [
   [
     {
       label: `Create drafts for all locales (copy ${props.currentLocale})`,
       icon: 'i-lucide-copy-plus',
-      disabled: props.addable.length === 0,
+      disabled: running.value || props.addable.length === 0,
       onSelect: () => runCreateAll(),
     },
     {
       label: 'Publish every locale with a draft',
       icon: 'i-lucide-globe',
+      disabled: running.value || publishableCount.value === 0,
       onSelect: () => runPublishAll(),
     },
   ],
@@ -79,7 +82,11 @@ async function runPublishAll() {
     const { ok, fail } = await batch(targets, (code) => publishEntry(props.uuid, code))
     refresh()
     if (fail === 0) success(`Published ${ok} locale(s)`)
-    else warning(`Published ${ok}, failed ${fail}`)
+    else
+      warning(
+        `Published ${ok}, failed ${fail}`,
+        'Locales without a valid route can’t be published.',
+      )
   } catch (e) {
     notifyError(e, 'Bulk publish failed')
   } finally {

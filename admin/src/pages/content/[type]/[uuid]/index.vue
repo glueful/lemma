@@ -28,6 +28,9 @@ const schema = computed<FieldDef[]>(() =>
     type: (f.type ?? 'string') as FieldDef['type'],
     required: f.required ?? undefined,
     enum: f.enum ?? undefined,
+    // Carry the widget hint through so `text` + `rich` renders the RichText (UEditor) editor,
+    // matching the content-type preview — without this it falls back to a plain textarea.
+    format: f.format ?? undefined,
   })),
 )
 

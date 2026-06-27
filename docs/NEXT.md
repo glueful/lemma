@@ -17,10 +17,10 @@ decisions); the next phases derive from the same APPROACH.
 - **Content importers** — `csv.content`, `markdown.content`, `wordpress.content` (WXR, v1: posts/
   pages → entries) and `csv.users`, over the `glueful/import-export` engine with a mapping wizard.
   Depth follow-ups remain (see below). Tracked in [ADAPTER_NOTES.md](ADAPTER_NOTES.md).
-
-**In progress:**
-- **Localization UI** — finishing the editor locale workflow (the backend is done). See §"Larger
-  product surface" below.
+- **Localization UI** — editor locale workflow complete: per-locale publish/draft/scheduled status
+  in the switcher, locale-aware versions page, copy-into-existing-locale (overwrite), translation-
+  coverage in the entry list, cross-locale route management, bulk create/publish, and a disable-
+  locale guard (`GET /v1/admin/locales/{locale}/usage`). Plan: `docs/superpowers/plans/2026-06-27-finish-localization-ui.md`.
 
 ---
 
@@ -64,12 +64,9 @@ Shape" as post‑V1 and have **no** design doc yet:
   route→render path, render caching) — write it when this phase is actually picked up.
 - **Block / page builder** — architectural (how blocks compose + persist).
 - **Approval / review workflow** — a state machine layered on draft/publish.
-- **Localization UI** — the visual locale workflow (the backend is done; this is editor UX).
-  **In progress** — a locale switcher, add-locale (copy-from-source) modal, shared-fields note,
-  and reference picker shipped (commit 6152816). Remaining: surface the per-locale
-  draft/published/scheduled status the `GET …/locales` endpoint already returns, locale-follow on
-  the versions page, the `overwrite` copy option, and a translation-progress indicator in the
-  entry list. See its plan in `docs/superpowers/plans/`.
+- **Localization UI** — ✅ **shipped** (2026‑06‑27). The visual locale workflow is complete; see
+  the "Shipped since" list above. Remaining localization work is the *field-localization
+  copy-on-change* follow-up in the per-feature table below, not editor UX.
 - **Forms**, **navigation / menu builder**, **taxonomies / collections** — feature modules.
 - **Ecommerce content integration**, **personalization / segmentation** — later, per APPROACH.
 
@@ -77,11 +74,11 @@ Shape" as post‑V1 and have **no** design doc yet:
 
 ## Recommended sequencing (opinion, not a commitment)
 
-1. **Finish the Localization UI.** The editor locale workflow is in flight and is the smallest
-   gap to "done" — it just needs to surface backend state the API already returns. A focused
-   **plan**, no new design.
-2. **`V2_DESIGN.md` for rendered delivery** — write it when rendered delivery becomes the
-   active phase, since that is where the next expensive‑to‑reverse decisions live.
+1. **`V2_DESIGN.md` for rendered delivery** — the next big expensive‑to‑reverse decision set
+   (rendering model, theme/template storage, route→render path, render caching). This is the one
+   remaining track that warrants a design doc before a plan; write it when the phase is picked up.
+2. **Taxonomies / collections** — high‑reuse content primitive that also unblocks WordPress
+   categories/tags import and a future navigation/menu builder. Needs brainstorm → spec → plan.
 3. Everything else (importer depth, tenancy, the per‑feature follow‑ups) is pull‑based: pick one,
    run the proven loop — brainstorm → spec → plan → implement — starting from the linked home
    above.

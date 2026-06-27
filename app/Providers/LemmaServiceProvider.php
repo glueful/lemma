@@ -33,6 +33,7 @@ use App\Content\Http\Controllers\ContentTypeController;
 use App\Http\Controllers\SetupController;
 use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\LocaleAdminController;
 use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
@@ -457,6 +458,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             ScheduleController::class => [
                 'class' => ScheduleController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            LocaleAdminController::class => [
+                'class' => LocaleAdminController::class,
                 'shared' => true,
                 'autowire' => true,
             ],

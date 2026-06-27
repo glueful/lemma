@@ -70,6 +70,11 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - Per-locale RBAC support through Aegis resource-filtered grants: locale-targeted admin routes
   now authorize against `locale:<code>` while locale-agnostic routes keep the coarse `lemma`
   resource. Seeded unscoped roles remain backward compatible.
+- Localization editor UX: per-locale publish/draft/scheduled status in the entry-editor locale
+  switcher, locale-aware versions page, copy-into-existing-locale (overwrite), translation-coverage
+  progress in the entry list, cross-locale route management, and bulk create/publish across locales.
+  Disabling a language now warns when it still has published or draft content, backed by a new
+  `GET /v1/admin/locales/{locale}/usage` endpoint.
 
 #### Publishing pipeline
 - A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,

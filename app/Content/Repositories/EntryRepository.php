@@ -498,6 +498,21 @@ final class EntryRepository
     }
 
     /**
+     * Count content that exists in a locale — used to warn before disabling it.
+     *
+     * @return array{published_entries:int,draft_entries:int}
+     */
+    public function localeUsage(string $locale): array
+    {
+        return [
+            'published_entries' => (int) $this->db->table('entry_publications')
+                ->where('locale', '=', $locale)->count(),
+            'draft_entries' => (int) $this->db->table('entry_drafts')
+                ->where('locale', '=', $locale)->count(),
+        ];
+    }
+
+    /**
      * @return array{publish:?string,unpublish:?string,last_failure:?array}
      */
     private function emptyScheduleSummary(): array

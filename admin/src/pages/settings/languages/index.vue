@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import * as z from 'zod'
 import type { FormSubmitEvent, TableColumn } from '@nuxt/ui'
 import { useLocales, useLocaleMutations, type Locale } from '@/queries/locales'
+import { fetchLocaleUsage, type LocaleUsage } from '@/queries/localeUsage'
 import { useNotify } from '@/composables/useNotify'
 
 definePage({ meta: { requiresAuth: true } })
@@ -21,12 +22,42 @@ const columns: TableColumn<Locale>[] = [
   { id: 'actions', header: '' },
 ]
 
+const pendingDisable = ref<{ locale: Locale; usage: LocaleUsage } | null>(null)
+const checking = ref(false)
+
 async function onToggleEnabled(locale: Locale, value: boolean) {
+  // Disabling a locale with published content hides it from delivery — confirm first.
+  if (!value) {
+    checking.value = true
+    try {
+      const usage = await fetchLocaleUsage(locale.code)
+      if (usage.published_entries > 0 || usage.draft_entries > 0) {
+        pendingDisable.value = { locale, usage }
+        return
+      }
+    } catch (e) {
+      notifyError(e, 'Couldn’t check language usage')
+      return
+    } finally {
+      checking.value = false
+    }
+  }
+  await applyEnabled(locale, value)
+}
+
+async function applyEnabled(locale: Locale, value: boolean) {
   try {
     await update.mutateAsync({ code: locale.code, input: { enabled: value } })
   } catch (e) {
     notifyError(e, 'Couldn’t update language')
   }
+}
+
+async function confirmDisable() {
+  const p = pendingDisable.value
+  if (!p) return
+  await applyEnabled(p.locale, false)
+  pendingDisable.value = null
 }
 
 async function onSetDefault(locale: Locale) {
@@ -44,7 +75,7 @@ const schema = z.object({
   code: z
     .string()
     .min(2, 'Enter a locale code (e.g. en, fr-CA).')
-    .regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,})?$/, 'Use a code like “en” or “fr-CA”.'),
+    .regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,})?$/, 'Use a code like "en" or "fr-CA".'),
   name: z.string().min(1, 'Name is required.'),
   native_name: z.string().optional(),
 })
@@ -158,6 +189,42 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
       </UTable>
     </template>
   </UDashboardPanel>
+
+  <UModal
+    :open="pendingDisable !== null"
+    title="Disable this language?"
+    @update:open="
+      (v: boolean) => {
+        if (!v) pendingDisable = null
+      }
+    "
+  >
+    <template #body>
+      <p class="text-sm text-muted">
+        <span class="text-default">{{ pendingDisable?.locale.name }}</span> still has
+        <span class="text-default">{{ pendingDisable?.usage.published_entries }}</span> published
+        and <span class="text-default">{{ pendingDisable?.usage.draft_entries }}</span> draft
+        entr(y/ies). Disabling it hides published content in this language from delivery. Continue?
+      </p>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          label="Cancel"
+          :disabled="update.isLoading.value"
+          @click="pendingDisable = null"
+        />
+        <UButton
+          color="error"
+          label="Disable language"
+          :loading="update.isLoading.value"
+          @click="confirmDisable"
+        />
+      </div>
+    </template>
+  </UModal>
 
   <UModal v-model:open="showAdd" title="Add language">
     <template #body>

@@ -43,13 +43,15 @@ export async function saveDraft(uuid: string, locale: string, body: SaveDraftBod
   return data
 }
 
-export function useSaveDraft(uuid: string, locale: string, type: string) {
+// `locale` is a MaybeRefOrGetter so a single editor instance can switch locales and have saves +
+// invalidation always target the locale that's active at mutate time.
+export function useSaveDraft(uuid: string, locale: MaybeRefOrGetter<string>, type: string) {
   const cache = useQueryCache()
   return useMutation({
-    mutation: (body: SaveDraftBody) => saveDraft(uuid, locale, body),
+    mutation: (body: SaveDraftBody) => saveDraft(uuid, toValue(locale), body),
     // Refresh the draft (new lock_version) and the entries list (display title / status may change).
     onSettled() {
-      cache.invalidateQueries({ key: qk.draft(uuid, locale) })
+      cache.invalidateQueries({ key: qk.draft(uuid, toValue(locale)) })
       cache.invalidateQueries({ key: qk.entries(type) })
     },
   })

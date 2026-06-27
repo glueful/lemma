@@ -4777,6 +4777,12 @@
                                                                                 "string",
                                                                                 "null"
                                                                             ]
+                                                                        },
+                                                                        "reference_type": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
                                                                         }
                                                                     }
                                                                 }
@@ -5001,6 +5007,12 @@
                                                     }
                                                 },
                                                 "format": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "reference_type": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -5260,6 +5272,12 @@
                                                                         }
                                                                     },
                                                                     "format": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "reference_type": {
                                                                         "type": [
                                                                             "string",
                                                                             "null"
@@ -12994,6 +13012,12 @@
                                                                         }
                                                                     },
                                                                     "format": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "reference_type": {
                                                                         "type": [
                                                                             "string",
                                                                             "null"
@@ -24933,6 +24957,12 @@
                                                         "string",
                                                         "null"
                                                     ]
+                                                },
+                                                "reference_type": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             }
                                         }
@@ -25051,6 +25081,12 @@
                                                                         }
                                                                     },
                                                                     "format": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "reference_type": {
                                                                         "type": [
                                                                             "string",
                                                                             "null"

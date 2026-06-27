@@ -105,3 +105,54 @@ export function useDeleteEntry() {
     },
   })
 }
+
+// ── Per-entry locales (localization UI) ───────────────────────────────────────────────────────────
+/** One locale an entry exists in (EntryRepository::localeSummary). */
+export interface EntryLocaleSummary {
+  locale: string
+  has_draft: boolean
+  is_published: boolean
+  route_slug: string | null
+  draft_updated_at: string | null
+  published_at: string | null
+}
+
+export async function fetchEntryLocales(uuid: string): Promise<EntryLocaleSummary[]> {
+  const { data, error, response } = await client.GET('/entries/{uuid}/locales', {
+    params: { path: { uuid } },
+  })
+  if (error) throw toApiError(error, response)
+  return (data?.data?.locales ?? []) as EntryLocaleSummary[]
+}
+
+export function useEntryLocales(uuid: MaybeRefOrGetter<string>) {
+  return useQuery({
+    key: () => ['entry-locales', toValue(uuid)],
+    query: () => fetchEntryLocales(toValue(uuid)),
+  })
+}
+
+/** Create a draft for `locale`, optionally seeding it by copying the draft from `sourceLocale`. */
+export async function createLocaleDraft(
+  uuid: string,
+  locale: string,
+  sourceLocale?: string,
+): Promise<void> {
+  const { error, response } = await client.POST('/entries/{uuid}/locales/{locale}', {
+    params: { path: { uuid, locale } },
+    body: { source_locale: sourceLocale ?? null },
+  })
+  if (error) throw toApiError(error, response)
+}
+
+export function useCreateLocaleDraft() {
+  const cache = useQueryCache()
+  return useMutation({
+    mutation: (vars: { uuid: string; locale: string; sourceLocale?: string }) =>
+      createLocaleDraft(vars.uuid, vars.locale, vars.sourceLocale),
+    onSettled: (_data, _error, vars) => {
+      cache.invalidateQueries({ key: ['entry-locales', vars.uuid] })
+      cache.invalidateQueries({ key: qk.draft(vars.uuid, vars.locale) })
+    },
+  })
+}

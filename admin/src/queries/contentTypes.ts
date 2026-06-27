@@ -30,6 +30,8 @@ export interface ContentTypeField {
   enum?: string[]
   /** Editing widget for `text` fields: 'plain' (textarea) or 'rich' (editor). Undefined otherwise. */
   format?: 'plain' | 'rich'
+  /** Target content-type slug for a `reference` field; undefined for every other type. */
+  reference_type?: string | null
 }
 
 /** A content type with its full field schema. */

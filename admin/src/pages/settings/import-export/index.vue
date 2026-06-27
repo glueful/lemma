@@ -71,85 +71,126 @@ const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const selectedFile = ref<File | null>(null)
 const importing = ref(false)
 
-// ── CSV mapping wizard ────────────────────────────────────────────────────────
-// The CSV adapter needs an options bag (target type + field→column mapping); other adapters just
-// take a file. When the CSV adapter is chosen we collect that here and pass it as `options`.
+// ── Import mapping wizard (CSV + Markdown) ────────────────────────────────────
+// CSV and Markdown adapters need an options bag (target type + a field→source mapping); other
+// adapters just take a file. CSV maps fields to columns; Markdown maps fields to front-matter keys
+// and routes the converted body into a chosen field.
 const SKIP = '__skip__'
 const isCsv = computed(() => importAdapter.value === 'csv.content')
+const isMarkdown = computed(() => importAdapter.value === 'markdown.content')
+const needsWizard = computed(() => isCsv.value || isMarkdown.value)
 
 const { data: contentTypes } = useContentTypes()
 const typeItems = computed(() =>
   (contentTypes.value ?? []).map((t) => ({ label: t.name ?? t.slug, value: t.slug })),
 )
-const csvType = ref('')
-const csvFields = computed(() =>
-  (contentTypes.value?.find((t) => t.slug === csvType.value)?.schema ?? []).map((f) => ({
+const wizardType = ref('')
+const wizardFields = computed(() =>
+  (contentTypes.value?.find((t) => t.slug === wizardType.value)?.schema ?? []).map((f) => ({
     name: String(f.name ?? ''),
+    type: String(f.type ?? ''),
     required: !!f.required,
   })),
 )
-const csvPublish = ref(false)
+const wizardPublish = ref(false)
+const bodyField = ref('') // Markdown only: the field that receives the converted body
 
-const csvColumns = ref<string[]>([])
-// field name → CSV column header (or SKIP)
-const csvMapping = ref<Record<string, string>>({})
-const columnItems = computed(() => [
+// The source keys the fields map to: CSV column headers, or Markdown front-matter keys.
+const sourceKeys = ref<string[]>([])
+const sourceLabel = computed(() => (isMarkdown.value ? 'front-matter keys' : 'columns'))
+// field name → source key (or SKIP)
+const wizardMapping = ref<Record<string, string>>({})
+const keyItems = computed(() => [
   { label: '— skip —', value: SKIP },
-  ...csvColumns.value.map((c) => ({ label: c, value: c })),
+  ...sourceKeys.value.map((c) => ({ label: c, value: c })),
 ])
+// Markdown body-field options: the type's text fields.
+const bodyFieldItems = computed(() =>
+  wizardFields.value
+    .filter((f) => f.type === 'text')
+    .map((f) => ({ label: f.name, value: f.name })),
+)
 
 function parseCsvHeader(text: string): string[] {
   const firstLine = text.split(/\r?\n/).find((l) => l.trim() !== '') ?? ''
-  // Minimal header parse (headers rarely contain quoted commas); strips surrounding quotes.
   return firstLine.split(',').map((c) => c.trim().replace(/^"(.*)"$/, '$1'))
 }
-
-// When the header or the chosen type changes, default each field to a same-name column else skip.
-watchEffect(() => {
-  const cols = csvColumns.value
-  const next: Record<string, string> = {}
-  for (const f of csvFields.value) {
-    const name = String(f.name)
-    const match = cols.find((c) => c.toLowerCase() === name.toLowerCase())
-    next[name] = match ?? csvMapping.value[name] ?? SKIP
+function parseFrontMatterKeys(text: string): string[] {
+  const body = text.replace(/^﻿/, '').replace(/^\s+/, '')
+  if (!body.startsWith('---')) return []
+  const lines = body.split(/\r?\n/)
+  const keys: string[] = []
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i]!.trim() === '---') break
+    const m = /^([A-Za-z0-9_-]+)\s*:/.exec(lines[i]!)
+    if (m) keys.push(m[1]!)
   }
-  csvMapping.value = next
+  return keys
+}
+
+// Default each field to a same-name source key, else skip.
+watchEffect(() => {
+  const keys = sourceKeys.value
+  const next: Record<string, string> = {}
+  for (const f of wizardFields.value) {
+    const match = keys.find((c) => c.toLowerCase() === f.name.toLowerCase())
+    next[f.name] = match ?? wizardMapping.value[f.name] ?? SKIP
+  }
+  wizardMapping.value = next
+})
+// Default the Markdown body field to a "body" field when present.
+watchEffect(() => {
+  if (isMarkdown.value && !bodyField.value) {
+    bodyField.value = bodyFieldItems.value.find((i) => i.value === 'body')?.value ?? ''
+  }
 })
 
-// Required fields must be mapped to a real column before CSV import can run.
-const csvReady = computed(
-  () =>
-    !isCsv.value ||
-    (csvType.value !== '' &&
-      csvColumns.value.length > 0 &&
-      csvFields.value.every(
-        (f) => !f.required || (csvMapping.value[String(f.name)] ?? SKIP) !== SKIP,
-      )),
-)
+// Required fields must be satisfied (mapped to a source key, or — Markdown — be the body field).
+const wizardReady = computed(() => {
+  if (!needsWizard.value) return true
+  if (wizardType.value === '') return false
+  if (isCsv.value && sourceKeys.value.length === 0) return false
+  return wizardFields.value.every(
+    (f) =>
+      !f.required ||
+      (wizardMapping.value[f.name] ?? SKIP) !== SKIP ||
+      (isMarkdown.value && bodyField.value === f.name),
+  )
+})
 
 async function onFilePicked(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] ?? null
   selectedFile.value = file
-  csvColumns.value = file && isCsv.value ? parseCsvHeader(await file.text()) : []
+  if (!file) {
+    sourceKeys.value = []
+  } else if (isCsv.value) {
+    sourceKeys.value = parseCsvHeader(await file.text())
+  } else if (isMarkdown.value) {
+    sourceKeys.value = parseFrontMatterKeys(await file.text())
+  } else {
+    sourceKeys.value = []
+  }
 }
 
-function csvOptions(): Record<string, unknown> {
+function wizardOptions(): Record<string, unknown> {
   const mapping: Record<string, string> = {}
-  for (const [field, column] of Object.entries(csvMapping.value)) {
-    if (column !== SKIP) mapping[field] = column
+  for (const [field, key] of Object.entries(wizardMapping.value)) {
+    if (key !== SKIP) mapping[field] = key
   }
-  return {
-    content_type: csvType.value,
+  const options: Record<string, unknown> = {
+    content_type: wizardType.value,
     mapping,
     locale: runtimeConfig.defaultLocale,
-    publish: csvPublish.value,
+    publish: wizardPublish.value,
   }
+  if (isMarkdown.value && bodyField.value) options.body_field = bodyField.value
+  return options
 }
 
 async function onImport() {
   const file = selectedFile.value
-  if (!file || !importAdapter.value || !csvReady.value) return
+  if (!file || !importAdapter.value || !wizardReady.value) return
   importing.value = true
   try {
     const uploaded = await uploadImportFile(file)
@@ -158,14 +199,14 @@ async function onImport() {
       disk: uploaded.disk,
       path: uploaded.path,
       mode: importMode.value,
-      options: isCsv.value ? csvOptions() : undefined,
+      options: needsWizard.value ? wizardOptions() : undefined,
     })
     success(
       importMode.value === 'dry_run' ? 'Dry run queued' : 'Import queued',
       'It will appear in the jobs list below as it runs.',
     )
     selectedFile.value = null
-    csvColumns.value = []
+    sourceKeys.value = []
     if (fileInput.value) fileInput.value.value = ''
   } catch (e) {
     notifyError(e, 'Could not start the import')
@@ -254,8 +295,8 @@ function fmtTime(v?: string | null): string {
     <template #body>
       <div class="mx-auto w-full max-w-4xl space-y-6">
         <p class="text-sm text-muted">
-          Move content in and out as NDJSON. Jobs run in the background — they progress only while a
-          queue worker is running.
+          Export content as NDJSON; import an NDJSON bundle, a CSV, or a Markdown document. Jobs run
+          in the background — they progress only while a queue worker is running.
         </p>
 
         <div class="grid gap-6 md:grid-cols-2">
@@ -287,12 +328,16 @@ function fmtTime(v?: string | null): string {
               </UFormField>
 
               <UFormField
-                v-if="isCsv"
+                v-if="needsWizard"
                 label="Content type"
-                hint="Each CSV row becomes an entry of this type"
+                :hint="
+                  isMarkdown
+                    ? 'The Markdown document becomes an entry of this type'
+                    : 'Each CSV row becomes an entry of this type'
+                "
               >
                 <USelect
-                  v-model="csvType"
+                  v-model="wizardType"
                   :items="typeItems"
                   placeholder="Choose a content type"
                   class="w-full"
@@ -301,7 +346,13 @@ function fmtTime(v?: string | null): string {
 
               <UFormField
                 label="File"
-                :hint="isCsv ? 'CSV with a header row' : 'NDJSON exported from Lemma'"
+                :hint="
+                  isMarkdown
+                    ? 'A .md / .mdx file with optional front matter'
+                    : isCsv
+                      ? 'CSV with a header row'
+                      : 'NDJSON exported from Lemma'
+                "
               >
                 <div class="flex items-center gap-2">
                   <UButton
@@ -318,22 +369,35 @@ function fmtTime(v?: string | null): string {
               </UFormField>
 
               <UFormField
-                v-if="isCsv && csvType && csvColumns.length"
-                label="Map fields to columns"
+                v-if="isMarkdown && wizardType"
+                label="Body field"
+                hint="The Markdown body is converted to HTML and stored here"
+              >
+                <USelect
+                  v-model="bodyField"
+                  :items="bodyFieldItems"
+                  placeholder="Choose a text field"
+                  class="w-full"
+                />
+              </UFormField>
+
+              <UFormField
+                v-if="needsWizard && wizardType && sourceKeys.length"
+                :label="`Map fields to ${sourceLabel}`"
                 hint="Required fields (*) must be mapped"
               >
                 <div class="space-y-2">
-                  <div v-for="f in csvFields" :key="f.name" class="flex items-center gap-2">
+                  <div v-for="f in wizardFields" :key="f.name" class="flex items-center gap-2">
                     <span class="w-28 shrink-0 truncate text-sm text-default">
                       {{ f.name }}<span v-if="f.required" class="text-error">*</span>
                     </span>
-                    <USelect v-model="csvMapping[f.name]" :items="columnItems" class="flex-1" />
+                    <USelect v-model="wizardMapping[f.name]" :items="keyItems" class="flex-1" />
                   </div>
                 </div>
               </UFormField>
 
-              <UFormField v-if="isCsv" label="On commit">
-                <USwitch v-model="csvPublish" label="Publish imported entries" />
+              <UFormField v-if="needsWizard" label="On commit">
+                <USwitch v-model="wizardPublish" label="Publish imported entries" />
               </UFormField>
 
               <UFormField label="Mode">
@@ -343,7 +407,7 @@ function fmtTime(v?: string | null): string {
               <UButton
                 icon="i-lucide-upload"
                 :loading="importing || runImport.isLoading.value"
-                :disabled="!selectedFile || !importAdapter || !csvReady"
+                :disabled="!selectedFile || !importAdapter || !wizardReady"
                 @click="onImport"
               >
                 {{ importMode === 'dry_run' ? 'Run dry run' : 'Import' }}
@@ -453,7 +517,7 @@ function fmtTime(v?: string | null): string {
   <input
     ref="fileInput"
     type="file"
-    :accept="isCsv ? '.csv' : '.ndjson,.jsonl,.json'"
+    :accept="isCsv ? '.csv' : isMarkdown ? '.md,.mdx,.markdown' : '.ndjson,.jsonl,.json'"
     class="hidden"
     @change="onFilePicked"
   />

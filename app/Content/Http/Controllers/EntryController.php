@@ -24,6 +24,7 @@ use App\Content\Support\OptimisticLockException;
 use App\Content\Validation\FieldValidator;
 use App\Content\Validation\ValidationException;
 use App\Http\DTOs\ErrorResponse;
+use App\Settings\GeneralSettings;
 use Glueful\Auth\UserIdentity;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
@@ -87,8 +88,9 @@ final class EntryController
         }
 
         $page = max(1, $query->page ?? 1);
-        $max = (int) config($this->context, 'lemma.delivery.max_per_page', 100);
-        $default = (int) config($this->context, 'lemma.delivery.default_per_page', 20);
+        $settings = app($this->context, GeneralSettings::class);
+        $max = $settings->maxPerPage();
+        $default = $settings->defaultPerPage();
         $perPage = $query->perPage ?? $default;
         $perPage = $perPage < 1 ? $default : min($perPage, $max);
 

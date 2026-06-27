@@ -185,7 +185,7 @@ export function auditActionMeta(action: string): AuditActionMeta {
  * `system` bucket — the subscriber's category map never produces one; "system" only ever
  * appears as an actor label (e.g. CLI-originated rows).
  */
-export const AUDIT_CATEGORIES = ['auth', 'rbac', 'user', 'content', 'security', 'data'] as const
+export const AUDIT_CATEGORIES = ['auth', 'rbac', 'user', 'content', 'media', 'security', 'data'] as const
 
 /** Known actions, for the action filter dropdown. */
 export const AUDIT_ACTIONS = Object.keys(ACTION_META)

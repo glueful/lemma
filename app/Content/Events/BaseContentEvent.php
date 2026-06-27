@@ -95,4 +95,19 @@ abstract class BaseContentEvent extends BaseEvent implements AuditableEvent
      * @return array{type?:string|null,uuid?:string|null,label?:string|null}
      */
     abstract public function auditTarget(): array;
+
+    /**
+     * The actor carried by the event (the user who saved/published), as a fallback for when there's
+     * no HTTP request to resolve one from — these events dispatch after-commit and can also originate
+     * from CLI (`lemma:resync`). Only the uuid is known here; request resolution supplies the label
+     * when present and takes precedence.
+     *
+     * @return array{uuid?:string|null,label?:string|null}
+     */
+    public function auditActor(): array
+    {
+        $actor = $this->payload()['actor'] ?? null;
+
+        return is_string($actor) && $actor !== '' ? ['uuid' => $actor] : [];
+    }
 }

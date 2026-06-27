@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f4dab2380cd311d18027c07f1c0d8818",
+    "content-hash": "ae0d2e3ee8f82f068675966cc8268d54",
     "packages": [
         {
             "name": "composer/semver",
@@ -485,16 +485,16 @@
         },
         {
             "name": "glueful/audit",
-            "version": "v1.1.0",
+            "version": "v1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/audit.git",
-                "reference": "c3d45919a39eca76629666cc32abdca524962ffa"
+                "reference": "b9002e80efcfd050a2b022a683662da1c1d54970"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/audit/zipball/c3d45919a39eca76629666cc32abdca524962ffa",
-                "reference": "c3d45919a39eca76629666cc32abdca524962ffa",
+                "url": "https://api.github.com/repos/glueful/audit/zipball/b9002e80efcfd050a2b022a683662da1c1d54970",
+                "reference": "b9002e80efcfd050a2b022a683662da1c1d54970",
                 "shasum": ""
             },
             "require": {
@@ -514,7 +514,7 @@
             "extra": {
                 "glueful": {
                     "name": "Audit",
-                    "version": "1.1.0",
+                    "version": "1.2.0",
                     "provider": "Glueful\\Extensions\\Audit\\AuditServiceProvider",
                     "requires": {
                         "glueful": ">=1.63.0",
@@ -557,9 +557,9 @@
             ],
             "support": {
                 "issues": "https://github.com/glueful/audit/issues",
-                "source": "https://github.com/glueful/audit/tree/v1.1.0"
+                "source": "https://github.com/glueful/audit/tree/v1.2.0"
             },
-            "time": "2026-06-26T01:19:38+00:00"
+            "time": "2026-06-26T23:09:46+00:00"
         },
         {
             "name": "glueful/email-notification",
@@ -651,16 +651,16 @@
         },
         {
             "name": "glueful/framework",
-            "version": "v1.63.2",
+            "version": "v1.63.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/framework.git",
-                "reference": "b69a79987380f8f75b098dbf5b6cb4413ae5e7d6"
+                "reference": "a36a257b77a5aa291a301d54a2e81eaaefe20b5a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/framework/zipball/b69a79987380f8f75b098dbf5b6cb4413ae5e7d6",
-                "reference": "b69a79987380f8f75b098dbf5b6cb4413ae5e7d6",
+                "url": "https://api.github.com/repos/glueful/framework/zipball/a36a257b77a5aa291a301d54a2e81eaaefe20b5a",
+                "reference": "a36a257b77a5aa291a301d54a2e81eaaefe20b5a",
                 "shasum": ""
             },
             "require": {
@@ -755,7 +755,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-06-26T07:31:39+00:00"
+            "time": "2026-06-27T01:09:18+00:00"
         },
         {
             "name": "glueful/i18n",

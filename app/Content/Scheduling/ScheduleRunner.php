@@ -9,6 +9,7 @@ use App\Content\Enums\ScheduleStatus;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ScheduleRepository;
 use App\Content\Services\PublishService;
+use App\Settings\GeneralSettings;
 use Glueful\Bootstrap\ApplicationContext;
 
 /**
@@ -30,7 +31,7 @@ final class ScheduleRunner
 
     public function run(int $limit = 100): int
     {
-        if (!(bool) config($this->context, 'lemma.scheduler.enabled', true)) {
+        if (!app($this->context, GeneralSettings::class)->schedulerEnabled()) {
             return 0;
         }
 

@@ -23,6 +23,7 @@ use App\Content\Http\DTOs\Responses\Delivery\DeliveryShowItemData;
 use App\Http\DTOs\ErrorResponse;
 use App\Content\Seo\CanonicalProjector;
 use App\Content\Seo\RouteResolver;
+use App\Settings\GeneralSettings;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
 use Glueful\Http\Response;
@@ -394,7 +395,7 @@ final class DeliveryController
      */
     private function clampPerPage(int $perPage): int
     {
-        $max = (int) config($this->context, 'lemma.delivery.max_per_page', 100);
+        $max = app($this->context, GeneralSettings::class)->maxPerPage();
         if ($perPage < 1) {
             $perPage = $this->defaultPerPage();
         }
@@ -404,7 +405,7 @@ final class DeliveryController
     /** The configured default page size (`lemma.delivery.default_per_page`, fallback 20). */
     private function defaultPerPage(): int
     {
-        return (int) config($this->context, 'lemma.delivery.default_per_page', 20);
+        return app($this->context, GeneralSettings::class)->defaultPerPage();
     }
 
     /**
@@ -419,7 +420,7 @@ final class DeliveryController
             return max(0, (int) $typeRow['cache_ttl']);
         }
 
-        return (int) config($this->context, 'lemma.delivery.cache_ttl', 60);
+        return app($this->context, GeneralSettings::class)->cacheTtl();
     }
 
     /**

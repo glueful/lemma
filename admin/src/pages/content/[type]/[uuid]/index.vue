@@ -101,25 +101,23 @@ async function onSave() {
     </template>
 
     <template #body>
-      <div class="w-full">
-        <div class="grid gap-6 lg:grid-cols-3">
-          <!-- Entry content — the primary, wider pane (2/3) -->
-          <div class="lg:col-span-2">
-            <UCard>
-              <template #header><h2 class="font-semibold text-default">Content</h2></template>
-              <div v-if="draftStatus === 'pending'" class="space-y-3">
-                <USkeleton v-for="n in 4" :key="n" class="h-10" />
-              </div>
-              <FieldEditor v-else v-model="fields" :schema="schema" />
-            </UCard>
-          </div>
-
-          <!-- Publishing — the narrower, sticky sidebar (1/3) -->
-          <div class="lg:col-span-1">
-            <div class="lg:sticky lg:top-6">
-              <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
+      <!-- On large screens the body fills the panel height and each pane scrolls on its own, so the
+           page chrome stays put. On small screens it stacks and scrolls normally. -->
+      <div class="flex w-full flex-col gap-6 lg:h-full lg:min-h-0 lg:flex-row">
+        <!-- Entry content — the primary, wider pane -->
+        <div class="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pe-1">
+          <UCard>
+            <template #header><h2 class="font-semibold text-default">Content</h2></template>
+            <div v-if="draftStatus === 'pending'" class="space-y-3">
+              <USkeleton v-for="n in 4" :key="n" class="h-10" />
             </div>
-          </div>
+            <FieldEditor v-else v-model="fields" :schema="schema" />
+          </UCard>
+        </div>
+
+        <!-- Publishing — the narrower sidebar, its own scroll section -->
+        <div class="lg:min-h-0 lg:w-96 lg:shrink-0 lg:overflow-y-auto">
+          <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
         </div>
       </div>
     </template>

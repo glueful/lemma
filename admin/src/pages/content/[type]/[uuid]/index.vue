@@ -89,13 +89,27 @@ async function onSave() {
     </template>
 
     <template #body>
-      <div v-if="draftStatus === 'pending'" class="space-y-3">
-        <USkeleton v-for="n in 4" :key="n" class="h-10" />
+      <div class="w-full">
+        <div class="grid gap-6 lg:grid-cols-3">
+          <!-- Entry content — the primary, wider pane (2/3) -->
+          <div class="lg:col-span-2">
+            <UCard>
+              <template #header><h2 class="font-semibold text-default">Content</h2></template>
+              <div v-if="draftStatus === 'pending'" class="space-y-3">
+                <USkeleton v-for="n in 4" :key="n" class="h-10" />
+              </div>
+              <FieldEditor v-else v-model="fields" :schema="schema" />
+            </UCard>
+          </div>
+
+          <!-- Publishing — the narrower, sticky sidebar (1/3) -->
+          <div class="lg:col-span-1">
+            <div class="lg:sticky lg:top-6">
+              <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
+            </div>
+          </div>
+        </div>
       </div>
-
-      <FieldEditor v-else v-model="fields" :schema="schema" />
-
-      <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
     </template>
   </UDashboardPanel>
 </template>

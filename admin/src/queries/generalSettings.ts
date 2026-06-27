@@ -1,0 +1,48 @@
+import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
+import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
+
+// ── General settings (App\Http\Controllers\GeneralSettingsController, /v1/admin/settings/general) ──
+//
+// Instance settings persisted as LEMMA_* keys in .env. Calls go through the typed `client`; the
+// `{ success, message, data: { settings } }` envelope is unwrapped to the flat settings object.
+
+export interface GeneralSettings {
+  site_name: string
+  site_preview_url: string
+  default_locale: string
+  default_per_page: number
+  max_per_page: number
+  cache_ttl: number
+  scheduler_enabled: boolean
+  webhooks_enabled: boolean
+}
+
+export type GeneralSettingsInput = Partial<GeneralSettings>
+
+const qk = () => ['settings', 'general'] as const
+
+export async function fetchGeneralSettings(): Promise<GeneralSettings> {
+  const { data, error, response } = await client.GET('/settings/general')
+  if (error) throw toApiError(error, response)
+  return (data?.data?.settings ?? {}) as GeneralSettings
+}
+
+export function useGeneralSettings() {
+  return useQuery({ key: qk(), query: fetchGeneralSettings })
+}
+
+export async function updateGeneralSettings(input: GeneralSettingsInput): Promise<GeneralSettings> {
+  const { data, error, response } = await client.PUT('/settings/general', { body: input })
+  if (error) throw toApiError(error, response)
+  return (data?.data?.settings ?? {}) as GeneralSettings
+}
+
+export function useGeneralSettingsMutations() {
+  const cache = useQueryCache()
+  const save = useMutation({
+    mutation: updateGeneralSettings,
+    onSettled: () => cache.invalidateQueries({ key: qk() }),
+  })
+  return { save }
+}

@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\DTOs\Responses;
+
+use Glueful\Http\Contracts\ResponseData;
+
+/**
+ * Doc-only shape of the instance General settings
+ * ({@see \App\Http\Controllers\GeneralSettingsController}). Effective values read from `.env` with
+ * the config defaults as fallback.
+ */
+final class GeneralSettingsData implements ResponseData
+{
+    public function __construct(
+        public readonly string $site_name,
+        public readonly string $site_preview_url,
+        public readonly string $default_locale,
+        public readonly int $default_per_page,
+        public readonly int $max_per_page,
+        public readonly int $cache_ttl,
+        public readonly bool $scheduler_enabled,
+        public readonly bool $webhooks_enabled,
+    ) {
+    }
+}

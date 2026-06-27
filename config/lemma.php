@@ -1,6 +1,9 @@
 <?php
 
 return [
+    // Instance display name. Editable from Settings › General (writes LEMMA_SITE_NAME to .env).
+    'site_name' => env('LEMMA_SITE_NAME', 'Lemma'),
+
     // Glueful storage disk that backs media blob references (see docs/V1_DESIGN.md §8).
     'media_disk' => env('LEMMA_MEDIA_DISK', 'local'),
 

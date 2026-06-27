@@ -12,6 +12,7 @@ use App\Content\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ApiKeyAdminController;
 use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
+use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\UserAdminController;
 use Glueful\Api\Webhooks\Http\Controllers\WebhookController;
@@ -136,6 +137,14 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
         ->middleware('lemma_permission:content.manage');
 
     $router->post('/settings/email/test', [EmailSettingsController::class, 'test'])
+        ->middleware('lemma_permission:content.manage');
+
+    // Instance General settings — site identity, default locale, delivery defaults, feature toggles
+    // (persisted as LEMMA_* keys in .env).
+    $router->get('/settings/general', [GeneralSettingsController::class, 'show'])
+        ->middleware('lemma_permission:content.manage');
+
+    $router->put('/settings/general', [GeneralSettingsController::class, 'update'])
         ->middleware('lemma_permission:content.manage');
 
     // Admin user management (app-owned policy over glueful/users' store primitives). The list/read

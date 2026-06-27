@@ -91,6 +91,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/general": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get general settings
+         * @description Effective instance settings (site identity, default locale, delivery defaults, feature toggles): a lemma_settings override, else the config/.env default. Requires `content.manage`.
+         */
+        get: operations["getV1AdminSettingsGeneral"];
+        /**
+         * Update general settings
+         * @description Persists the submitted settings to lemma_settings (only supplied fields change). Applies on the next request — no restart. Requires `content.manage`.
+         */
+        put: operations["putV1AdminSettingsGeneral"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -2004,6 +2028,210 @@ export interface operations {
                 };
             };
             /** @description Invalid recipient, missing host, or transport failure. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    getV1AdminSettingsGeneral: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current general settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            settings?: {
+                                site_name?: string;
+                                site_preview_url?: string;
+                                default_locale?: string;
+                                default_per_page?: number;
+                                max_per_page?: number;
+                                cache_ttl?: number;
+                                scheduler_enabled?: boolean;
+                                webhooks_enabled?: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    putV1AdminSettingsGeneral: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "site_name": "example",
+                 *       "site_preview_url": "example",
+                 *       "default_locale": "example",
+                 *       "default_per_page": "example",
+                 *       "max_per_page": "example",
+                 *       "cache_ttl": "example",
+                 *       "scheduler_enabled": true,
+                 *       "webhooks_enabled": true
+                 *     }
+                 */
+                "application/json": {
+                    site_name?: string | null;
+                    site_preview_url?: string | null;
+                    default_locale?: string | null;
+                    default_per_page?: number | null;
+                    max_per_page?: number | null;
+                    cache_ttl?: number | null;
+                    scheduler_enabled?: boolean | null;
+                    webhooks_enabled?: boolean | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Settings saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            settings?: {
+                                site_name?: string;
+                                site_preview_url?: string;
+                                default_locale?: string;
+                                default_per_page?: number;
+                                max_per_page?: number;
+                                cache_ttl?: number;
+                                scheduler_enabled?: boolean;
+                                webhooks_enabled?: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Invalid value (non-positive page size, max < default, …). */
             422: {
                 headers: {
                     [name: string]: unknown;

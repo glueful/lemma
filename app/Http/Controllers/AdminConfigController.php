@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Settings\GeneralSettings;
 use App\Setup\SetupService;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Routing\Attributes\ApiOperation;
@@ -43,8 +44,8 @@ final class AdminConfigController
     {
         $payload = [
             'apiBase' => (string) config($this->context, 'lemma.admin.api_base', '/v1/admin'),
-            'sitePreviewUrl' => (string) config($this->context, 'lemma.admin.site_preview_url', ''),
-            'defaultLocale' => (string) config($this->context, 'lemma.admin.default_locale', 'en'),
+            'sitePreviewUrl' => app($this->context, GeneralSettings::class)->sitePreviewUrl(),
+            'defaultLocale' => app($this->context, GeneralSettings::class)->defaultLocale(),
             // Whether first-run setup has run. The SPA boot guard routes to /setup when false.
             'installed' => $this->setup->isInstalled(),
         ];

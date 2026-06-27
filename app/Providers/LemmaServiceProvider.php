@@ -18,9 +18,13 @@ use App\Setup\Console\DoctorCommand;
 use App\Setup\Console\ProvisionCommand;
 use App\Content\Backfill\BackfillRunner;
 use App\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\ApiKeyAdminController;
 use App\Http\Controllers\ExtensionAdminController;
+use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\UserAdminController;
+use App\Settings\GeneralSettings;
+use App\Settings\SettingsStore;
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Http\Controllers\SetupController;
 use App\Content\Http\Controllers\DeliveryController;
@@ -264,6 +268,26 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             MediaAdminController::class => [
                 'class' => MediaAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ApiKeyAdminController::class => [
+                'class' => ApiKeyAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            GeneralSettingsController::class => [
+                'class' => GeneralSettingsController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            SettingsStore::class => [
+                'class' => SettingsStore::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            GeneralSettings::class => [
+                'class' => GeneralSettings::class,
                 'shared' => true,
                 'autowire' => true,
             ],

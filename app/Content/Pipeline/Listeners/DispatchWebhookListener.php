@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Pipeline\Listeners;
 
 use App\Content\Events\BaseContentEvent;
+use App\Settings\GeneralSettings;
 use Glueful\Api\Webhooks\Contracts\WebhookDispatcherInterface;
 use Glueful\Api\Webhooks\WebhookDispatcher;
 use Glueful\Bootstrap\ApplicationContext;
@@ -57,7 +58,7 @@ final class DispatchWebhookListener
 
     private function webhooksEnabled(): bool
     {
-        return (bool) config($this->context, 'lemma.pipeline.webhooks_enabled', true);
+        return app($this->context, GeneralSettings::class)->webhooksEnabled();
     }
 
     private function dispatcher(): WebhookDispatcherInterface

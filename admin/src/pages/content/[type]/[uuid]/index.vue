@@ -13,6 +13,7 @@ import { useNotify } from '@/composables/useNotify'
 import PublishPanel from './components/PublishPanel.vue'
 import LocaleSwitcher from './components/LocaleSwitcher.vue'
 import LocaleRoutesModal from './components/LocaleRoutesModal.vue'
+import BulkLocaleMenu from './components/BulkLocaleMenu.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -237,6 +238,14 @@ async function onSave() {
             icon="i-lucide-signpost"
             aria-label="Manage routes by locale"
             @click="showRoutes = true"
+          />
+          <BulkLocaleMenu
+            v-if="multiLocale"
+            :uuid="uuid"
+            :type="type"
+            :current-locale="locale"
+            :summaries="entryLocales ?? []"
+            :addable="addableLocales"
           />
           <UButton :loading="save.isLoading.value" @click="onSave">Save draft</UButton>
         </template>

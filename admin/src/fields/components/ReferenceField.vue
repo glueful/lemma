@@ -1,17 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { FieldDef } from '../types'
+import ReferencePicker from './ReferencePicker.vue'
 
-defineProps<{ field: FieldDef }>()
-// A plain entry-UUID reference. A searchable USelectMenu (the plan's intent) needs to know the
-// reference's TARGET content type to list candidates — but the content-type field schema doesn't
-// carry that yet (no target field on the definition). Until the schema/API exposes a target (or a
-// references-candidates endpoint), a UUID input is the honest option. The registry makes the
-// USelectMenu swap a one-file change once that data exists.
+const props = defineProps<{ field: FieldDef }>()
+// The reference value is the target entry's UUID either way.
 const model = defineModel<string>()
+// A searchable picker needs the reference's target content type. When the schema declares one we
+// render the picker; otherwise we fall back to the honest UUID input.
+const target = computed(() => props.field.referenceType ?? '')
 </script>
 
 <template>
   <UFormField :label="field.name" :required="field.required" :name="field.name">
-    <UInput v-model="model" placeholder="Entry UUID" class="w-full" />
+    <ReferencePicker v-if="target" v-model="model" :target="target" />
+    <UInput v-else v-model="model" placeholder="Entry UUID" class="w-full" />
   </UFormField>
 </template>

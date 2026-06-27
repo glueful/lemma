@@ -35,6 +35,8 @@ final class FieldSchemaData implements ResponseData
         public readonly array $enum = [],
         /** Presentation widget for text fields: 'plain' (textarea) or 'rich' (editor). */
         public readonly ?string $format = null,
+        /** Target content-type slug for a `reference` field (drives the admin picker). */
+        public readonly ?string $reference_type = null,
     ) {
     }
 }

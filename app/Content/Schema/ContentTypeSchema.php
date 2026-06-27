@@ -51,6 +51,7 @@ final class ContentTypeSchema
             'filter_type' => $f->filterType,
             'enum' => $f->enumValues,
             'format' => $f->format,
+            'reference_type' => $f->referenceType,
         ], static fn($v): bool => $v !== false && $v !== null && $v !== []), $this->fields());
     }
 }

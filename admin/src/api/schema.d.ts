@@ -383,6 +383,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/import-export/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload an import file
+         * @description Stores an NDJSON import source file on the uploads disk and returns its {disk, path} for POST /import-export/imports. Requires `content.manage`.
+         */
+        post: operations["postV1AdminImportexportUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/content-types/{slug}": {
         parameters: {
             query?: never;
@@ -735,6 +755,26 @@ export interface paths {
          * @description A single delivery including its request payload and the endpoint response body.
          */
         get: operations["getV1AdminWebhooksDeliveriesById"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import-export/jobs/{uuid}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download an export result
+         * @description Streams the NDJSON result of a completed export job (concatenating its result files). Requires `content.manage`.
+         */
+        get: operations["getV1AdminImportexportJobsByUuidDownload"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1444,6 +1484,7 @@ export interface operations {
                                     filter_type?: string | null;
                                     enum?: string[];
                                     format?: string | null;
+                                    reference_type?: string | null;
                                 }[];
                                 schema_version?: number;
                                 created_by?: string | null;
@@ -1548,6 +1589,7 @@ export interface operations {
                         filter_type?: string | null;
                         enum?: string[];
                         format?: string | null;
+                        reference_type?: string | null;
                     }[];
                 };
             };
@@ -1589,6 +1631,7 @@ export interface operations {
                                     filter_type?: string | null;
                                     enum?: string[];
                                     format?: string | null;
+                                    reference_type?: string | null;
                                 }[];
                                 schema_version?: number;
                                 created_by?: string | null;
@@ -3662,6 +3705,89 @@ export interface operations {
             };
         };
     };
+    postV1AdminImportexportUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Stored; returns disk + path. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthenticated. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Missing file, wrong type, or too large. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
     getV1AdminContenttypesBySlug: {
         parameters: {
             query?: never;
@@ -3702,6 +3828,7 @@ export interface operations {
                                     filter_type?: string | null;
                                     enum?: string[];
                                     format?: string | null;
+                                    reference_type?: string | null;
                                 }[];
                                 schema_version?: number;
                                 created_by?: string | null;
@@ -6361,6 +6488,84 @@ export interface operations {
             };
         };
     };
+    getV1AdminImportexportJobsByUuidDownload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export result file (application/x-ndjson). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthenticated. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description No such export job, or no result is available yet. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
     putV1AdminEntriesByUuidRoutesByLocale: {
         parameters: {
             query?: never;
@@ -8256,6 +8461,7 @@ export interface operations {
                         filter_type?: string | null;
                         enum?: string[];
                         format?: string | null;
+                        reference_type?: string | null;
                     }[];
                 };
             };
@@ -8290,6 +8496,7 @@ export interface operations {
                                     filter_type?: string | null;
                                     enum?: string[];
                                     format?: string | null;
+                                    reference_type?: string | null;
                                 }[];
                                 schema_version?: number;
                                 created_by?: string | null;

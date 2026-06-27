@@ -16,4 +16,6 @@ export interface FieldDef {
   enum?: string[]
   /** Presentation widget for `text` fields: 'plain' (textarea) or 'rich' (editor). */
   format?: 'plain' | 'rich'
+  /** Target content-type slug for a `reference` field — drives the searchable entry picker. */
+  referenceType?: string
 }

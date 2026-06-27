@@ -41,6 +41,8 @@ final class FieldDefinitionData implements RequestData
         public readonly array $enum = [],
         #[Rule('string')]
         public readonly ?string $format = null,
+        #[Rule('string')]
+        public readonly ?string $reference_type = null,
     ) {
     }
 
@@ -60,6 +62,7 @@ final class FieldDefinitionData implements RequestData
             'filter_type' => $this->filter_type,
             'enum' => $this->enum,
             'format' => $this->format,
+            'reference_type' => $this->reference_type,
         ];
     }
 }

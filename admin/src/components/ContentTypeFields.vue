@@ -1,11 +1,23 @@
 <script setup lang="ts">
 // Builder for a content type's field schema. v-models a ContentTypeField[]; the parent owns the
 // array and persists it (create → POST /content-types, edit → PATCH /content-types/{slug}/schema).
-import { FIELD_TYPES, type ContentTypeField, type FieldType } from '@/queries/contentTypes'
+import { computed } from 'vue'
+import {
+  FIELD_TYPES,
+  useContentTypes,
+  type ContentTypeField,
+  type FieldType,
+} from '@/queries/contentTypes'
 
 const model = defineModel<ContentTypeField[]>({ required: true })
 
 const typeItems = [...FIELD_TYPES]
+
+// Target options for `reference` fields — the content types an entry can point at.
+const { data: contentTypes } = useContentTypes()
+const targetTypeItems = computed(() =>
+  (contentTypes.value ?? []).map((t) => ({ label: t.name ?? t.slug, value: t.slug })),
+)
 
 // `text` fields choose an editing widget (both store a plain string / HTML string in a text column).
 const formatItems: { label: string; value: 'plain' | 'rich' }[] = [
@@ -35,6 +47,8 @@ function onTypeChange(index: number, type: FieldType) {
     ...(type === 'enum' ? {} : { enum: [] }),
     // Text fields carry a presentation format (default plain); clear it for every other type.
     format: type === 'text' ? 'plain' : undefined,
+    // The reference target only applies to reference fields; clear it otherwise.
+    ...(type === 'reference' ? {} : { reference_type: undefined }),
   })
 }
 
@@ -101,6 +115,20 @@ function setEnum(index: number, text: string) {
           :items="formatItems"
           orientation="horizontal"
           @update:model-value="patch(index, { format: $event as 'plain' | 'rich' })"
+        />
+      </UFormField>
+
+      <UFormField
+        v-if="field.type === 'reference'"
+        label="References"
+        hint="The content type entries of this field point at"
+      >
+        <USelect
+          :model-value="field.reference_type ?? undefined"
+          :items="targetTypeItems"
+          placeholder="Choose a content type"
+          class="w-full"
+          @update:model-value="patch(index, { reference_type: String($event) })"
         />
       </UFormField>
 

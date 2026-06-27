@@ -22,6 +22,8 @@ final class FieldDefinition
         public readonly array $enumValues = [],
         /** 'plain'|'rich' for text fields; null for every other type. */
         public readonly ?string $format = null,
+        /** Target content-type slug for a `reference` field (drives the admin picker); null otherwise. */
+        public readonly ?string $referenceType = null,
     ) {
     }
 
@@ -69,6 +71,16 @@ final class FieldDefinition
             }
         }
 
+        // `reference_type` names the target content type for a `reference` field (drives the admin's
+        // reference picker). Only meaningful for reference fields; ignored for every other type.
+        $referenceType = null;
+        if ($type === 'reference') {
+            $rawRef = $raw['reference_type'] ?? null;
+            if (is_string($rawRef) && $rawRef !== '') {
+                $referenceType = $rawRef;
+            }
+        }
+
         return new self(
             name: $name,
             type: $type,
@@ -78,6 +90,7 @@ final class FieldDefinition
             filterType: $filterType,
             enumValues: $enum,
             format: $format,
+            referenceType: $referenceType,
         );
     }
 }

@@ -9,7 +9,7 @@ import { useTemplateRef } from 'vue'
 import type { EditorToolbarItem, EditorCustomHandlers } from '@nuxt/ui'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import RichTextLink from '@/components/RichTextLink.vue'
-import { useUploadMedia } from '@/queries/media'
+import { useUploadMedia, blobDisplayUrl } from '@/queries/media'
 import { useNotify } from '@/composables/useNotify'
 
 withDefaults(
@@ -52,26 +52,21 @@ async function onImageSelected(event: Event) {
   try {
     // Content images are public so they render in delivery without signed URLs.
     const asset = await uploadMedia({ file, visibility: 'public' })
-    if (asset.url) editor.chain().focus().setImage({ src: asset.url }).run()
+    // `asset.url` is a bare storage path; the public blob serves from /{version}/blobs/{uuid}.
+    if (asset.blob_uuid) {
+      editor
+        .chain()
+        .focus()
+        .setImage({ src: blobDisplayUrl(asset.blob_uuid) })
+        .run()
+    }
   } catch (e) {
     notifyError(e, 'Couldn’t upload image')
   }
 }
 
-// "Turn into" block-type menu, shared by the fixed and bubble toolbars.
-const turnIntoItems = [
-  { type: 'label', label: 'Turn into' },
-  { kind: 'paragraph', label: 'Paragraph', icon: 'i-lucide-type' },
-  { kind: 'heading', level: 1, label: 'Heading 1', icon: 'i-lucide-heading-1' },
-  { kind: 'heading', level: 2, label: 'Heading 2', icon: 'i-lucide-heading-2' },
-  { kind: 'heading', level: 3, label: 'Heading 3', icon: 'i-lucide-heading-3' },
-  { kind: 'bulletList', label: 'Bullet list', icon: 'i-lucide-list' },
-  { kind: 'orderedList', label: 'Ordered list', icon: 'i-lucide-list-ordered' },
-  { kind: 'taskList', label: 'Task list', icon: 'i-lucide-list-checks' },
-  { kind: 'blockquote', label: 'Blockquote', icon: 'i-lucide-text-quote' },
-  { kind: 'codeBlock', label: 'Code block', icon: 'i-lucide-square-code' },
-]
-
+// "Turn into" block-type menu, shared by the fixed and bubble toolbars. `satisfies` keeps the string
+// literals (color/variant/kind/…) narrow so it stays assignable to EditorToolbarItem when reused.
 const turnInto = {
   label: 'Turn into',
   trailingIcon: 'i-lucide-chevron-down',
@@ -79,8 +74,19 @@ const turnInto = {
   variant: 'ghost',
   content: { align: 'start' },
   ui: { label: 'text-xs' },
-  items: turnIntoItems,
-}
+  items: [
+    { type: 'label', label: 'Turn into' },
+    { kind: 'paragraph', label: 'Paragraph', icon: 'i-lucide-type' },
+    { kind: 'heading', level: 1, label: 'Heading 1', icon: 'i-lucide-heading-1' },
+    { kind: 'heading', level: 2, label: 'Heading 2', icon: 'i-lucide-heading-2' },
+    { kind: 'heading', level: 3, label: 'Heading 3', icon: 'i-lucide-heading-3' },
+    { kind: 'bulletList', label: 'Bullet list', icon: 'i-lucide-list' },
+    { kind: 'orderedList', label: 'Ordered list', icon: 'i-lucide-list-ordered' },
+    { kind: 'taskList', label: 'Task list', icon: 'i-lucide-list-checks' },
+    { kind: 'blockquote', label: 'Blockquote', icon: 'i-lucide-text-quote' },
+    { kind: 'codeBlock', label: 'Code block', icon: 'i-lucide-square-code' },
+  ],
+} satisfies EditorToolbarItem
 
 // Fixed toolbar — always visible at the top of the editor.
 const toolbarItems = [

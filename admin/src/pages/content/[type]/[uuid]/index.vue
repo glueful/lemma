@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import { useContentTypes } from '@/queries/contentTypes'
 import { useDraft, useSaveDraft } from '@/queries/drafts'
+import { useEntryLocales, useCreateLocaleDraft } from '@/queries/entries'
+import { useLocales } from '@/queries/locales'
 import { runtimeConfig } from '@/runtime/config'
 import type { FieldDef } from '@/fields/types'
 import FieldEditor from '@/components/FieldEditor.vue'
@@ -15,15 +17,18 @@ definePage({ meta: { requiresAuth: true } })
 const route = useRoute()
 const type = computed(() => String(route.params.type))
 const uuid = computed(() => String(route.params.uuid))
-// Phase 1 is en-only in the UI; locale comes from runtime config.
-const locale = runtimeConfig.defaultLocale
 
 const { success, warning, error: notifyError } = useNotify()
 
+// The locale being edited. Starts at the default but is driven by the header switcher; the draft,
+// save mutation, and PublishPanel all follow it.
+const locale = ref(runtimeConfig.defaultLocale)
+
 // The content-type schema drives the field editor.
 const { data: contentTypes } = useContentTypes()
+const contentType = computed(() => contentTypes.value?.find((c) => c.slug === type.value))
 const schema = computed<FieldDef[]>(() =>
-  (contentTypes.value?.find((c) => c.slug === type.value)?.schema ?? []).map((f) => ({
+  (contentType.value?.schema ?? []).map((f) => ({
     name: String(f.name ?? ''),
     type: (f.type ?? 'string') as FieldDef['type'],
     required: f.required ?? undefined,
@@ -31,13 +36,86 @@ const schema = computed<FieldDef[]>(() =>
     // Carry the widget hint through so `text` + `rich` renders the RichText (UEditor) editor,
     // matching the content-type preview — without this it falls back to a plain textarea.
     format: (f.format ?? undefined) as FieldDef['format'],
+    // Target type for a reference field — drives the searchable picker.
+    referenceType: f.reference_type ?? undefined,
   })),
 )
 
-const { data: draft, status: draftStatus } = useDraft(uuid, () => locale)
+// ── Locales ───────────────────────────────────────────────────────────────────
+const { data: allLocales } = useLocales()
+const enabledLocales = computed(() => (allLocales.value ?? []).filter((l) => l.enabled))
+const multiLocale = computed(() => enabledLocales.value.length > 1)
+function localeLabel(code: string): string {
+  const match = enabledLocales.value.find((l) => l.code === code)
+  return match ? `${match.name} (${code})` : code
+}
+
+const { data: entryLocales } = useEntryLocales(uuid)
+const entryLocaleCodes = computed(() => (entryLocales.value ?? []).map((l) => l.locale))
+const switcherItems = computed(() =>
+  entryLocaleCodes.value.map((code) => ({ label: localeLabel(code), value: code })),
+)
+const addableLocales = computed(() =>
+  enabledLocales.value.filter((l) => !entryLocaleCodes.value.includes(l.code)),
+)
+
+// Land on a locale the entry actually has (it may have been authored in a non-default locale). Runs
+// once on first load, then leaves the switcher under the user's control.
+const localeInitialized = ref(false)
+watchEffect(() => {
+  if (localeInitialized.value) return
+  const codes = entryLocaleCodes.value
+  if (!codes.length) return
+  if (!codes.includes(locale.value)) {
+    locale.value = codes.includes(runtimeConfig.defaultLocale)
+      ? runtimeConfig.defaultLocale
+      : codes[0]!
+  }
+  localeInitialized.value = true
+})
+
+// Fields shared across locales (not per-locale) — editing them affects every locale.
+const sharedFields = computed(() =>
+  (contentType.value?.schema ?? []).filter((f) => !f.localized).map((f) => String(f.name)),
+)
+const showSharedNote = computed(
+  () => sharedFields.value.length > 0 && locale.value !== runtimeConfig.defaultLocale,
+)
+
+// ── Create a locale version ─────────────────────────────────────────────────────
+const createLocale = useCreateLocaleDraft()
+const pendingLocale = ref('')
+const copyEnabled = ref(true)
+const copyFrom = ref('')
+
+function openCreate(code: string) {
+  pendingLocale.value = code
+  copyEnabled.value = entryLocaleCodes.value.length > 0
+  copyFrom.value = locale.value || entryLocaleCodes.value[0] || ''
+}
+
+async function confirmCreate() {
+  const target = pendingLocale.value
+  if (!target) return
+  try {
+    await createLocale.mutateAsync({
+      uuid: uuid.value,
+      locale: target,
+      sourceLocale: copyEnabled.value ? copyFrom.value || undefined : undefined,
+    })
+    pendingLocale.value = ''
+    locale.value = target
+    success(`${localeLabel(target)} version created`)
+  } catch (e) {
+    notifyError(e, 'Couldn’t create the locale version')
+  }
+}
+
+// ── Draft ─────────────────────────────────────────────────────────────────────
+const { data: draft, status: draftStatus } = useDraft(uuid, () => locale.value)
 
 // Local editable copy, seeded from the loaded draft. lock_version is echoed back on save for
-// optimistic concurrency.
+// optimistic concurrency. Re-seeds whenever the loaded draft changes (including on locale switch).
 const fields = ref<Record<string, unknown>>({})
 const lockVersion = ref(0)
 watch(
@@ -51,7 +129,7 @@ watch(
   { immediate: true },
 )
 
-const save = useSaveDraft(uuid.value, locale, type.value)
+const save = useSaveDraft(uuid.value, () => locale.value, type.value)
 
 async function onSave() {
   try {
@@ -87,6 +165,33 @@ async function onSave() {
           ><span class="capitalize">{{ type }}</span></template
         >
         <template #right>
+          <template v-if="multiLocale">
+            <USelect
+              v-model="locale"
+              :items="switcherItems"
+              icon="i-lucide-languages"
+              size="sm"
+              class="w-44"
+            />
+            <UDropdownMenu
+              v-if="addableLocales.length"
+              :items="
+                addableLocales.map((l) => ({
+                  label: `${l.name} (${l.code})`,
+                  onSelect: () => openCreate(l.code),
+                }))
+              "
+              :content="{ align: 'end' }"
+            >
+              <UButton
+                icon="i-lucide-plus"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Add a locale version"
+              />
+            </UDropdownMenu>
+          </template>
           <UButton
             variant="ghost"
             color="neutral"
@@ -107,6 +212,15 @@ async function onSave() {
         <!-- Entry content — the primary, wider pane -->
         <div class="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pe-1">
           <UCard :ui="{ root: 'ring-0' }">
+            <UAlert
+              v-if="showSharedNote"
+              class="mb-4"
+              color="neutral"
+              variant="subtle"
+              icon="i-lucide-link"
+              title="Some fields are shared across locales"
+              :description="`Editing these applies to every locale: ${sharedFields.join(', ')}.`"
+            />
             <div v-if="draftStatus === 'pending'" class="space-y-3">
               <USkeleton v-for="n in 4" :key="n" class="h-10" />
             </div>
@@ -116,11 +230,56 @@ async function onSave() {
 
         <!-- Publishing — the narrower sidebar, its own scroll section. p-1 gives the card's ring room
              on every side: the scroll container would otherwise clip the outline (overflow-y-auto
-             makes overflow-x compute to auto, and the top/bottom edges clip at the scroll extremes). -->
+             makes overflow-x compute to auto, and the top/bottom edges clip at the scroll extremes).
+             Keyed by locale so the panel re-seeds its slug/publish state on a locale switch. -->
         <div class="lg:min-h-0 lg:w-96 lg:shrink-0 lg:overflow-y-auto lg:p-1">
-          <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
+          <PublishPanel :key="`${uuid}-${locale}`" :uuid="uuid" :locale="locale" :type="type" />
         </div>
       </div>
     </template>
   </UDashboardPanel>
+
+  <UModal
+    :open="pendingLocale !== ''"
+    :title="`Create ${localeLabel(pendingLocale)} version`"
+    @update:open="
+      (v: boolean) => {
+        if (!v) pendingLocale = ''
+      }
+    "
+  >
+    <template #body>
+      <div class="space-y-4">
+        <p class="text-sm text-muted">
+          Add a <span class="text-default">{{ localeLabel(pendingLocale) }}</span> draft for this
+          entry.
+        </p>
+        <UCheckbox
+          v-if="entryLocaleCodes.length"
+          v-model="copyEnabled"
+          label="Copy content from an existing locale"
+        />
+        <UFormField v-if="copyEnabled && entryLocaleCodes.length" label="Copy from">
+          <USelect v-model="copyFrom" :items="switcherItems" class="w-full" />
+        </UFormField>
+      </div>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          label="Cancel"
+          :disabled="createLocale.isLoading.value"
+          @click="pendingLocale = ''"
+        />
+        <UButton
+          icon="i-lucide-plus"
+          label="Create version"
+          :loading="createLocale.isLoading.value"
+          @click="confirmCreate"
+        />
+      </div>
+    </template>
+  </UModal>
 </template>

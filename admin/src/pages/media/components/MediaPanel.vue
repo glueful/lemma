@@ -18,7 +18,11 @@ const isImageItem = computed(() => isImage(props.item.mime_type))
 async function runOptimize() {
   try {
     const res = await optimize.mutateAsync(props.item.uuid)
-    const d = ((res.data ?? res) ?? {}) as { changed?: boolean; original_size?: number; new_size?: number }
+    const d = (res.data ?? res ?? {}) as {
+      changed?: boolean
+      original_size?: number
+      new_size?: number
+    }
     if (d.changed) {
       success('Image optimized', `Saved ${formatBytes((d.original_size ?? 0) - (d.new_size ?? 0))}`)
     } else {
@@ -83,11 +87,17 @@ async function save() {
 
 const pendingDelete = ref(false)
 async function confirmDelete() {
+  // Capture before navigating away (props.item is gone once the panel deselects).
+  const uuid = props.item.uuid
+  const name = props.item.name
+  // Close the modal and leave the detail view FIRST: deselecting disables this item's detail query,
+  // so the delete's `['media']` invalidation can't refetch the now-missing item (which would 404 and
+  // reject the mutation, leaving the modal stuck). The 404-tolerant fetchMediaItem backstops it too.
+  pendingDelete.value = false
+  emit('deleted', uuid)
   try {
-    await remove.mutateAsync(props.item.uuid)
-    success('Deleted', props.item.name)
-    pendingDelete.value = false
-    emit('deleted', props.item.uuid)
+    await remove.mutateAsync(uuid)
+    success('Deleted', name)
   } catch (e) {
     notifyError(e, 'Could not delete')
   }
@@ -101,7 +111,9 @@ async function copyUrl() {
 function fmtDate(v?: string | null): string {
   if (!v) return '—'
   const d = new Date(String(v).replace(' ', 'T'))
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 </script>
 
@@ -109,13 +121,17 @@ function fmtDate(v?: string | null): string {
   <div class="flex flex-col gap-5">
     <!-- Title -->
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Title</label>
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted"
+        >Title</label
+      >
       <UInput v-model="form.title" class="w-full" />
     </div>
 
     <!-- Alt text -->
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Alt text</label>
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted"
+        >Alt text</label
+      >
       <UTextarea
         v-model="form.alt_text"
         :rows="2"
@@ -127,13 +143,23 @@ function fmtDate(v?: string | null): string {
 
     <!-- Caption -->
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Caption</label>
-      <UTextarea v-model="form.caption" :rows="2" autoresize placeholder="Add a caption" class="w-full" />
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted"
+        >Caption</label
+      >
+      <UTextarea
+        v-model="form.caption"
+        :rows="2"
+        autoresize
+        placeholder="Add a caption"
+        class="w-full"
+      />
     </div>
 
     <!-- Tags -->
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Tags</label>
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted"
+        >Tags</label
+      >
       <div v-if="form.tags.length" class="mb-2 flex flex-wrap gap-1">
         <UBadge
           v-for="t in form.tags"
@@ -158,7 +184,9 @@ function fmtDate(v?: string | null): string {
 
     <!-- File URL -->
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">File URL</label>
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted"
+        >File URL</label
+      >
       <UInput :model-value="item.url" readonly class="w-full">
         <template #trailing>
           <UButton
@@ -235,7 +263,14 @@ function fmtDate(v?: string | null): string {
             <code class="text-xs">{{ u.entry_uuid.slice(0, 8) }}</code>
             <span v-if="u.type" class="text-muted"> · {{ u.type }}</span>
           </span>
-          <UBadge v-if="u.status" :label="u.status" size="xs" variant="subtle" color="neutral" class="ms-auto" />
+          <UBadge
+            v-if="u.status"
+            :label="u.status"
+            size="xs"
+            variant="subtle"
+            color="neutral"
+            class="ms-auto"
+          />
         </li>
       </ul>
     </div>
@@ -243,8 +278,8 @@ function fmtDate(v?: string | null): string {
     <UModal v-model:open="pendingDelete" title="Delete media">
       <template #body>
         <p class="text-sm text-muted">
-          Delete <span class="text-default">“{{ item.name }}”</span>? This soft-deletes the file; any
-          content still referencing it will break.
+          Delete <span class="text-default">“{{ item.name }}”</span>? This soft-deletes the file;
+          any content still referencing it will break.
         </p>
       </template>
       <template #footer>

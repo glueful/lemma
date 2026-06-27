@@ -21,6 +21,10 @@ function clearSelection() {
   delete q.item
   router.replace({ query: q })
 }
+// After a delete, the panel closes its own modal; return to the media list.
+function onDeleted() {
+  router.push('/media')
+}
 </script>
 
 <template>
@@ -58,7 +62,7 @@ function clearSelection() {
             v-if="detail"
             class="shrink-0 overflow-y-auto border-default p-4 lg:w-90 lg:border-s"
           >
-            <MediaPanel :key="detail.uuid" :item="detail" @deleted="clearSelection" />
+            <MediaPanel :key="detail.uuid" :item="detail" @deleted="onDeleted" />
           </div>
         </div>
       </div>

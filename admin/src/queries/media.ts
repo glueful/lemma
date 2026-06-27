@@ -2,14 +2,24 @@ import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { authFetch } from '@/api/authFetch'
 import { core } from '@/api/client'
-import { toApiError } from '@/api/errors'
+import { ApiError, toApiError } from '@/api/errors'
 import { runtimeConfig } from '@/runtime/config'
 
 export interface UploadedAsset {
   url: string
   thumb_url?: string | null
   mime_type?: string
+  blob_uuid?: string
+  visibility?: string
   [k: string]: unknown
+}
+
+// A blob's `url` from the upload response is a bare storage path, not servable. Public blobs serve
+// directly from the framework's `/{version}/blobs/{uuid}` route (no auth) — build that URL so it can
+// go straight into an <img>. The version prefix is derived from apiBase (`/v1/admin` → `/v1`).
+export function blobDisplayUrl(uuid: string): string {
+  const prefix = runtimeConfig.apiBase.replace(/\/admin\/?$/, '')
+  return `${prefix}/blobs/${uuid}`
 }
 
 // Blob upload is a framework core route. It goes through the typed `core` openapi-fetch client so the
@@ -124,10 +134,17 @@ export function useMediaList(
   })
 }
 
-export async function fetchMediaItem(uuid: string): Promise<MediaDetail> {
-  const json = await authFetch(`${mediaBase()}/${encodeURIComponent(uuid)}`)
-  const d = (json.data ?? json) as Record<string, unknown>
-  return (d.media ?? d) as MediaDetail
+export async function fetchMediaItem(uuid: string): Promise<MediaDetail | null> {
+  try {
+    const json = await authFetch(`${mediaBase()}/${encodeURIComponent(uuid)}`)
+    const d = (json.data ?? json) as Record<string, unknown>
+    return (d.media ?? d) as MediaDetail
+  } catch (e) {
+    // A deleted/missing item (e.g. opening a stale ?item= URL, or a refetch after delete) should
+    // show "nothing selected", not error the page or reject the delete mutation's invalidation.
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
 }
 
 export function useMediaItem(uuid: MaybeRefOrGetter<string | undefined>) {

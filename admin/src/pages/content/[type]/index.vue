@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import type { TableColumn } from '@nuxt/ui'
 import { useEntries, useCreateEntry, useDeleteEntry, type EntryListRow } from '@/queries/entries'
+import { useLocales } from '@/queries/locales'
 import { useNotify } from '@/composables/useNotify'
 import TablePagination from '@/components/TablePagination.vue'
 
@@ -47,6 +48,17 @@ const search = ref('')
 const debouncedSearch = refDebounced(search, 300)
 
 const { data, status } = useEntries(type, page, perPage, debouncedSearch)
+
+const { data: allLocales } = useLocales()
+// Coverage is measured against currently-enabled locales, and only counts an entry's locales that are
+// still enabled — otherwise a disabled-but-still-populated locale could read e.g. "3 / 2".
+const enabledCodes = computed(
+  () => new Set((allLocales.value ?? []).filter((l) => l.enabled).map((l) => l.code)),
+)
+const enabledCount = computed(() => enabledCodes.value.size)
+function translatedCount(locales: string[]): number {
+  return locales.filter((c) => enabledCodes.value.has(c)).length
+}
 
 const columns: TableColumn<EntryListRow>[] = [
   { accessorKey: 'display_title', header: 'Title' },
@@ -102,16 +114,26 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
         </template>
 
         <template #locales-cell="{ row }">
-          <div class="flex gap-1">
+          <div class="flex items-center gap-2">
             <UBadge
-              v-for="loc in row.original.locales"
-              :key="loc"
-              color="neutral"
-              variant="outline"
+              v-if="enabledCount > 1"
+              :color="translatedCount(row.original.locales) >= enabledCount ? 'success' : 'neutral'"
+              variant="subtle"
               size="sm"
             >
-              {{ loc }}
+              {{ translatedCount(row.original.locales) }} / {{ enabledCount }}
             </UBadge>
+            <div class="flex flex-wrap gap-1">
+              <UBadge
+                v-for="loc in row.original.locales"
+                :key="loc"
+                color="neutral"
+                variant="outline"
+                size="sm"
+              >
+                {{ loc }}
+              </UBadge>
+            </div>
           </div>
         </template>
 

@@ -1,15 +1,29 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import type { TableColumn } from '@nuxt/ui'
-import { useEntries, type EntryListRow } from '@/queries/entries'
+import { useEntries, useCreateEntry, type EntryListRow } from '@/queries/entries'
+import { useNotify } from '@/composables/useNotify'
 import TablePagination from '@/components/TablePagination.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
 const route = useRoute()
+const router = useRouter()
 const type = computed(() => String(route.params.type))
+
+const { error: notifyError } = useNotify()
+const { mutateAsync: createEntry, isLoading: creating } = useCreateEntry()
+
+async function onCreate() {
+  try {
+    const uuid = await createEntry(type.value)
+    if (uuid) router.push(`/content/${type.value}/${uuid}`)
+  } catch (e) {
+    notifyError(e, 'Could not create entry')
+  }
+}
 
 const page = ref(1)
 const perPage = ref(20)
@@ -48,6 +62,9 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
             :to="`/content/${type}/redirects`"
           >
             Redirects
+          </UButton>
+          <UButton icon="i-lucide-plus" class="capitalize" :loading="creating" @click="onCreate">
+            New {{ type }}
           </UButton>
         </template>
       </UDashboardNavbar>

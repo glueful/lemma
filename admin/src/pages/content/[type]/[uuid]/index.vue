@@ -23,7 +23,7 @@ const { success, warning, error: notifyError } = useNotify()
 
 // The locale being edited. Starts at the default but is driven by the header switcher; the draft,
 // save mutation, and PublishPanel all follow it.
-const locale = ref(runtimeConfig.defaultLocale)
+const locale = ref(String(route.query.locale ?? runtimeConfig.defaultLocale))
 
 // The content-type schema drives the field editor.
 const { data: contentTypes } = useContentTypes()
@@ -178,7 +178,7 @@ async function onSave() {
             variant="ghost"
             color="neutral"
             icon="i-lucide-history"
-            :to="`/content/${type}/${uuid}/versions`"
+            :to="`/content/${type}/${uuid}/versions?locale=${locale}`"
           >
             Versions
           </UButton>

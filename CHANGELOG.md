@@ -44,6 +44,19 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - `lemma.content` import adapter for `glueful/import-export`, registered through
   `import_export.importer`. It supports dry-run validation and commit-mode idempotent upserts of
   Lemma content NDJSON bundles by each record kind's natural key.
+- Content-import adapters that create entries of a chosen content type from foreign formats, each
+  driven by a field-mapping wizard on the Import/Export settings page (dry-run validates without
+  writing; commit creates drafts and optionally publishes):
+  - `csv.content` — one entry per CSV row, fields mapped to columns.
+  - `markdown.content` — a Markdown/MDX document with front matter; the body is converted to HTML
+    into a chosen field.
+  - `wordpress.content` — a WordPress export (WXR); each `post`/`page` `<item>` becomes an entry,
+    with scalar WXR keys (`title`, `excerpt`, `slug`, `date`, `status`, `author`) mapped to fields
+    and `content:encoded` HTML routed into a chosen body field. Items with WXR status `publish` are
+    published on commit. Attachments and custom post types are skipped.
+- `csv.users` import adapter (and a bulk-import modal on the Users page) for creating users and
+  their profiles from a CSV. Built on a reusable `AbstractCsvImporter` base that the content and
+  user CSV importers share.
 
 #### Localization
 - i18n-backed content locale validation through `ContentLocaleService`: when `glueful/i18n` is

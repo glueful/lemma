@@ -71,14 +71,20 @@ const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const selectedFile = ref<File | null>(null)
 const importing = ref(false)
 
-// ── Import mapping wizard (CSV + Markdown) ────────────────────────────────────
-// CSV and Markdown adapters need an options bag (target type + a field→source mapping); other
-// adapters just take a file. CSV maps fields to columns; Markdown maps fields to front-matter keys
-// and routes the converted body into a chosen field.
+// ── Import mapping wizard (CSV + Markdown + WordPress) ────────────────────────
+// CSV, Markdown and WordPress adapters need an options bag (target type + a field→source mapping);
+// other adapters just take a file. CSV maps fields to columns; Markdown maps fields to front-matter
+// keys; WordPress maps fields to a fixed set of WXR keys. Markdown/WordPress also route a converted
+// HTML body into a chosen field.
 const SKIP = '__skip__'
+// The scalar WXR keys a WordPress import can map fields to (mirrors WordpressContentImporter::KEYS).
+const WXR_KEYS = ['title', 'excerpt', 'slug', 'date', 'status', 'author']
 const isCsv = computed(() => importAdapter.value === 'csv.content')
 const isMarkdown = computed(() => importAdapter.value === 'markdown.content')
-const needsWizard = computed(() => isCsv.value || isMarkdown.value)
+const isWordpress = computed(() => importAdapter.value === 'wordpress.content')
+// Markdown and WordPress both route a converted HTML body into a chosen field.
+const hasBodyField = computed(() => isMarkdown.value || isWordpress.value)
+const needsWizard = computed(() => isCsv.value || isMarkdown.value || isWordpress.value)
 
 const { data: contentTypes } = useContentTypes()
 const typeItems = computed(() =>
@@ -93,11 +99,17 @@ const wizardFields = computed(() =>
   })),
 )
 const wizardPublish = ref(false)
-const bodyField = ref('') // Markdown only: the field that receives the converted body
+const bodyField = ref('') // Markdown/WordPress: the field that receives the converted HTML body
 
-// The source keys the fields map to: CSV column headers, or Markdown front-matter keys.
+// The source keys the fields map to: CSV column headers, Markdown front-matter keys, or WXR keys.
 const sourceKeys = ref<string[]>([])
-const sourceLabel = computed(() => (isMarkdown.value ? 'front-matter keys' : 'columns'))
+const sourceLabel = computed(() =>
+  isWordpress.value ? 'WordPress fields' : isMarkdown.value ? 'front-matter keys' : 'columns',
+)
+// WordPress keys are fixed (not parsed from the file), so the mapping is available immediately.
+watchEffect(() => {
+  if (isWordpress.value) sourceKeys.value = WXR_KEYS
+})
 // field name → source key (or SKIP)
 const wizardMapping = ref<Record<string, string>>({})
 const keyItems = computed(() => [
@@ -138,14 +150,14 @@ watchEffect(() => {
   }
   wizardMapping.value = next
 })
-// Default the Markdown body field to a "body" field when present.
+// Default the Markdown/WordPress body field to a "body" field when present.
 watchEffect(() => {
-  if (isMarkdown.value && !bodyField.value) {
+  if (hasBodyField.value && !bodyField.value) {
     bodyField.value = bodyFieldItems.value.find((i) => i.value === 'body')?.value ?? ''
   }
 })
 
-// Required fields must be satisfied (mapped to a source key, or — Markdown — be the body field).
+// Required fields must be satisfied (mapped to a source key, or — Markdown/WordPress — the body field).
 const wizardReady = computed(() => {
   if (!needsWizard.value) return true
   if (wizardType.value === '') return false
@@ -154,7 +166,7 @@ const wizardReady = computed(() => {
     (f) =>
       !f.required ||
       (wizardMapping.value[f.name] ?? SKIP) !== SKIP ||
-      (isMarkdown.value && bodyField.value === f.name),
+      (hasBodyField.value && bodyField.value === f.name),
   )
 })
 
@@ -162,6 +174,8 @@ async function onFilePicked(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] ?? null
   selectedFile.value = file
+  // WordPress keys are fixed (set by the watchEffect above), so don't touch them here.
+  if (isWordpress.value) return
   if (!file) {
     sourceKeys.value = []
   } else if (isCsv.value) {
@@ -184,7 +198,7 @@ function wizardOptions(): Record<string, unknown> {
     locale: runtimeConfig.defaultLocale,
     publish: wizardPublish.value,
   }
-  if (isMarkdown.value && bodyField.value) options.body_field = bodyField.value
+  if (hasBodyField.value && bodyField.value) options.body_field = bodyField.value
   return options
 }
 
@@ -295,8 +309,9 @@ function fmtTime(v?: string | null): string {
     <template #body>
       <div class="mx-auto w-full max-w-4xl space-y-6">
         <p class="text-sm text-muted">
-          Export content as NDJSON; import an NDJSON bundle, a CSV, or a Markdown document. Jobs run
-          in the background — they progress only while a queue worker is running.
+          Export content as NDJSON; import an NDJSON bundle, a CSV, a Markdown document, or a
+          WordPress export (WXR). Jobs run in the background — they progress only while a queue
+          worker is running.
         </p>
 
         <div class="grid gap-6 md:grid-cols-2">
@@ -331,9 +346,11 @@ function fmtTime(v?: string | null): string {
                 v-if="needsWizard"
                 label="Content type"
                 :hint="
-                  isMarkdown
-                    ? 'The Markdown document becomes an entry of this type'
-                    : 'Each CSV row becomes an entry of this type'
+                  isWordpress
+                    ? 'Each WordPress post/page becomes an entry of this type'
+                    : isMarkdown
+                      ? 'The Markdown document becomes an entry of this type'
+                      : 'Each CSV row becomes an entry of this type'
                 "
               >
                 <USelect
@@ -347,11 +364,13 @@ function fmtTime(v?: string | null): string {
               <UFormField
                 label="File"
                 :hint="
-                  isMarkdown
-                    ? 'A .md / .mdx file with optional front matter'
-                    : isCsv
-                      ? 'CSV with a header row'
-                      : 'NDJSON exported from Lemma'
+                  isWordpress
+                    ? 'A WordPress export (.xml / .wxr)'
+                    : isMarkdown
+                      ? 'A .md / .mdx file with optional front matter'
+                      : isCsv
+                        ? 'CSV with a header row'
+                        : 'NDJSON exported from Lemma'
                 "
               >
                 <div class="flex items-center gap-2">
@@ -369,9 +388,13 @@ function fmtTime(v?: string | null): string {
               </UFormField>
 
               <UFormField
-                v-if="isMarkdown && wizardType"
+                v-if="hasBodyField && wizardType"
                 label="Body field"
-                hint="The Markdown body is converted to HTML and stored here"
+                :hint="
+                  isWordpress
+                    ? 'The post body (content:encoded HTML) is stored here'
+                    : 'The Markdown body is converted to HTML and stored here'
+                "
               >
                 <USelect
                   v-model="bodyField"
@@ -517,7 +540,15 @@ function fmtTime(v?: string | null): string {
   <input
     ref="fileInput"
     type="file"
-    :accept="isCsv ? '.csv' : isMarkdown ? '.md,.mdx,.markdown' : '.ndjson,.jsonl,.json'"
+    :accept="
+      isWordpress
+        ? '.xml,.wxr'
+        : isCsv
+          ? '.csv'
+          : isMarkdown
+            ? '.md,.mdx,.markdown'
+            : '.ndjson,.jsonl,.json'
+    "
     class="hidden"
     @change="onFilePicked"
   />

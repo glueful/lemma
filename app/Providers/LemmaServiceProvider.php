@@ -42,6 +42,7 @@ use App\Content\ImportExport\LemmaContentExporter;
 use App\Content\ImportExport\CsvContentImporter;
 use App\Content\ImportExport\LemmaContentImporter;
 use App\Content\ImportExport\MarkdownContentImporter;
+use App\Content\ImportExport\WordpressContentImporter;
 use App\ImportExport\CsvUserImporter;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Events\EntryCreated;
@@ -419,6 +420,12 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             CsvUserImporter::class => [
                 'class' => CsvUserImporter::class,
+                'shared' => true,
+                'autowire' => true,
+                'tags' => ['import_export.importer'],
+            ],
+            WordpressContentImporter::class => [
+                'class' => WordpressContentImporter::class,
                 'shared' => true,
                 'autowire' => true,
                 'tags' => ['import_export.importer'],

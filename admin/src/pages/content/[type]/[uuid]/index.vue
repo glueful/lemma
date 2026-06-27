@@ -11,6 +11,7 @@ import FieldEditor from '@/components/FieldEditor.vue'
 import { ApiError } from '@/api/errors'
 import { useNotify } from '@/composables/useNotify'
 import PublishPanel from './components/PublishPanel.vue'
+import LocaleSwitcher from './components/LocaleSwitcher.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -165,33 +166,14 @@ async function onSave() {
           ><span class="capitalize">{{ type }}</span></template
         >
         <template #right>
-          <template v-if="multiLocale">
-            <USelect
-              v-model="locale"
-              :items="switcherItems"
-              icon="i-lucide-languages"
-              size="sm"
-              class="w-44"
-            />
-            <UDropdownMenu
-              v-if="addableLocales.length"
-              :items="
-                addableLocales.map((l) => ({
-                  label: `${l.name} (${l.code})`,
-                  onSelect: () => openCreate(l.code),
-                }))
-              "
-              :content="{ align: 'end' }"
-            >
-              <UButton
-                icon="i-lucide-plus"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                aria-label="Add a locale version"
-              />
-            </UDropdownMenu>
-          </template>
+          <LocaleSwitcher
+            v-if="multiLocale"
+            v-model="locale"
+            :summaries="entryLocales ?? []"
+            :enabled="enabledLocales"
+            :addable="addableLocales"
+            @create="openCreate"
+          />
           <UButton
             variant="ghost"
             color="neutral"

@@ -107,6 +107,13 @@ export function useDeleteEntry() {
 }
 
 // ── Per-entry locales (localization UI) ───────────────────────────────────────────────────────────
+/** A pending/failed schedule summary for one locale (mirrors EntryRepository::localeSummary). */
+export interface EntryLocaleSchedule {
+  publish: string | null
+  unpublish: string | null
+  last_failure: { action: string; run_at: string | null; reason: string } | null
+}
+
 /** One locale an entry exists in (EntryRepository::localeSummary). */
 export interface EntryLocaleSummary {
   locale: string
@@ -115,6 +122,7 @@ export interface EntryLocaleSummary {
   route_slug: string | null
   draft_updated_at: string | null
   published_at: string | null
+  scheduled: EntryLocaleSchedule | null
 }
 
 export async function fetchEntryLocales(uuid: string): Promise<EntryLocaleSummary[]> {

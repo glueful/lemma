@@ -1,9 +1,14 @@
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
-import { authFetch } from '@/api/authFetch'
-import { runtimeConfig } from '@/runtime/config'
+import { client } from '@/api/client'
+import { toApiError } from '@/api/errors'
 
 // ── API keys (App\Http\Controllers\ApiKeyAdminController, /v1/admin/api-keys) ────────────────────
+//
+// Calls go through the typed `client` (openapi-fetch): paths, query params and request bodies are
+// validated against the generated schema. Responses come back in the `{ success, message, data }`
+// envelope; the generator can't type nested-DTO list items (renders `unknown[]`), so list rows are
+// cast to the hand-written row interfaces below.
 
 export type ApiKeyStatus = 'active' | 'expired' | 'revoked'
 
@@ -48,24 +53,29 @@ export interface RotateResult extends SecretResult {
   old_expires_at: string
 }
 
-const apiKeysBase = () => `${runtimeConfig.apiBase}/api-keys`
-
 export async function fetchApiKeys(params: {
   page: number
   perPage: number
   status?: string
   q?: string
 }): Promise<ApiKeyPage> {
-  const qs = new URLSearchParams({ page: String(params.page), per_page: String(params.perPage) })
-  if (params.status) qs.set('status', params.status)
-  if (params.q) qs.set('q', params.q)
-  const json = await authFetch(`${apiKeysBase()}?${qs.toString()}`)
-  const d = (json.data ?? json) as Record<string, unknown>
+  const { data, error, response } = await client.GET('/api-keys', {
+    params: {
+      query: {
+        page: params.page,
+        per_page: params.perPage,
+        ...(params.status ? { status: params.status as ApiKeyStatus } : {}),
+        ...(params.q ? { q: params.q } : {}),
+      },
+    },
+  })
+  if (error) throw toApiError(error, response)
+  const d = data?.data
   return {
-    api_keys: Array.isArray(d.api_keys) ? (d.api_keys as ApiKey[]) : [],
-    total: Number(d.total ?? 0),
-    current_page: Number(d.current_page ?? params.page),
-    per_page: Number(d.per_page ?? params.perPage),
+    api_keys: (d?.api_keys ?? []) as ApiKey[],
+    total: Number(d?.total ?? 0),
+    current_page: Number(d?.current_page ?? params.page),
+    per_page: Number(d?.per_page ?? params.perPage),
   }
 }
 
@@ -88,9 +98,11 @@ export function useApiKeyList(
 }
 
 export async function fetchApiKey(uuid: string): Promise<ApiKey> {
-  const json = await authFetch(`${apiKeysBase()}/${encodeURIComponent(uuid)}`)
-  const d = (json.data ?? json) as Record<string, unknown>
-  return (d.api_key ?? d) as ApiKey
+  const { data, error, response } = await client.GET('/api-keys/{uuid}', {
+    params: { path: { uuid } },
+  })
+  if (error) throw toApiError(error, response)
+  return (data?.data?.api_key ?? {}) as ApiKey
 }
 
 export function useApiKey(uuid: MaybeRefOrGetter<string | undefined>) {
@@ -102,26 +114,38 @@ export function useApiKey(uuid: MaybeRefOrGetter<string | undefined>) {
 }
 
 export async function createApiKey(input: CreateApiKeyInput): Promise<SecretResult> {
-  const json = await authFetch(apiKeysBase(), { method: 'POST', body: JSON.stringify(input) })
-  const d = (json.data ?? json) as Record<string, unknown>
-  return { api_key: (d.api_key as ApiKey) ?? null, plain: String(d.plain ?? '') }
+  const { data, error, response } = await client.POST('/api-keys', {
+    body: {
+      name: input.name,
+      scopes: input.scopes,
+      allowed_ips: input.allowed_ips,
+      expires_at: input.expires_at,
+    },
+  })
+  if (error) throw toApiError(error, response)
+  const d = data?.data
+  return { api_key: (d?.api_key ?? null) as ApiKey | null, plain: String(d?.plain ?? '') }
 }
 
 export async function rotateApiKey(uuid: string, graceHours?: number): Promise<RotateResult> {
-  const json = await authFetch(`${apiKeysBase()}/${encodeURIComponent(uuid)}/rotate`, {
-    method: 'POST',
-    body: JSON.stringify(graceHours != null ? { grace_hours: graceHours } : {}),
+  const { data, error, response } = await client.POST('/api-keys/{uuid}/rotate', {
+    params: { path: { uuid } },
+    body: { grace_hours: graceHours },
   })
-  const d = (json.data ?? json) as Record<string, unknown>
+  if (error) throw toApiError(error, response)
+  const d = data?.data
   return {
-    api_key: (d.api_key as ApiKey) ?? null,
-    plain: String(d.plain ?? ''),
-    old_expires_at: String(d.old_expires_at ?? ''),
+    api_key: (d?.api_key ?? null) as ApiKey | null,
+    plain: String(d?.plain ?? ''),
+    old_expires_at: String(d?.old_expires_at ?? ''),
   }
 }
 
 export async function revokeApiKey(uuid: string): Promise<void> {
-  await authFetch(`${apiKeysBase()}/${encodeURIComponent(uuid)}`, { method: 'DELETE' })
+  const { error, response } = await client.DELETE('/api-keys/{uuid}', {
+    params: { path: { uuid } },
+  })
+  if (error) throw toApiError(error, response)
 }
 
 export function useApiKeyMutations() {

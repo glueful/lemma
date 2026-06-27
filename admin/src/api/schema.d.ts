@@ -226,7 +226,7 @@ export interface paths {
         put?: never;
         /**
          * Create an API key
-         * @description Mints a new key owned by the authenticated admin. Body: `name` (required), optional `scopes` (string[]), `allowed_ips` (string[] of IPs/CIDRs), `expires_at` (date). The plaintext key is returned once as `plain` and never stored. Requires `system.access`.
+         * @description Mints a new key owned by the authenticated admin. The plaintext key is returned once as `plain` and never stored. Requires `system.access`.
          */
         post: operations["postV1AdminApikeys"];
         delete?: never;
@@ -872,7 +872,7 @@ export interface paths {
         put?: never;
         /**
          * Rotate an API key
-         * @description Issues a new key inheriting the scopes/IPs/expiry of the old one, and sets the old key to expire after a grace window (body `grace_hours`, default 24, max 720). Both keys work during the window. Returns the new plaintext once. Requires `system.access`.
+         * @description Issues a new key inheriting the scopes/IPs/expiry of the old one, and sets the old key to expire after a grace window (`grace_hours`, default 24, max 720). Both keys work during the window. Returns the new plaintext once. Requires `system.access`.
          */
         post: operations["postV1AdminApikeysByUuidRotate"];
         delete?: never;
@@ -2451,7 +2451,16 @@ export interface operations {
     };
     getV1AdminApikeys: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Filter by status (active|expired|revoked). */
+                status?: "active" | "expired" | "revoked";
+                /** @description Case-insensitive substring filter on the key name. */
+                q?: string;
+                /** @description Page number (default 1). */
+                page?: number;
+                /** @description Items per page (default 30, max 100). */
+                per_page?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2463,7 +2472,18 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            api_keys?: unknown[];
+                            total?: number;
+                            current_page?: number;
+                            per_page?: number;
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {
@@ -2484,6 +2504,23 @@ export interface operations {
             };
             /** @description Forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Invalid query params. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2525,7 +2562,24 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Jane",
+                 *       "scopes": "example",
+                 *       "allowed_ips": "example",
+                 *       "expires_at": "example"
+                 *     }
+                 */
+                "application/json": {
+                    name: string;
+                    scopes?: unknown[];
+                    allowed_ips?: unknown[];
+                    expires_at?: string | null;
+                };
+            };
+        };
         responses: {
             /** @description Successful response */
             200: {
@@ -2539,7 +2593,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            api_key?: {
+                                uuid?: string;
+                                name?: string;
+                                key_prefix?: string;
+                                owner_uuid?: string;
+                                owner_label?: string | null;
+                                scopes?: unknown[];
+                                allowed_ips?: unknown[];
+                                status?: string;
+                                is_rotated?: boolean;
+                                expires_at?: string | null;
+                                revoked_at?: string | null;
+                                created_at?: string | null;
+                            };
+                            plain?: string;
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {
@@ -2580,7 +2656,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
             };
             /** @description Unexpected server error. */
             500: {
@@ -4872,7 +4958,28 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            api_key?: {
+                                uuid?: string;
+                                name?: string;
+                                key_prefix?: string;
+                                owner_uuid?: string;
+                                owner_label?: string | null;
+                                scopes?: unknown[];
+                                allowed_ips?: unknown[];
+                                status?: string;
+                                is_rotated?: boolean;
+                                expires_at?: string | null;
+                                revoked_at?: string | null;
+                                created_at?: string | null;
+                            };
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {
@@ -4913,7 +5020,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
             };
             /** @description Unexpected server error. */
             500: {
@@ -4991,7 +5108,17 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
             };
             /** @description Unexpected server error. */
             500: {
@@ -6770,14 +6897,48 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "grace_hours": "example"
+                 *     }
+                 */
+                "application/json": {
+                    grace_hours?: number | null;
+                };
+            };
+        };
         responses: {
             /** @description New key + one-time plaintext + old key expiry. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            api_key?: {
+                                uuid?: string;
+                                name?: string;
+                                key_prefix?: string;
+                                owner_uuid?: string;
+                                owner_label?: string | null;
+                                scopes?: unknown[];
+                                allowed_ips?: unknown[];
+                                status?: string;
+                                is_rotated?: boolean;
+                                expires_at?: string | null;
+                                revoked_at?: string | null;
+                                created_at?: string | null;
+                            };
+                            plain?: string;
+                            old_expires_at?: string;
+                        };
+                    };
+                };
             };
             /** @description Unauthenticated. */
             401: {
@@ -6818,14 +6979,50 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
             };
             /** @description Key is revoked. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example false */
+                        success: boolean;
+                        message: string;
+                        errors: {
+                            [key: string]: string[];
+                        };
+                    };
+                };
             };
             /** @description Unexpected server error. */
             500: {

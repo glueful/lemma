@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\DTOs\ApiKeyListQuery;
+use App\Http\DTOs\CreateApiKeyData;
+use App\Http\DTOs\ErrorResponse;
+use App\Http\DTOs\Responses\ApiKeyCreatedData;
+use App\Http\DTOs\Responses\ApiKeyListData;
+use App\Http\DTOs\Responses\ApiKeyResultData;
+use App\Http\DTOs\Responses\ApiKeyRotatedData;
+use App\Http\DTOs\RotateApiKeyData;
 use Glueful\Auth\ApiKey\ApiKey;
 use Glueful\Auth\ApiKey\ApiKeyService;
 use Glueful\Auth\UserIdentity;
@@ -44,22 +52,23 @@ final class ApiKeyAdminController
             . '`system.access` permission.',
         tags: ['API Keys'],
     )]
-    #[ApiResponse(200, description: 'API key page.')]
-    public function index(Request $request): Response
+    #[ApiResponse(200, schema: ApiKeyListData::class, description: 'API key page.')]
+    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Invalid query params.')]
+    public function index(ApiKeyListQuery $query): Response
     {
-        $page = max(1, (int) $request->query->get('page', '1'));
-        $perPage = min(self::PER_PAGE_MAX, max(1, (int) $request->query->get('per_page', '30')));
+        $page = max(1, $query->page ?? 1);
+        $perPage = min(self::PER_PAGE_MAX, max(1, $query->per_page ?? 30));
 
-        $query = db($this->context)->table('api_keys')->orderBy('created_at', 'desc');
-        $this->applyStatusFilter($query, (string) $request->query->get('status', ''));
+        $builder = db($this->context)->table('api_keys')->orderBy('created_at', 'desc');
+        $this->applyStatusFilter($builder, $query->status ?? '');
 
-        $search = trim((string) $request->query->get('q', ''));
+        $search = trim((string) ($query->q ?? ''));
         if ($search !== '') {
-            $query->where('name', 'LIKE', '%' . $search . '%');
+            $builder->where('name', 'LIKE', '%' . $search . '%');
         }
 
         /** @var array{data:array<int,array<string,mixed>>,total:int,current_page:int,per_page:int} $result */
-        $result = $query->paginate($page, $perPage);
+        $result = $builder->paginate($page, $perPage);
         $rows = array_values($result['data']);
         $owners = $this->ownerLabels($rows);
 
@@ -73,8 +82,8 @@ final class ApiKeyAdminController
 
     /** GET /v1/admin/api-keys/{uuid} — one key (never includes the secret). */
     #[ApiOperation(summary: 'Get an API key', tags: ['API Keys'])]
-    #[ApiResponse(200, description: 'API key.')]
-    #[ApiResponse(404, description: 'No such key.')]
+    #[ApiResponse(200, schema: ApiKeyResultData::class, description: 'API key.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No such key.')]
     public function show(string $uuid): Response
     {
         $row = $this->rowFor($uuid);
@@ -91,21 +100,16 @@ final class ApiKeyAdminController
     /** POST /v1/admin/api-keys — mint a key for the calling admin; returns the plaintext ONCE. */
     #[ApiOperation(
         summary: 'Create an API key',
-        description: 'Mints a new key owned by the authenticated admin. Body: `name` (required), '
-            . 'optional `scopes` (string[]), `allowed_ips` (string[] of IPs/CIDRs), `expires_at` '
-            . '(date). The plaintext key is returned once as `plain` and never stored. Requires '
-            . '`system.access`.',
+        description: 'Mints a new key owned by the authenticated admin. The plaintext key is returned '
+            . 'once as `plain` and never stored. Requires `system.access`.',
         tags: ['API Keys'],
     )]
-    #[ApiResponse(201, description: 'Created key + one-time plaintext.')]
-    #[ApiResponse(422, description: 'Validation failed.')]
-    public function store(Request $request): Response
+    #[ApiResponse(201, schema: ApiKeyCreatedData::class, description: 'Created key + one-time plaintext.')]
+    #[ApiResponse(422, schema: ErrorResponse::class, envelope: false, description: 'Validation failed.')]
+    public function store(CreateApiKeyData $input, Request $request): Response
     {
-        /** @var array<string,mixed> $input */
-        $input = json_decode((string) $request->getContent(), true) ?: [];
-
-        $name = $this->stringField($input, 'name');
-        if ($name === null || $name === '') {
+        $name = trim($input->name);
+        if ($name === '') {
             return Response::validation(['name' => 'A name is required.']);
         }
 
@@ -114,13 +118,13 @@ final class ApiKeyAdminController
             return Response::error('Could not resolve the current user.', 401);
         }
 
-        $expiresAt = $this->expiryField($input);
+        $expiresAt = $this->expiryField($input->expires_at);
         if ($expiresAt === false) {
             return Response::validation(['expires_at' => 'Could not understand that expiry date.']);
         }
 
-        $scopes = $this->listField($input, 'scopes');
-        $allowedIps = $this->listField($input, 'allowed_ips');
+        $scopes = $this->cleanList($input->scopes);
+        $allowedIps = $this->cleanList($input->allowed_ips);
 
         $created = ApiKeyService::create($this->context, [
             'user_uuid' => $userUuid,
@@ -142,14 +146,14 @@ final class ApiKeyAdminController
     #[ApiOperation(
         summary: 'Rotate an API key',
         description: 'Issues a new key inheriting the scopes/IPs/expiry of the old one, and sets the '
-            . 'old key to expire after a grace window (body `grace_hours`, default 24, max 720). Both '
-            . 'keys work during the window. Returns the new plaintext once. Requires `system.access`.',
+            . 'old key to expire after a grace window (`grace_hours`, default 24, max 720). Both keys '
+            . 'work during the window. Returns the new plaintext once. Requires `system.access`.',
         tags: ['API Keys'],
     )]
-    #[ApiResponse(200, description: 'New key + one-time plaintext + old key expiry.')]
-    #[ApiResponse(404, description: 'No such key.')]
-    #[ApiResponse(409, description: 'Key is revoked.')]
-    public function rotate(Request $request, string $uuid): Response
+    #[ApiResponse(200, schema: ApiKeyRotatedData::class, description: 'New key + one-time plaintext + old key expiry.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No such key.')]
+    #[ApiResponse(409, schema: ErrorResponse::class, envelope: false, description: 'Key is revoked.')]
+    public function rotate(RotateApiKeyData $input, string $uuid): Response
     {
         $key = $this->findKey($uuid);
         if ($key === null) {
@@ -159,9 +163,7 @@ final class ApiKeyAdminController
             return Response::error('A revoked key cannot be rotated.', 409);
         }
 
-        /** @var array<string,mixed> $input */
-        $input = json_decode((string) $request->getContent(), true) ?: [];
-        $grace = (int) ($input['grace_hours'] ?? self::GRACE_HOURS_DEFAULT);
+        $grace = (int) ($input->grace_hours ?? self::GRACE_HOURS_DEFAULT);
         $grace = min(self::GRACE_HOURS_MAX, max(1, $grace));
 
         $result = ApiKeyService::rotate($this->context, $key, $grace);
@@ -188,7 +190,7 @@ final class ApiKeyAdminController
         tags: ['API Keys'],
     )]
     #[ApiResponse(200, description: 'Revoked.')]
-    #[ApiResponse(404, description: 'No such key.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No such key.')]
     public function destroy(string $uuid): Response
     {
         $key = $this->findKey($uuid);
@@ -321,25 +323,14 @@ final class ApiKeyAdminController
         return $user instanceof UserIdentity ? $user->uuid() : null;
     }
 
-    /** @param array<string,mixed> $input */
-    private function stringField(array $input, string $key): ?string
-    {
-        return array_key_exists($key, $input) && is_string($input[$key]) ? trim($input[$key]) : null;
-    }
-
     /**
      * Trimmed, de-duplicated list of non-empty strings (scopes / allowed IPs).
      *
-     * @param array<string,mixed> $input
+     * @param array<int,mixed> $values
      * @return list<string>
      */
-    private function listField(array $input, string $key): array
+    private function cleanList(array $values): array
     {
-        $values = $input[$key] ?? [];
-        if (!is_array($values)) {
-            return [];
-        }
-
         $clean = [];
         foreach ($values as $value) {
             if (is_string($value) && trim($value) !== '') {
@@ -354,20 +345,12 @@ final class ApiKeyAdminController
      * Normalize the optional expiry to 'Y-m-d H:i:s'. Returns null when absent/blank, false when the
      * value is present but unparseable (a validation error, not "no expiry").
      *
-     * @param array<string,mixed> $input
      * @return string|null|false
      */
-    private function expiryField(array $input): string|null|false
+    private function expiryField(?string $raw): string|null|false
     {
-        if (!array_key_exists('expires_at', $input)) {
+        if ($raw === null || trim($raw) === '') {
             return null;
-        }
-        $raw = $input['expires_at'];
-        if ($raw === null || (is_string($raw) && trim($raw) === '')) {
-            return null;
-        }
-        if (!is_string($raw)) {
-            return false;
         }
         $ts = strtotime($raw);
         if ($ts === false) {

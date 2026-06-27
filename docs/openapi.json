@@ -6864,6 +6864,49 @@
                 "tags": [
                     "API Keys"
                 ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "description": "Filter by status (active|expired|revoked).",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "active",
+                                "expired",
+                                "revoked"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "description": "Case-insensitive substring filter on the key name.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "description": "Page number (default 1).",
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "description": "Items per page (default 30, max 100).",
+                        "schema": {
+                            "type": "number"
+                        }
+                    }
+                ],
                 "security": [
                     {
                         "BearerAuth": []
@@ -6872,7 +6915,45 @@
                 "description": "System-wide, paginated list of API keys with their owner and status. Optional `status` (active|expired|revoked), `q` (name search), `page`, `per_page`. Requires the `system.access` permission.",
                 "responses": {
                     "200": {
-                        "description": "API key page."
+                        "description": "API key page.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "api_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                },
+                                                "current_page": {
+                                                    "type": "integer"
+                                                },
+                                                "per_page": {
+                                                    "type": "integer"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "description": "Unauthenticated.",
@@ -6969,6 +7050,38 @@
                                 }
                             }
                         }
+                    },
+                    "422": {
+                        "description": "Invalid query params.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -6983,7 +7096,46 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Mints a new key owned by the authenticated admin. Body: `name` (required), optional `scopes` (string[]), `allowed_ips` (string[] of IPs\/CIDRs), `expires_at` (date). The plaintext key is returned once as `plain` and never stored. Requires `system.access`.",
+                "description": "Mints a new key owned by the authenticated admin. The plaintext key is returned once as `plain` and never stored. Requires `system.access`.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "scopes": {
+                                        "type": "array",
+                                        "items": {}
+                                    },
+                                    "allowed_ips": {
+                                        "type": "array",
+                                        "items": {}
+                                    },
+                                    "expires_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "name"
+                                ]
+                            },
+                            "example": {
+                                "name": "Jane",
+                                "scopes": "example",
+                                "allowed_ips": "example",
+                                "expires_at": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "Successful response"
@@ -7084,11 +7236,123 @@
                             }
                         }
                     },
-                    "201": {
-                        "description": "Created key + one-time plaintext."
-                    },
                     "422": {
-                        "description": "Validation failed."
+                        "description": "Validation failed.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Created key + one-time plaintext.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "api_key": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "key_prefix": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner_uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "scopes": {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        "allowed_ips": {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "is_rotated": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "expires_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "revoked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    }
+                                                },
+                                                "plain": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -14970,7 +15234,87 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "API key."
+                        "description": "API key.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "api_key": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "key_prefix": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner_uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "scopes": {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        "allowed_ips": {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "is_rotated": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "expires_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "revoked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "description": "Unauthenticated.",
@@ -15069,7 +15413,36 @@
                         }
                     },
                     "404": {
-                        "description": "No such key."
+                        "description": "No such key.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -15197,7 +15570,36 @@
                         }
                     },
                     "404": {
-                        "description": "No such key."
+                        "description": "No such key.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -21268,10 +21670,117 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Issues a new key inheriting the scopes\/IPs\/expiry of the old one, and sets the old key to expire after a grace window (body `grace_hours`, default 24, max 720). Both keys work during the window. Returns the new plaintext once. Requires `system.access`.",
+                "description": "Issues a new key inheriting the scopes\/IPs\/expiry of the old one, and sets the old key to expire after a grace window (`grace_hours`, default 24, max 720). Both keys work during the window. Returns the new plaintext once. Requires `system.access`.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "grace_hours": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    }
+                                }
+                            },
+                            "example": {
+                                "grace_hours": "example"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
-                        "description": "New key + one-time plaintext + old key expiry."
+                        "description": "New key + one-time plaintext + old key expiry.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "api_key": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "key_prefix": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner_uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "owner_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "scopes": {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        "allowed_ips": {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "is_rotated": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "expires_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "revoked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    }
+                                                },
+                                                "plain": {
+                                                    "type": "string"
+                                                },
+                                                "old_expires_at": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "description": "Unauthenticated.",
@@ -21369,11 +21878,102 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "404": {
-                        "description": "No such key."
+                        "description": "No such key.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     },
                     "409": {
-                        "description": "Key is revoked."
+                        "description": "Key is revoked.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

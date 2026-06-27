@@ -2,6 +2,7 @@
 // typo-proof. Keys are MaybeRefOrGetter-friendly (Pinia Colada): pass getters where a param is
 // reactive (e.g. () => ['entries', typeSlug.value]).
 export const qk = {
+  home: () => ['home-overview'] as const,
   contentTypes: () => ['content-types'] as const,
   contentType: (slug: string) => ['content-type', slug] as const,
   entries: (type: string) => ['entries', type] as const,

@@ -33,6 +33,7 @@ const mainItems = computed(() =>
       :default-size="16"
       :max-size="16"
       class="bg-elevated/25 border-r-0"
+      :ui="{ footer: 'lg:border-t lg:border-default' }"
     >
       <template #header="{ collapsed }">
         <AppLogo v-if="!collapsed" class="w-auto h-10 shrink-0" :show-text="true" />

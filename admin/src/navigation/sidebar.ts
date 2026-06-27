@@ -66,16 +66,6 @@ export const items = [
       icon: 'i-lucide-code-xml',
       children: [
         {
-          label: 'API Reference',
-          icon: 'i-lucide-book-open',
-          to: '/developers/api-reference',
-        },
-        {
-          label: 'Documentation',
-          icon: 'i-lucide-library',
-          to: '/developers/documentation',
-        },
-        {
           label: 'API Keys',
           icon: 'i-lucide-key-round',
           to: '/developers/api-keys',
@@ -85,6 +75,18 @@ export const items = [
           icon: 'i-lucide-webhook',
           to: '/developers/webhooks',
         },
+        {
+          label: 'API Reference',
+          icon: 'i-lucide-book-open',
+          to: 'https://getlemma.com/docs/',
+          target: '_blank'
+        },
+        {
+          label: 'Documentation',
+          icon: 'i-lucide-library',
+          to: 'https://getlemma.com/',
+          target: '_blank'
+        }
       ],
     },
     {

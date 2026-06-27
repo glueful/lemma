@@ -1,0 +1,291 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Content\ImportExport;
+
+use App\Content\Repositories\ContentTypeRepository;
+use App\Content\Repositories\EntryRepository;
+use App\Content\Schema\FieldDefinition;
+use App\Content\Services\PublishService;
+use App\Content\Validation\FieldValidator;
+use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Database\Connection;
+use Glueful\Extensions\ImportExport\Contracts\ImporterInterface;
+use Glueful\Extensions\ImportExport\Contracts\RetryableAdapterInterface;
+use Glueful\Extensions\ImportExport\Support\ImportBatch;
+use Glueful\Extensions\ImportExport\Support\ImportBatchResult;
+use Glueful\Extensions\ImportExport\Support\ImportContext;
+use Glueful\Extensions\ImportExport\Support\ImportOptions;
+use Glueful\Extensions\ImportExport\Support\ImportPlan;
+use Glueful\Extensions\ImportExport\Support\ImportSource;
+
+use function config;
+
+/**
+ * Imports a WordPress export (WXR) into entries of one content type.
+ *
+ * Each `<item>` whose `wp:post_type` is `post` or `page` becomes an entry. The HTML body
+ * (`content:encoded`) goes to the chosen `body_field`; scalar WXR keys (`title`, `excerpt`, `slug`,
+ * `date`, `status`, `author`) map to fields via the `mapping` option and are type-coerced like CSV
+ * cells, then validated and written via the normal create-draft path. When `publish` is set, items
+ * with WXR status `publish` are published. `dry_run` validates and reports without writing.
+ *
+ * v1 imports posts/pages only — media/attachments, authors, categories/tags, custom post types,
+ * post meta and upsert-by-WP-id are deferred follow-ups.
+ */
+final class WordpressContentImporter implements ImporterInterface, RetryableAdapterInterface
+{
+    /** WXR scalar keys a field can map to. */
+    public const KEYS = ['title', 'excerpt', 'slug', 'date', 'status', 'author'];
+    private const POST_TYPES = ['post', 'page'];
+
+    public function __construct(
+        private readonly ApplicationContext $context,
+        private readonly Connection $db,
+        private readonly ContentTypeRepository $types,
+        private readonly FieldValidator $validator,
+        private readonly EntryRepository $entries,
+        private readonly PublishService $publisher,
+    ) {
+    }
+
+    public function key(): string
+    {
+        return 'wordpress.content';
+    }
+
+    public function label(): string
+    {
+        return 'WordPress (WXR)';
+    }
+
+    public function supports(ImportSource $source): bool
+    {
+        return $source->path !== ''
+            && in_array($this->extension($source->path), ['xml', 'wxr'], true);
+    }
+
+    public function plan(ImportSource $source, ImportOptions $options): ImportPlan
+    {
+        $slug = $this->stringOption($options->options, 'content_type');
+        if ($slug === '') {
+            throw new \InvalidArgumentException('A target content_type is required.');
+        }
+        if ($this->types->findBySlug($slug) === null) {
+            throw new \InvalidArgumentException(sprintf('Unknown content type "%s".', $slug));
+        }
+
+        $total = count($this->readItems($this->resolveSourcePath($source->disk, $source->path)));
+        $batchSize = max(1, $options->batchSize);
+        $batches = [];
+        for ($offset = 0, $sequence = 1; $offset < $total; $offset += $batchSize, $sequence++) {
+            $batches[] = new ImportBatch(
+                uuid: substr(hash('sha256', "wordpress.content.import:{$sequence}:{$offset}"), 0, 12),
+                jobUuid: 'pending',
+                sequence: $sequence,
+                offset: $offset,
+                limit: $batchSize,
+            );
+        }
+
+        return new ImportPlan($total, $batches, retryable: true, metadata: [
+            'format' => 'wxr',
+            'content_type' => $slug,
+        ]);
+    }
+
+    public function process(ImportBatch $batch, ImportContext $context): ImportBatchResult
+    {
+        $options = $context->options;
+        $slug = $this->stringOption($options, 'content_type');
+        $mapping = $this->mappingOption($options);
+        $bodyField = $this->stringOption($options, 'body_field');
+        $locale = $this->stringOption($options, 'locale');
+        $locale = $locale !== '' ? $locale : 'en';
+        $publish = (bool) ($options['publish'] ?? false);
+
+        $type = $this->types->findBySlug($slug);
+        if ($type === null) {
+            throw new \RuntimeException(sprintf('Content type "%s" no longer exists.', $slug));
+        }
+        $typeUuid = (string) $type['uuid'];
+        $schemaVersion = (int) ($type['schema_version'] ?? 1);
+        $schema = $this->types->schemaFor($typeUuid);
+        /** @var array<string,FieldDefinition> $fieldsByName */
+        $fieldsByName = [];
+        foreach ($schema->fields() as $field) {
+            $fieldsByName[$field->name] = $field;
+        }
+
+        $items = array_slice($this->readItemsForJob($context->jobUuid), $batch->offset, $batch->limit);
+        $errors = [];
+        $processed = 0;
+
+        foreach ($items as $index => $item) {
+            $line = $batch->offset + $index + 1;
+            try {
+                $payload = [];
+                foreach ($mapping as $field => $wxrKey) {
+                    $def = $fieldsByName[$field] ?? null;
+                    if ($def === null || !array_key_exists($wxrKey, $item)) {
+                        continue;
+                    }
+                    $payload[$field] = $this->coerce($def->type, (string) $item[$wxrKey]);
+                }
+                if ($bodyField !== '' && isset($fieldsByName[$bodyField])) {
+                    $payload[$bodyField] = $fieldsByName[$bodyField]->format === 'plain'
+                        ? trim(strip_tags($item['content']))
+                        : $item['content'];
+                }
+
+                $clean = $this->validator->validate($schema, $payload);
+                if ($context->mode === 'commit') {
+                    $entryUuid = $this->entries->createEntry($typeUuid, $locale, $schemaVersion, $context->actorUuid);
+                    $this->entries->saveDraft($entryUuid, $locale, $clean, $schemaVersion, 0, $context->actorUuid);
+                    if ($publish && $item['status'] === 'publish') {
+                        $this->publisher->publish($entryUuid, $locale, $context->actorUuid);
+                    }
+                }
+                $processed++;
+            } catch (\Throwable $e) {
+                $errors[] = [
+                    'record_number' => $line,
+                    'severity' => 'error',
+                    'code' => 'wordpress_import_failed',
+                    'message' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return new ImportBatchResult($processed, count($errors), $errors, ['mode' => $context->mode]);
+    }
+
+    public function retryable(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Parse the WXR file into a flat list of post/page records.
+     *
+     * @return list<array<string,string>> each: title, content, excerpt, slug, status, date, author
+     */
+    private function readItems(string $path): array
+    {
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            throw new \RuntimeException(sprintf('Could not read WordPress export "%s".', $path));
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($raw);
+        libxml_use_internal_errors($previous);
+        if ($xml === false || !isset($xml->channel)) {
+            throw new \RuntimeException('The file is not a valid WordPress export (WXR).');
+        }
+
+        $ns = $xml->getDocNamespaces(true);
+        $wp = $ns['wp'] ?? 'http://wordpress.org/export/1.2/';
+        $content = $ns['content'] ?? 'http://purl.org/rss/1.0/modules/content/';
+        $excerpt = $ns['excerpt'] ?? 'http://wordpress.org/export/1.2/excerpt/';
+        $dc = $ns['dc'] ?? 'http://purl.org/dc/elements/1.1/';
+
+        $records = [];
+        foreach ($xml->channel->item as $item) {
+            $wpChildren = $item->children($wp);
+            if (!in_array((string) $wpChildren->post_type, self::POST_TYPES, true)) {
+                continue;
+            }
+            $records[] = [
+                'title' => (string) $item->title,
+                'content' => (string) $item->children($content)->encoded,
+                'excerpt' => (string) $item->children($excerpt)->encoded,
+                'slug' => (string) $wpChildren->post_name,
+                'status' => (string) $wpChildren->status,
+                'date' => (string) $wpChildren->post_date,
+                'author' => (string) $item->children($dc)->creator,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array<string,string>>
+     */
+    private function readItemsForJob(string $jobUuid): array
+    {
+        $file = $this->db->table('import_export_files')
+            ->where('job_uuid', '=', $jobUuid)
+            ->where('role', '=', 'source')
+            ->orderBy('id')
+            ->first();
+        if ($file === null) {
+            throw new \RuntimeException(sprintf('Import source file for job "%s" was not found.', $jobUuid));
+        }
+
+        return $this->readItems($this->resolveSourcePath((string) $file['disk'], (string) $file['path']));
+    }
+
+    /** Coerce a raw WXR string to the field's type. */
+    private function coerce(string $type, string $raw): mixed
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+        return match ($type) {
+            'number' => is_numeric($raw)
+                ? ((string) (int) $raw === $raw ? (int) $raw : (float) $raw)
+                : $raw,
+            'boolean' => in_array(strtolower($raw), ['true', '1', 'yes', 'on'], true),
+            'json' => is_array($decoded = json_decode($raw, true)) ? $decoded : $raw,
+            default => $raw,
+        };
+    }
+
+    private function resolveSourcePath(string $disk, string $path): string
+    {
+        if ($path !== '' && $path[0] === '/') {
+            return $path;
+        }
+
+        $roots = config($this->context, 'import_export.source_roots', []);
+        $root = is_array($roots) && isset($roots[$disk]) && is_string($roots[$disk]) && $roots[$disk] !== ''
+            ? $roots[$disk]
+            : $this->context->getBasePath() . DIRECTORY_SEPARATOR . $disk;
+
+        return rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($path, DIRECTORY_SEPARATOR);
+    }
+
+    private function extension(string $path): string
+    {
+        return strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+    }
+
+    /** @param array<string,mixed> $options */
+    private function stringOption(array $options, string $key): string
+    {
+        return isset($options[$key]) && is_string($options[$key]) ? $options[$key] : '';
+    }
+
+    /**
+     * @param array<string,mixed> $options
+     * @return array<string,string> field name => WXR key
+     */
+    private function mappingOption(array $options): array
+    {
+        $raw = $options['mapping'] ?? null;
+        if (!is_array($raw)) {
+            return [];
+        }
+        $mapping = [];
+        foreach ($raw as $field => $key) {
+            if (is_string($field) && is_string($key) && $field !== '' && $key !== '') {
+                $mapping[$field] = $key;
+            }
+        }
+        return $mapping;
+    }
+}

@@ -146,10 +146,18 @@ export interface CreateImportInput {
   disk: string
   path: string
   mode: 'dry_run' | 'commit'
+  /** Adapter-specific config (e.g. CSV: content_type, mapping, locale, publish). */
+  options?: Record<string, unknown>
 }
 export async function createImport(input: CreateImportInput): Promise<IeJob | null> {
   const { data, error, response } = await core.POST('/import-export/imports', {
-    body: { adapter: input.adapter, disk: input.disk, path: input.path, mode: input.mode } as never,
+    body: {
+      adapter: input.adapter,
+      disk: input.disk,
+      path: input.path,
+      mode: input.mode,
+      options: input.options ?? {},
+    } as never,
   })
   if (error) throw toApiError(error, response)
   return (payload(data).job as IeJob | undefined) ?? null

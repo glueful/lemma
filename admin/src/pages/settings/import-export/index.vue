@@ -11,6 +11,8 @@ import {
   isJobActive,
   type IeJob,
 } from '@/queries/importExport'
+import { useContentTypes } from '@/queries/contentTypes'
+import { runtimeConfig } from '@/runtime/config'
 import { useNotify } from '@/composables/useNotify'
 
 definePage({ meta: { requiresAuth: true } })
@@ -69,14 +71,140 @@ const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const selectedFile = ref<File | null>(null)
 const importing = ref(false)
 
-function onFilePicked(event: Event) {
+// ── Import mapping wizard (CSV + Markdown + WordPress) ────────────────────────
+// CSV, Markdown and WordPress adapters need an options bag (target type + a field→source mapping);
+// other adapters just take a file. CSV maps fields to columns; Markdown maps fields to front-matter
+// keys; WordPress maps fields to a fixed set of WXR keys. Markdown/WordPress also route a converted
+// HTML body into a chosen field.
+const SKIP = '__skip__'
+// The scalar WXR keys a WordPress import can map fields to (mirrors WordpressContentImporter::KEYS).
+const WXR_KEYS = ['title', 'excerpt', 'slug', 'date', 'status', 'author']
+const isCsv = computed(() => importAdapter.value === 'csv.content')
+const isMarkdown = computed(() => importAdapter.value === 'markdown.content')
+const isWordpress = computed(() => importAdapter.value === 'wordpress.content')
+// Markdown and WordPress both route a converted HTML body into a chosen field.
+const hasBodyField = computed(() => isMarkdown.value || isWordpress.value)
+const needsWizard = computed(() => isCsv.value || isMarkdown.value || isWordpress.value)
+
+const { data: contentTypes } = useContentTypes()
+const typeItems = computed(() =>
+  (contentTypes.value ?? []).map((t) => ({ label: t.name ?? t.slug, value: t.slug })),
+)
+const wizardType = ref('')
+const wizardFields = computed(() =>
+  (contentTypes.value?.find((t) => t.slug === wizardType.value)?.schema ?? []).map((f) => ({
+    name: String(f.name ?? ''),
+    type: String(f.type ?? ''),
+    required: !!f.required,
+  })),
+)
+const wizardPublish = ref(false)
+const bodyField = ref('') // Markdown/WordPress: the field that receives the converted HTML body
+
+// The source keys the fields map to: CSV column headers, Markdown front-matter keys, or WXR keys.
+const sourceKeys = ref<string[]>([])
+const sourceLabel = computed(() =>
+  isWordpress.value ? 'WordPress fields' : isMarkdown.value ? 'front-matter keys' : 'columns',
+)
+// WordPress keys are fixed (not parsed from the file), so the mapping is available immediately.
+watchEffect(() => {
+  if (isWordpress.value) sourceKeys.value = WXR_KEYS
+})
+// field name → source key (or SKIP)
+const wizardMapping = ref<Record<string, string>>({})
+const keyItems = computed(() => [
+  { label: '— skip —', value: SKIP },
+  ...sourceKeys.value.map((c) => ({ label: c, value: c })),
+])
+// Markdown body-field options: the type's text fields.
+const bodyFieldItems = computed(() =>
+  wizardFields.value
+    .filter((f) => f.type === 'text')
+    .map((f) => ({ label: f.name, value: f.name })),
+)
+
+function parseCsvHeader(text: string): string[] {
+  const firstLine = text.split(/\r?\n/).find((l) => l.trim() !== '') ?? ''
+  return firstLine.split(',').map((c) => c.trim().replace(/^"(.*)"$/, '$1'))
+}
+function parseFrontMatterKeys(text: string): string[] {
+  const body = text.replace(/^﻿/, '').replace(/^\s+/, '')
+  if (!body.startsWith('---')) return []
+  const lines = body.split(/\r?\n/)
+  const keys: string[] = []
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i]!.trim() === '---') break
+    const m = /^([A-Za-z0-9_-]+)\s*:/.exec(lines[i]!)
+    if (m) keys.push(m[1]!)
+  }
+  return keys
+}
+
+// Default each field to a same-name source key, else skip.
+watchEffect(() => {
+  const keys = sourceKeys.value
+  const next: Record<string, string> = {}
+  for (const f of wizardFields.value) {
+    const match = keys.find((c) => c.toLowerCase() === f.name.toLowerCase())
+    next[f.name] = match ?? wizardMapping.value[f.name] ?? SKIP
+  }
+  wizardMapping.value = next
+})
+// Default the Markdown/WordPress body field to a "body" field when present.
+watchEffect(() => {
+  if (hasBodyField.value && !bodyField.value) {
+    bodyField.value = bodyFieldItems.value.find((i) => i.value === 'body')?.value ?? ''
+  }
+})
+
+// Required fields must be satisfied (mapped to a source key, or — Markdown/WordPress — the body field).
+const wizardReady = computed(() => {
+  if (!needsWizard.value) return true
+  if (wizardType.value === '') return false
+  if (isCsv.value && sourceKeys.value.length === 0) return false
+  return wizardFields.value.every(
+    (f) =>
+      !f.required ||
+      (wizardMapping.value[f.name] ?? SKIP) !== SKIP ||
+      (hasBodyField.value && bodyField.value === f.name),
+  )
+})
+
+async function onFilePicked(event: Event) {
   const input = event.target as HTMLInputElement
-  selectedFile.value = input.files?.[0] ?? null
+  const file = input.files?.[0] ?? null
+  selectedFile.value = file
+  // WordPress keys are fixed (set by the watchEffect above), so don't touch them here.
+  if (isWordpress.value) return
+  if (!file) {
+    sourceKeys.value = []
+  } else if (isCsv.value) {
+    sourceKeys.value = parseCsvHeader(await file.text())
+  } else if (isMarkdown.value) {
+    sourceKeys.value = parseFrontMatterKeys(await file.text())
+  } else {
+    sourceKeys.value = []
+  }
+}
+
+function wizardOptions(): Record<string, unknown> {
+  const mapping: Record<string, string> = {}
+  for (const [field, key] of Object.entries(wizardMapping.value)) {
+    if (key !== SKIP) mapping[field] = key
+  }
+  const options: Record<string, unknown> = {
+    content_type: wizardType.value,
+    mapping,
+    locale: runtimeConfig.defaultLocale,
+    publish: wizardPublish.value,
+  }
+  if (hasBodyField.value && bodyField.value) options.body_field = bodyField.value
+  return options
 }
 
 async function onImport() {
   const file = selectedFile.value
-  if (!file || !importAdapter.value) return
+  if (!file || !importAdapter.value || !wizardReady.value) return
   importing.value = true
   try {
     const uploaded = await uploadImportFile(file)
@@ -85,12 +213,14 @@ async function onImport() {
       disk: uploaded.disk,
       path: uploaded.path,
       mode: importMode.value,
+      options: needsWizard.value ? wizardOptions() : undefined,
     })
     success(
       importMode.value === 'dry_run' ? 'Dry run queued' : 'Import queued',
       'It will appear in the jobs list below as it runs.',
     )
     selectedFile.value = null
+    sourceKeys.value = []
     if (fileInput.value) fileInput.value.value = ''
   } catch (e) {
     notifyError(e, 'Could not start the import')
@@ -179,8 +309,9 @@ function fmtTime(v?: string | null): string {
     <template #body>
       <div class="mx-auto w-full max-w-4xl space-y-6">
         <p class="text-sm text-muted">
-          Move content in and out as NDJSON. Jobs run in the background — they progress only while a
-          queue worker is running.
+          Export content as NDJSON; import an NDJSON bundle, a CSV, a Markdown document, or a
+          WordPress export (WXR). Jobs run in the background — they progress only while a queue
+          worker is running.
         </p>
 
         <div class="grid gap-6 md:grid-cols-2">
@@ -211,7 +342,37 @@ function fmtTime(v?: string | null): string {
                 <USelect v-model="importAdapter" :items="importerItems" class="w-full" />
               </UFormField>
 
-              <UFormField label="File" hint="NDJSON exported from Lemma">
+              <UFormField
+                v-if="needsWizard"
+                label="Content type"
+                :hint="
+                  isWordpress
+                    ? 'Each WordPress post/page becomes an entry of this type'
+                    : isMarkdown
+                      ? 'The Markdown document becomes an entry of this type'
+                      : 'Each CSV row becomes an entry of this type'
+                "
+              >
+                <USelect
+                  v-model="wizardType"
+                  :items="typeItems"
+                  placeholder="Choose a content type"
+                  class="w-full"
+                />
+              </UFormField>
+
+              <UFormField
+                label="File"
+                :hint="
+                  isWordpress
+                    ? 'A WordPress export (.xml / .wxr)'
+                    : isMarkdown
+                      ? 'A .md / .mdx file with optional front matter'
+                      : isCsv
+                        ? 'CSV with a header row'
+                        : 'NDJSON exported from Lemma'
+                "
+              >
                 <div class="flex items-center gap-2">
                   <UButton
                     icon="i-lucide-paperclip"
@@ -226,6 +387,42 @@ function fmtTime(v?: string | null): string {
                 </div>
               </UFormField>
 
+              <UFormField
+                v-if="hasBodyField && wizardType"
+                label="Body field"
+                :hint="
+                  isWordpress
+                    ? 'The post body (content:encoded HTML) is stored here'
+                    : 'The Markdown body is converted to HTML and stored here'
+                "
+              >
+                <USelect
+                  v-model="bodyField"
+                  :items="bodyFieldItems"
+                  placeholder="Choose a text field"
+                  class="w-full"
+                />
+              </UFormField>
+
+              <UFormField
+                v-if="needsWizard && wizardType && sourceKeys.length"
+                :label="`Map fields to ${sourceLabel}`"
+                hint="Required fields (*) must be mapped"
+              >
+                <div class="space-y-2">
+                  <div v-for="f in wizardFields" :key="f.name" class="flex items-center gap-2">
+                    <span class="w-28 shrink-0 truncate text-sm text-default">
+                      {{ f.name }}<span v-if="f.required" class="text-error">*</span>
+                    </span>
+                    <USelect v-model="wizardMapping[f.name]" :items="keyItems" class="flex-1" />
+                  </div>
+                </div>
+              </UFormField>
+
+              <UFormField v-if="needsWizard" label="On commit">
+                <USwitch v-model="wizardPublish" label="Publish imported entries" />
+              </UFormField>
+
               <UFormField label="Mode">
                 <USelect v-model="importMode" :items="modeItems" class="w-full" />
               </UFormField>
@@ -233,7 +430,7 @@ function fmtTime(v?: string | null): string {
               <UButton
                 icon="i-lucide-upload"
                 :loading="importing || runImport.isLoading.value"
-                :disabled="!selectedFile || !importAdapter"
+                :disabled="!selectedFile || !importAdapter || !wizardReady"
                 @click="onImport"
               >
                 {{ importMode === 'dry_run' ? 'Run dry run' : 'Import' }}
@@ -343,7 +540,15 @@ function fmtTime(v?: string | null): string {
   <input
     ref="fileInput"
     type="file"
-    accept=".ndjson,.jsonl,.json"
+    :accept="
+      isWordpress
+        ? '.xml,.wxr'
+        : isCsv
+          ? '.csv'
+          : isMarkdown
+            ? '.md,.mdx,.markdown'
+            : '.ndjson,.jsonl,.json'
+    "
     class="hidden"
     @change="onFilePicked"
   />

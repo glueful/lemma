@@ -112,6 +112,33 @@ async function confirmCreate() {
   }
 }
 
+// ── Copy content into the current locale (overwrite) ───────────────────────────
+const copySource = ref('')
+const copySourceOptions = computed(() =>
+  entryLocaleCodes.value
+    .filter((c) => c !== locale.value)
+    .map((c) => ({ label: localeLabel(c), value: c })),
+)
+function openCopyInto(source: string) {
+  copySource.value = source
+}
+async function confirmCopyInto() {
+  const source = copySource.value
+  if (!source) return
+  try {
+    await createLocale.mutateAsync({
+      uuid: uuid.value,
+      locale: locale.value,
+      sourceLocale: source,
+      overwrite: true,
+    })
+    success(`Copied ${localeLabel(source)} content into ${localeLabel(locale.value)}`)
+    copySource.value = ''
+  } catch (e) {
+    notifyError(e, "Couldn't copy content")
+  }
+}
+
 // ── Draft ─────────────────────────────────────────────────────────────────────
 const { data: draft, status: draftStatus } = useDraft(uuid, () => locale.value)
 
@@ -174,6 +201,24 @@ async function onSave() {
             :addable="addableLocales"
             @create="openCreate"
           />
+          <UDropdownMenu
+            v-if="multiLocale && copySourceOptions.length"
+            :items="
+              copySourceOptions.map((o) => ({
+                label: `From ${o.label}`,
+                onSelect: () => openCopyInto(o.value),
+              }))
+            "
+            :content="{ align: 'end' }"
+          >
+            <UButton
+              icon="i-lucide-copy"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              aria-label="Copy content into this locale"
+            />
+          </UDropdownMenu>
           <UButton
             variant="ghost"
             color="neutral"
@@ -260,6 +305,42 @@ async function onSave() {
           label="Create version"
           :loading="createLocale.isLoading.value"
           @click="confirmCreate"
+        />
+      </div>
+    </template>
+  </UModal>
+
+  <UModal
+    :open="copySource !== ''"
+    title="Copy content into this locale"
+    @update:open="
+      (v: boolean) => {
+        if (!v) copySource = ''
+      }
+    "
+  >
+    <template #body>
+      <p class="text-sm text-muted">
+        Replace the <span class="text-default">{{ localeLabel(locale) }}</span> draft with content
+        from <span class="text-default">{{ localeLabel(copySource) }}</span
+        >? Shared (non-localized) fields are copied from the source; the target's localized fields
+        are cleared for re-translation. This overwrites the current draft.
+      </p>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          label="Cancel"
+          :disabled="createLocale.isLoading.value"
+          @click="copySource = ''"
+        />
+        <UButton
+          icon="i-lucide-copy"
+          label="Copy content"
+          :loading="createLocale.isLoading.value"
+          @click="confirmCopyInto"
         />
       </div>
     </template>

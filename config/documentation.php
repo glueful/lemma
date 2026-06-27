@@ -15,11 +15,12 @@ return [
     | Documentation Enabled
     |--------------------------------------------------------------------------
     |
-    | Controls whether API documentation is enabled. Automatically disabled
-    | in production for security unless explicitly enabled.
+    | Controls whether API documentation is enabled. Enabled in all
+    | environments (the admin's API Reference links to /docs/); set
+    | API_DOCS_ENABLED=false to turn it off, e.g. in production.
     |
     */
-    'enabled' => env('API_DOCS_ENABLED', env('APP_ENV') !== 'production'),
+    'enabled' => env('API_DOCS_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------

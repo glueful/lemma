@@ -16,8 +16,9 @@ return [
     // Smart environment-aware debug default (false in production, true otherwise)
     'debug' => (bool) env('APP_DEBUG', env('APP_ENV') !== 'production'),
 
-    // Smart environment-aware API documentation (disabled in production for security)
-    'api_docs_enabled' => env('API_DOCS_ENABLED', env('APP_ENV') !== 'production'),
+    // API documentation enabled in all environments (admin API Reference links to /docs/);
+    // set API_DOCS_ENABLED=false to turn it off, e.g. in production.
+    'api_docs_enabled' => env('API_DOCS_ENABLED', true),
 
     // Smart environment-aware development mode
     'dev_mode' => env('DEV_MODE', env('APP_ENV') === 'development'),

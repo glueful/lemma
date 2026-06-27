@@ -135,7 +135,7 @@ async function confirmCopyInto() {
     success(`Copied ${localeLabel(source)} content into ${localeLabel(locale.value)}`)
     copySource.value = ''
   } catch (e) {
-    notifyError(e, "Couldn't copy content")
+    notifyError(e, 'Couldn’t copy content')
   }
 }
 

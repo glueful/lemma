@@ -5,7 +5,7 @@ import { useUsers, type UserRow } from '@/queries/users'
 import UserListItem from './UserListItem.vue'
 
 const props = defineProps<{ selectedUuid?: string }>()
-const emit = defineEmits<{ select: [user: UserRow]; create: [] }>()
+const emit = defineEmits<{ select: [user: UserRow]; create: []; bulkImport: [] }>()
 
 const page = ref(1)
 const perPage = ref(25)
@@ -25,7 +25,17 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage.va
   <div class="flex h-full min-h-0 w-full flex-col gap-3 lg:w-85 lg:shrink-0">
     <div class="flex items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-highlighted">Users</h2>
-      <UButton icon="i-lucide-plus" class="px-3 rounded-xl" size="sm" @click="emit('create')" />
+      <div class="flex items-center gap-1">
+        <UButton
+          icon="i-lucide-upload"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          aria-label="Bulk import users from CSV"
+          @click="emit('bulkImport')"
+        />
+        <UButton icon="i-lucide-plus" class="px-3 rounded-xl" size="sm" @click="emit('create')" />
+      </div>
     </div>
 
     <UInput v-model="search" icon="i-lucide-search" placeholder="Search users…" class="w-full" />

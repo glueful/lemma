@@ -5,6 +5,7 @@ import type { UserRow } from '@/queries/users'
 import UsersListPane from './components/UsersListPane.vue'
 import UserDetailPane from './components/UserDetailPane.vue'
 import UserCreateModal from './components/UserCreateModal.vue'
+import UserBulkImportModal from './components/UserBulkImportModal.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -12,6 +13,7 @@ const route = useRoute()
 const router = useRouter()
 const selectedUuid = computed(() => (route.query.user as string | undefined) || undefined)
 const showCreate = ref(false)
+const showImport = ref(false)
 
 function select(user: UserRow) {
   router.replace({ query: { ...route.query, user: user.uuid } })
@@ -44,6 +46,7 @@ function onCreated(uuid: string) {
             :selected-uuid="selectedUuid"
             @select="select"
             @create="showCreate = true"
+            @bulk-import="showImport = true"
           />
         </div>
 
@@ -72,6 +75,7 @@ function onCreated(uuid: string) {
       </div>
 
       <UserCreateModal v-model:open="showCreate" @created="onCreated" />
+      <UserBulkImportModal v-model:open="showImport" />
     </template>
   </UDashboardPanel>
 </template>

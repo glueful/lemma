@@ -42,6 +42,7 @@ use App\Content\ImportExport\LemmaContentExporter;
 use App\Content\ImportExport\CsvContentImporter;
 use App\Content\ImportExport\LemmaContentImporter;
 use App\Content\ImportExport\MarkdownContentImporter;
+use App\ImportExport\CsvUserImporter;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Events\EntryCreated;
 use App\Content\Events\EntryDeleted;
@@ -412,6 +413,12 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             MarkdownContentImporter::class => [
                 'class' => MarkdownContentImporter::class,
+                'shared' => true,
+                'autowire' => true,
+                'tags' => ['import_export.importer'],
+            ],
+            CsvUserImporter::class => [
+                'class' => CsvUserImporter::class,
                 'shared' => true,
                 'autowire' => true,
                 'tags' => ['import_export.importer'],

@@ -499,6 +499,9 @@ final class EntryRepository
 
     /**
      * Count content that exists in a locale — used to warn before disabling it.
+     * Only active (non-soft-deleted) entries are counted; softDelete() sets
+     * entries.status='deleted' without removing child draft/publication rows, so
+     * we join back to entries to exclude orphaned rows from deleted entries.
      *
      * @return array{published_entries:int,draft_entries:int}
      */
@@ -506,9 +509,15 @@ final class EntryRepository
     {
         return [
             'published_entries' => (int) $this->db->table('entry_publications')
-                ->where('locale', '=', $locale)->count(),
+                ->join('entries', 'entry_publications.entry_uuid', '=', 'entries.uuid')
+                ->where('entry_publications.locale', '=', $locale)
+                ->where('entries.status', '=', 'active')
+                ->count(),
             'draft_entries' => (int) $this->db->table('entry_drafts')
-                ->where('locale', '=', $locale)->count(),
+                ->join('entries', 'entry_drafts.entry_uuid', '=', 'entries.uuid')
+                ->where('entry_drafts.locale', '=', $locale)
+                ->where('entries.status', '=', 'active')
+                ->count(),
         ];
     }
 

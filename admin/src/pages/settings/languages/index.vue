@@ -23,12 +23,13 @@ const columns: TableColumn<Locale>[] = [
 ]
 
 const pendingDisable = ref<{ locale: Locale; usage: LocaleUsage } | null>(null)
-const checking = ref(false)
+const checking = ref('')
 
 async function onToggleEnabled(locale: Locale, value: boolean) {
   // Disabling a locale with published content hides it from delivery — confirm first.
   if (!value) {
-    checking.value = true
+    if (checking.value) return
+    checking.value = locale.code
     try {
       const usage = await fetchLocaleUsage(locale.code)
       if (usage.published_entries > 0 || usage.draft_entries > 0) {
@@ -39,25 +40,26 @@ async function onToggleEnabled(locale: Locale, value: boolean) {
       notifyError(e, 'Couldn’t check language usage')
       return
     } finally {
-      checking.value = false
+      checking.value = ''
     }
   }
   await applyEnabled(locale, value)
 }
 
-async function applyEnabled(locale: Locale, value: boolean) {
+async function applyEnabled(locale: Locale, value: boolean): Promise<boolean> {
   try {
     await update.mutateAsync({ code: locale.code, input: { enabled: value } })
+    return true
   } catch (e) {
     notifyError(e, 'Couldn’t update language')
+    return false
   }
 }
 
 async function confirmDisable() {
   const p = pendingDisable.value
   if (!p) return
-  await applyEnabled(p.locale, false)
-  pendingDisable.value = null
+  if (await applyEnabled(p.locale, false)) pendingDisable.value = null
 }
 
 async function onSetDefault(locale: Locale) {
@@ -147,7 +149,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
         <template #enabled-cell="{ row }">
           <USwitch
             :model-value="row.original.enabled"
-            :loading="update.isLoading.value"
+            :loading="update.isLoading.value || checking === row.original.code"
             @update:model-value="onToggleEnabled(row.original, $event)"
           />
         </template>
@@ -204,7 +206,15 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
         <span class="text-default">{{ pendingDisable?.locale.name }}</span> still has
         <span class="text-default">{{ pendingDisable?.usage.published_entries }}</span> published
         and <span class="text-default">{{ pendingDisable?.usage.draft_entries }}</span> draft
-        entr(y/ies). Disabling it hides published content in this language from delivery. Continue?
+        {{
+          (pendingDisable?.usage.published_entries ?? 0) +
+            (pendingDisable?.usage.draft_entries ?? 0) ===
+          1
+            ? 'entry'
+            : 'entries'
+        }}
+        in this language. Disabling it hides published content in this language from delivery.
+        Continue?
       </p>
     </template>
     <template #footer>

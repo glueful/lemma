@@ -85,3 +85,23 @@ export function useCreateEntry() {
     },
   })
 }
+
+/** Soft-delete an entry. Fails with 409 (ENTRY_REFERENCED) if other content still references it. */
+export async function deleteEntry(uuid: string): Promise<void> {
+  const { error, response } = await client.DELETE('/entries/{uuid}', {
+    params: { path: { uuid } },
+  })
+  if (error) throw toApiError(error, response)
+}
+
+export function useDeleteEntry() {
+  const cache = useQueryCache()
+  return useMutation({
+    // `type` rides along so we can invalidate the right list cache on completion.
+    mutation: (vars: { uuid: string; type: string }) => deleteEntry(vars.uuid),
+    onSettled: (_data, _error, vars) => {
+      cache.invalidateQueries({ key: qk.entries(vars.type) })
+      cache.invalidateQueries({ key: qk.home() })
+    },
+  })
+}

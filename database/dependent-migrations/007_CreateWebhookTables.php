@@ -25,7 +25,7 @@ final class CreateWebhookTables implements MigrationInterface
         if (!$schema->hasTable('webhook_subscriptions')) {
             $schema->createTable('webhook_subscriptions', function ($table) {
                 $table->bigInteger('id')->unsigned()->primary()->autoIncrement();
-                $table->string('uuid', 12)->unique();
+                $table->string('uuid', 32)->unique();
                 $table->string('url', 2048);
                 $table->json('events');
                 $table->string('secret', 255);
@@ -41,7 +41,7 @@ final class CreateWebhookTables implements MigrationInterface
         if (!$schema->hasTable('webhook_deliveries')) {
             $schema->createTable('webhook_deliveries', function ($table) {
                 $table->bigInteger('id')->unsigned()->primary()->autoIncrement();
-                $table->string('uuid', 12)->unique();
+                $table->string('uuid', 32)->unique();
                 $table->bigInteger('subscription_id')->unsigned();
                 $table->string('event', 255);
                 $table->json('payload');

@@ -19,9 +19,13 @@ use App\Setup\Console\ProvisionCommand;
 use App\Content\Backfill\BackfillRunner;
 use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\ApiKeyAdminController;
+use App\Http\Controllers\CacheAdminController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\GeneralSettingsController;
+use App\Http\Controllers\HealthAdminController;
+use App\Http\Controllers\ImportExportController;
 use App\Http\Controllers\MediaAdminController;
+use App\Http\Controllers\ScheduledTasksController;
 use App\Http\Controllers\UserAdminController;
 use App\Settings\GeneralSettings;
 use App\Settings\SettingsStore;
@@ -288,6 +292,26 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             GeneralSettings::class => [
                 'class' => GeneralSettings::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CacheAdminController::class => [
+                'class' => CacheAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            HealthAdminController::class => [
+                'class' => HealthAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ImportExportController::class => [
+                'class' => ImportExportController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ScheduledTasksController::class => [
+                'class' => ScheduledTasksController::class,
                 'shared' => true,
                 'autowire' => true,
             ],

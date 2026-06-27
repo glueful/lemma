@@ -28,6 +28,9 @@ const schema = computed<FieldDef[]>(() =>
     type: (f.type ?? 'string') as FieldDef['type'],
     required: f.required ?? undefined,
     enum: f.enum ?? undefined,
+    // Carry the widget hint through so `text` + `rich` renders the RichText (UEditor) editor,
+    // matching the content-type preview — without this it falls back to a plain textarea.
+    format: (f.format ?? undefined) as FieldDef['format'],
   })),
 )
 
@@ -71,6 +74,15 @@ async function onSave() {
   <UDashboardPanel id="entry-editor">
     <template #header>
       <UDashboardNavbar>
+        <template #leading>
+          <UButton
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-arrow-left"
+            :to="`/content/${type}`"
+            :aria-label="`Back to ${type}`"
+          />
+        </template>
         <template #title
           ><span class="capitalize">{{ type }}</span></template
         >
@@ -89,13 +101,26 @@ async function onSave() {
     </template>
 
     <template #body>
-      <div v-if="draftStatus === 'pending'" class="space-y-3">
-        <USkeleton v-for="n in 4" :key="n" class="h-10" />
+      <!-- On large screens the body fills the panel height and each pane scrolls on its own, so the
+           page chrome stays put. On small screens it stacks and scrolls normally. -->
+      <div class="flex w-full flex-col gap-6 lg:h-full lg:min-h-0 lg:flex-row">
+        <!-- Entry content — the primary, wider pane -->
+        <div class="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pe-1">
+          <UCard :ui="{ root: 'ring-0' }">
+            <div v-if="draftStatus === 'pending'" class="space-y-3">
+              <USkeleton v-for="n in 4" :key="n" class="h-10" />
+            </div>
+            <FieldEditor v-else v-model="fields" :schema="schema" />
+          </UCard>
+        </div>
+
+        <!-- Publishing — the narrower sidebar, its own scroll section. p-1 gives the card's ring room
+             on every side: the scroll container would otherwise clip the outline (overflow-y-auto
+             makes overflow-x compute to auto, and the top/bottom edges clip at the scroll extremes). -->
+        <div class="lg:min-h-0 lg:w-96 lg:shrink-0 lg:overflow-y-auto lg:p-1">
+          <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
+        </div>
       </div>
-
-      <FieldEditor v-else v-model="fields" :schema="schema" />
-
-      <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
     </template>
   </UDashboardPanel>
 </template>

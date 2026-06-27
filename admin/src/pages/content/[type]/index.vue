@@ -1,15 +1,45 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import type { TableColumn } from '@nuxt/ui'
-import { useEntries, type EntryListRow } from '@/queries/entries'
+import { useEntries, useCreateEntry, useDeleteEntry, type EntryListRow } from '@/queries/entries'
+import { useNotify } from '@/composables/useNotify'
 import TablePagination from '@/components/TablePagination.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
 const route = useRoute()
+const router = useRouter()
 const type = computed(() => String(route.params.type))
+
+const { success, error: notifyError } = useNotify()
+const { mutateAsync: createEntry, isLoading: creating } = useCreateEntry()
+const { mutateAsync: deleteEntry, isLoading: deleting } = useDeleteEntry()
+
+async function onCreate() {
+  try {
+    const uuid = await createEntry(type.value)
+    if (uuid) router.push(`/content/${type.value}/${uuid}`)
+  } catch (e) {
+    notifyError(e, 'Could not create entry')
+  }
+}
+
+// Delete confirmation: hold the pending row so the modal can name it.
+const pendingDelete = ref<EntryListRow | null>(null)
+
+async function confirmDelete() {
+  const entry = pendingDelete.value
+  if (!entry) return
+  try {
+    await deleteEntry({ uuid: entry.uuid, type: type.value })
+    success('Entry deleted', `“${entry.display_title}” was removed.`)
+    pendingDelete.value = null
+  } catch (e) {
+    notifyError(e, 'Couldn’t delete entry')
+  }
+}
 
 const page = ref(1)
 const perPage = ref(20)
@@ -23,6 +53,7 @@ const columns: TableColumn<EntryListRow>[] = [
   { accessorKey: 'status', header: 'Status' },
   { accessorKey: 'locales', header: 'Locales' },
   { accessorKey: 'updated_at', header: 'Updated' },
+  { id: 'actions', header: '' },
 ]
 
 function statusColor(s: string): 'success' | 'warning' | 'neutral' {
@@ -48,6 +79,9 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
             :to="`/content/${type}/redirects`"
           >
             Redirects
+          </UButton>
+          <UButton icon="i-lucide-plus" class="capitalize" :loading="creating" @click="onCreate">
+            New {{ type }}
           </UButton>
         </template>
       </UDashboardNavbar>
@@ -84,6 +118,27 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
         <template #updated_at-cell="{ row }">
           <span class="text-sm text-muted">{{ row.original.updated_at ?? '—' }}</span>
         </template>
+
+        <template #actions-cell="{ row }">
+          <div class="flex justify-end gap-1">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-pencil"
+              aria-label="Edit"
+              :to="`/content/${type}/${row.original.uuid}`"
+            />
+            <UButton
+              color="error"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-trash-2"
+              aria-label="Delete"
+              @click="pendingDelete = row.original"
+            />
+          </div>
+        </template>
       </UTable>
 
       <TablePagination
@@ -95,4 +150,40 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
       />
     </template>
   </UDashboardPanel>
+
+  <UModal
+    :open="pendingDelete !== null"
+    title="Delete entry"
+    @update:open="
+      (v: boolean) => {
+        if (!v) pendingDelete = null
+      }
+    "
+  >
+    <template #body>
+      <p class="text-sm text-muted">
+        Delete <span class="text-default">“{{ pendingDelete?.display_title }}”</span>? This can’t be
+        undone, and it will fail if other content still references this entry.
+      </p>
+    </template>
+
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          label="Cancel"
+          :disabled="deleting"
+          @click="pendingDelete = null"
+        />
+        <UButton
+          color="error"
+          icon="i-lucide-trash-2"
+          label="Delete"
+          :loading="deleting"
+          @click="confirmDelete"
+        />
+      </div>
+    </template>
+  </UModal>
 </template>

@@ -1,4 +1,4 @@
-import { useQuery } from '@pinia/colada'
+import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { client } from '@/api/client'
 import { toApiError } from '@/api/errors'
@@ -63,5 +63,45 @@ export function useEntries(
         perPage: toValue(perPage),
         q: toValue(q),
       }),
+  })
+}
+
+/** Create a blank entry for a content type (seeded with an empty draft); returns its UUID. */
+export async function createEntry(type: string): Promise<string> {
+  const { data, error, response } = await client.POST('/entries', {
+    body: { content_type: type },
+  })
+  if (error) throw toApiError(error, response)
+  return String(data?.data?.entry?.uuid ?? '')
+}
+
+export function useCreateEntry() {
+  const cache = useQueryCache()
+  return useMutation({
+    mutation: (type: string) => createEntry(type),
+    onSettled: (_data, _error, type) => {
+      cache.invalidateQueries({ key: qk.entries(type) })
+      cache.invalidateQueries({ key: qk.home() })
+    },
+  })
+}
+
+/** Soft-delete an entry. Fails with 409 (ENTRY_REFERENCED) if other content still references it. */
+export async function deleteEntry(uuid: string): Promise<void> {
+  const { error, response } = await client.DELETE('/entries/{uuid}', {
+    params: { path: { uuid } },
+  })
+  if (error) throw toApiError(error, response)
+}
+
+export function useDeleteEntry() {
+  const cache = useQueryCache()
+  return useMutation({
+    // `type` rides along so we can invalidate the right list cache on completion.
+    mutation: (vars: { uuid: string; type: string }) => deleteEntry(vars.uuid),
+    onSettled: (_data, _error, vars) => {
+      cache.invalidateQueries({ key: qk.entries(vars.type) })
+      cache.invalidateQueries({ key: qk.home() })
+    },
   })
 }

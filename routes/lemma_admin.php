@@ -10,10 +10,13 @@ use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ApiKeyAdminController;
+use App\Http\Controllers\CacheAdminController;
 use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\GeneralSettingsController;
+use App\Http\Controllers\HealthAdminController;
 use App\Http\Controllers\MediaAdminController;
+use App\Http\Controllers\ScheduledTasksController;
 use App\Http\Controllers\UserAdminController;
 use Glueful\Api\Webhooks\Http\Controllers\WebhookController;
 use Glueful\Routing\Router;
@@ -246,5 +249,21 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
         ->middleware('lemma_permission:system.access');
 
     $router->post('/webhooks/deliveries/{id}/retry', [WebhookController::class, 'retryDelivery'])
+        ->middleware('lemma_permission:system.access');
+
+    // Utilities — system ops tools (Health, Cache, Scheduled tasks). All gated by system.access.
+    $router->get('/health', [HealthAdminController::class, 'show'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/cache', [CacheAdminController::class, 'show'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/cache/clear', [CacheAdminController::class, 'clear'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->get('/scheduled-tasks', [ScheduledTasksController::class, 'index'])
+        ->middleware('lemma_permission:system.access');
+
+    $router->post('/scheduled-tasks/{name}/run', [ScheduledTasksController::class, 'run'])
         ->middleware('lemma_permission:system.access');
 });

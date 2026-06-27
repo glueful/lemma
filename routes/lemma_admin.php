@@ -15,6 +15,7 @@ use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\HealthAdminController;
+use App\Http\Controllers\ImportExportController;
 use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\ScheduledTasksController;
 use App\Http\Controllers\UserAdminController;
@@ -266,4 +267,14 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->post('/scheduled-tasks/{name}/run', [ScheduledTasksController::class, 'run'])
         ->middleware('lemma_permission:system.access');
+
+    // Import/Export: the glueful/import-export extension owns the job API (under /import-export), but
+    // ships no route to download an export result or upload an import file — these Lemma routes fill
+    // both gaps (the importer reads from the uploads disk; see config/import_export.php source_roots).
+    $router->get('/import-export/jobs/{uuid}/download', [ImportExportController::class, 'download'])
+        ->where('uuid', '[A-Za-z0-9_-]+')
+        ->middleware('lemma_permission:content.manage');
+
+    $router->post('/import-export/upload', [ImportExportController::class, 'upload'])
+        ->middleware('lemma_permission:content.manage');
 });

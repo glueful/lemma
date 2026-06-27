@@ -23,6 +23,7 @@ use App\Http\Controllers\CacheAdminController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\HealthAdminController;
+use App\Http\Controllers\ImportExportController;
 use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\ScheduledTasksController;
 use App\Http\Controllers\UserAdminController;
@@ -301,6 +302,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             HealthAdminController::class => [
                 'class' => HealthAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ImportExportController::class => [
+                'class' => ImportExportController::class,
                 'shared' => true,
                 'autowire' => true,
             ],

@@ -9,7 +9,7 @@ export interface LocaleStatus {
   /** Nuxt UI semantic color for badges/icons. */
   color: 'success' | 'warning' | 'neutral'
   /** Explicit Tailwind text-color class (avoids runtime string interpolation which Tailwind cannot JIT-scan). */
-  textClass: 'text-success' | 'text-warning' | 'text-neutral'
+  textClass: 'text-success' | 'text-warning' | 'text-muted' | 'text-dimmed'
 }
 
 const STATUSES: Record<LocaleStatusKey, Omit<LocaleStatus, 'key'>> = {
@@ -25,12 +25,12 @@ const STATUSES: Record<LocaleStatusKey, Omit<LocaleStatus, 'key'>> = {
     color: 'warning',
     textClass: 'text-warning',
   },
-  draft: { label: 'Draft', icon: 'i-lucide-pencil', color: 'neutral', textClass: 'text-neutral' },
+  draft: { label: 'Draft', icon: 'i-lucide-pencil', color: 'neutral', textClass: 'text-muted' },
   none: {
     label: 'Not started',
     icon: 'i-lucide-circle-dashed',
     color: 'neutral',
-    textClass: 'text-neutral',
+    textClass: 'text-dimmed',
   },
 }
 

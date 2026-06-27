@@ -16,18 +16,16 @@ function label(code: string): string {
   const m = props.enabled.find((l) => l.code === code)
   return m ? `${m.name} (${code})` : code
 }
-function statusFor(code: string) {
-  const s = props.summaries.find((x) => x.locale === code)
-  return s ? localeStatus(s) : null
-}
-
 const items = computed(() =>
   props.summaries.map((s) => {
     const st = localeStatus(s)
     return { label: label(s.locale), value: s.locale, icon: st.icon, status: st }
   }),
 )
-const current = computed(() => statusFor(props.modelValue))
+const current = computed(() => {
+  const s = props.summaries.find((x) => x.locale === props.modelValue)
+  return s ? localeStatus(s) : null
+})
 
 const addItems = computed(() =>
   props.addable.map((l) => ({

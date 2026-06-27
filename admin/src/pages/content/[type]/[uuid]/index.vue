@@ -53,7 +53,7 @@ function localeLabel(code: string): string {
 
 const { data: entryLocales } = useEntryLocales(uuid)
 const entryLocaleCodes = computed(() => (entryLocales.value ?? []).map((l) => l.locale))
-const switcherItems = computed(() =>
+const localeCopyItems = computed(() =>
   entryLocaleCodes.value.map((code) => ({ label: localeLabel(code), value: code })),
 )
 const addableLocales = computed(() =>
@@ -242,7 +242,7 @@ async function onSave() {
           label="Copy content from an existing locale"
         />
         <UFormField v-if="copyEnabled && entryLocaleCodes.length" label="Copy from">
-          <USelect v-model="copyFrom" :items="switcherItems" class="w-full" />
+          <USelect v-model="copyFrom" :items="localeCopyItems" class="w-full" />
         </UFormField>
       </div>
     </template>

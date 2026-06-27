@@ -30,7 +30,7 @@ const schema = computed<FieldDef[]>(() =>
     enum: f.enum ?? undefined,
     // Carry the widget hint through so `text` + `rich` renders the RichText (UEditor) editor,
     // matching the content-type preview — without this it falls back to a plain textarea.
-    format: f.format ?? undefined,
+    format: (f.format ?? undefined) as FieldDef['format'],
   })),
 )
 
@@ -106,8 +106,7 @@ async function onSave() {
       <div class="flex w-full flex-col gap-6 lg:h-full lg:min-h-0 lg:flex-row">
         <!-- Entry content — the primary, wider pane -->
         <div class="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pe-1">
-          <UCard>
-            <template #header><h2 class="font-semibold text-default">Content</h2></template>
+          <UCard :ui="{ root: 'ring-0' }">
             <div v-if="draftStatus === 'pending'" class="space-y-3">
               <USkeleton v-for="n in 4" :key="n" class="h-10" />
             </div>
@@ -115,8 +114,10 @@ async function onSave() {
           </UCard>
         </div>
 
-        <!-- Publishing — the narrower sidebar, its own scroll section -->
-        <div class="lg:min-h-0 lg:w-96 lg:shrink-0 lg:overflow-y-auto">
+        <!-- Publishing — the narrower sidebar, its own scroll section. p-1 gives the card's ring room
+             on every side: the scroll container would otherwise clip the outline (overflow-y-auto
+             makes overflow-x compute to auto, and the top/bottom edges clip at the scroll extremes). -->
+        <div class="lg:min-h-0 lg:w-96 lg:shrink-0 lg:overflow-y-auto lg:p-1">
           <PublishPanel :key="uuid" :uuid="uuid" :locale="locale" :type="type" />
         </div>
       </div>

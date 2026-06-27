@@ -74,6 +74,15 @@ async function onSave() {
   <UDashboardPanel id="entry-editor">
     <template #header>
       <UDashboardNavbar>
+        <template #leading>
+          <UButton
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-arrow-left"
+            :to="`/content/${type}`"
+            :aria-label="`Back to ${type}`"
+          />
+        </template>
         <template #title
           ><span class="capitalize">{{ type }}</span></template
         >

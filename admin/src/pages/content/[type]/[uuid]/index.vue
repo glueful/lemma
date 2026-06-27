@@ -12,6 +12,7 @@ import { ApiError } from '@/api/errors'
 import { useNotify } from '@/composables/useNotify'
 import PublishPanel from './components/PublishPanel.vue'
 import LocaleSwitcher from './components/LocaleSwitcher.vue'
+import LocaleRoutesModal from './components/LocaleRoutesModal.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -157,6 +158,8 @@ watch(
   { immediate: true },
 )
 
+const showRoutes = ref(false)
+
 const save = useSaveDraft(uuid.value, () => locale.value, type.value)
 
 async function onSave() {
@@ -227,6 +230,14 @@ async function onSave() {
           >
             Versions
           </UButton>
+          <UButton
+            v-if="multiLocale"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-signpost"
+            aria-label="Manage routes by locale"
+            @click="showRoutes = true"
+          />
           <UButton :loading="save.isLoading.value" @click="onSave">Save draft</UButton>
         </template>
       </UDashboardNavbar>
@@ -345,4 +356,6 @@ async function onSave() {
       </div>
     </template>
   </UModal>
+
+  <LocaleRoutesModal v-model:open="showRoutes" :uuid="uuid" :enabled="enabledLocales" />
 </template>

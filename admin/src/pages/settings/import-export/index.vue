@@ -11,6 +11,8 @@ import {
   isJobActive,
   type IeJob,
 } from '@/queries/importExport'
+import { useContentTypes } from '@/queries/contentTypes'
+import { runtimeConfig } from '@/runtime/config'
 import { useNotify } from '@/composables/useNotify'
 
 definePage({ meta: { requiresAuth: true } })
@@ -69,14 +71,85 @@ const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const selectedFile = ref<File | null>(null)
 const importing = ref(false)
 
-function onFilePicked(event: Event) {
+// ── CSV mapping wizard ────────────────────────────────────────────────────────
+// The CSV adapter needs an options bag (target type + field→column mapping); other adapters just
+// take a file. When the CSV adapter is chosen we collect that here and pass it as `options`.
+const SKIP = '__skip__'
+const isCsv = computed(() => importAdapter.value === 'csv.content')
+
+const { data: contentTypes } = useContentTypes()
+const typeItems = computed(() =>
+  (contentTypes.value ?? []).map((t) => ({ label: t.name ?? t.slug, value: t.slug })),
+)
+const csvType = ref('')
+const csvFields = computed(() =>
+  (contentTypes.value?.find((t) => t.slug === csvType.value)?.schema ?? []).map((f) => ({
+    name: String(f.name ?? ''),
+    required: !!f.required,
+  })),
+)
+const csvPublish = ref(false)
+
+const csvColumns = ref<string[]>([])
+// field name → CSV column header (or SKIP)
+const csvMapping = ref<Record<string, string>>({})
+const columnItems = computed(() => [
+  { label: '— skip —', value: SKIP },
+  ...csvColumns.value.map((c) => ({ label: c, value: c })),
+])
+
+function parseCsvHeader(text: string): string[] {
+  const firstLine = text.split(/\r?\n/).find((l) => l.trim() !== '') ?? ''
+  // Minimal header parse (headers rarely contain quoted commas); strips surrounding quotes.
+  return firstLine.split(',').map((c) => c.trim().replace(/^"(.*)"$/, '$1'))
+}
+
+// When the header or the chosen type changes, default each field to a same-name column else skip.
+watchEffect(() => {
+  const cols = csvColumns.value
+  const next: Record<string, string> = {}
+  for (const f of csvFields.value) {
+    const name = String(f.name)
+    const match = cols.find((c) => c.toLowerCase() === name.toLowerCase())
+    next[name] = match ?? csvMapping.value[name] ?? SKIP
+  }
+  csvMapping.value = next
+})
+
+// Required fields must be mapped to a real column before CSV import can run.
+const csvReady = computed(
+  () =>
+    !isCsv.value ||
+    (csvType.value !== '' &&
+      csvColumns.value.length > 0 &&
+      csvFields.value.every(
+        (f) => !f.required || (csvMapping.value[String(f.name)] ?? SKIP) !== SKIP,
+      )),
+)
+
+async function onFilePicked(event: Event) {
   const input = event.target as HTMLInputElement
-  selectedFile.value = input.files?.[0] ?? null
+  const file = input.files?.[0] ?? null
+  selectedFile.value = file
+  csvColumns.value = file && isCsv.value ? parseCsvHeader(await file.text()) : []
+}
+
+function csvOptions(): Record<string, unknown> {
+  const mapping: Record<string, string> = {}
+  for (const [field, column] of Object.entries(csvMapping.value)) {
+    if (column !== SKIP) mapping[field] = column
+  }
+  return {
+    content_type: csvType.value,
+    mapping,
+    locale: runtimeConfig.defaultLocale,
+    publish: csvPublish.value,
+  }
 }
 
 async function onImport() {
   const file = selectedFile.value
-  if (!file || !importAdapter.value) return
+  if (!file || !importAdapter.value || !csvReady.value) return
   importing.value = true
   try {
     const uploaded = await uploadImportFile(file)
@@ -85,12 +158,14 @@ async function onImport() {
       disk: uploaded.disk,
       path: uploaded.path,
       mode: importMode.value,
+      options: isCsv.value ? csvOptions() : undefined,
     })
     success(
       importMode.value === 'dry_run' ? 'Dry run queued' : 'Import queued',
       'It will appear in the jobs list below as it runs.',
     )
     selectedFile.value = null
+    csvColumns.value = []
     if (fileInput.value) fileInput.value.value = ''
   } catch (e) {
     notifyError(e, 'Could not start the import')
@@ -211,7 +286,23 @@ function fmtTime(v?: string | null): string {
                 <USelect v-model="importAdapter" :items="importerItems" class="w-full" />
               </UFormField>
 
-              <UFormField label="File" hint="NDJSON exported from Lemma">
+              <UFormField
+                v-if="isCsv"
+                label="Content type"
+                hint="Each CSV row becomes an entry of this type"
+              >
+                <USelect
+                  v-model="csvType"
+                  :items="typeItems"
+                  placeholder="Choose a content type"
+                  class="w-full"
+                />
+              </UFormField>
+
+              <UFormField
+                label="File"
+                :hint="isCsv ? 'CSV with a header row' : 'NDJSON exported from Lemma'"
+              >
                 <div class="flex items-center gap-2">
                   <UButton
                     icon="i-lucide-paperclip"
@@ -226,6 +317,25 @@ function fmtTime(v?: string | null): string {
                 </div>
               </UFormField>
 
+              <UFormField
+                v-if="isCsv && csvType && csvColumns.length"
+                label="Map fields to columns"
+                hint="Required fields (*) must be mapped"
+              >
+                <div class="space-y-2">
+                  <div v-for="f in csvFields" :key="f.name" class="flex items-center gap-2">
+                    <span class="w-28 shrink-0 truncate text-sm text-default">
+                      {{ f.name }}<span v-if="f.required" class="text-error">*</span>
+                    </span>
+                    <USelect v-model="csvMapping[f.name]" :items="columnItems" class="flex-1" />
+                  </div>
+                </div>
+              </UFormField>
+
+              <UFormField v-if="isCsv" label="On commit">
+                <USwitch v-model="csvPublish" label="Publish imported entries" />
+              </UFormField>
+
               <UFormField label="Mode">
                 <USelect v-model="importMode" :items="modeItems" class="w-full" />
               </UFormField>
@@ -233,7 +343,7 @@ function fmtTime(v?: string | null): string {
               <UButton
                 icon="i-lucide-upload"
                 :loading="importing || runImport.isLoading.value"
-                :disabled="!selectedFile || !importAdapter"
+                :disabled="!selectedFile || !importAdapter || !csvReady"
                 @click="onImport"
               >
                 {{ importMode === 'dry_run' ? 'Run dry run' : 'Import' }}
@@ -343,7 +453,7 @@ function fmtTime(v?: string | null): string {
   <input
     ref="fileInput"
     type="file"
-    accept=".ndjson,.jsonl,.json"
+    :accept="isCsv ? '.csv' : '.ndjson,.jsonl,.json'"
     class="hidden"
     @change="onFilePicked"
   />

@@ -57,6 +57,13 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - `csv.users` import adapter (and a bulk-import modal on the Users page) for creating users and
   their profiles from a CSV. Built on a reusable `AbstractCsvImporter` base that the content and
   user CSV importers share.
+- Multi-valued + filterable references: `reference`/`asset` fields can be declared `multiple`
+  (ordered uuid array, optional `max_items`), and `reference`/`asset` fields can be `filterable`.
+  Delivery filters published entries by a reference target via JSONB array containment —
+  `?filter[category][eq|in]=<uuid|slug>` — with slug→uuid resolution against the target type
+  (`reference_slug_field`, default `slug`), GIN-indexed, and correct across single/multi/flipped
+  fields. Admin gains builder controls and ordered multi-pickers. (Unblocks taxonomies + a future
+  WordPress categories/tags importer.)
 
 #### Localization
 - i18n-backed content locale validation through `ContentLocaleService`: when `glueful/i18n` is

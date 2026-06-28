@@ -87,11 +87,13 @@ use App\Content\Seo\RedirectRepository;
 use App\Content\Seo\RouteResolver;
 use App\Content\Services\MigrationService;
 use App\Content\Authoring\EngineContentWriter;
+use App\Content\Context\EngineLemmaContext;
 use App\Content\Delivery\EngineContentDeliveryReader;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Lemma\Contracts\Authoring\ContentWriter;
+use Glueful\Lemma\Contracts\Context\LemmaContext;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
 use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
@@ -258,6 +260,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             ContentDeliveryReader::class => [
                 'class'    => EngineContentDeliveryReader::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            LemmaContext::class => [
+                'class'    => EngineLemmaContext::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

@@ -6,7 +6,8 @@ namespace Glueful\Lemma\Contracts\Search;
 
 /**
  * Reindex a single published entry/locale into a pack-owned search index.
- * Implemented by core's no-op default and by a search pack when installed.
+ * Implemented by a search pack when installed; unbound in core by default
+ * (the reindex listener no-ops when nothing is bound).
  */
 interface ContentReindexer
 {

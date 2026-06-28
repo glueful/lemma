@@ -41,6 +41,25 @@ final class FieldValidator
                 continue;
             }
 
+            // Multi-valued reference/asset: strict ordered uuid array, deduped, capped.
+            if (($field->type === 'reference' || $field->type === 'asset') && $field->multiple) {
+                $normalized = $this->normalizeMultiValue($field, $value);
+                if (is_string($normalized)) { // error message
+                    $errors[$field->name] = $normalized;
+                    continue;
+                }
+                if ($field->type === 'asset') {
+                    foreach ($normalized as $uuid) {
+                        if (!$this->assetExistsOnMediaDisk($uuid)) {
+                            $errors[$field->name] = 'must reference active blobs on the configured media disk';
+                            continue 2;
+                        }
+                    }
+                }
+                $clean[$field->name] = $normalized;
+                continue;
+            }
+
             $error = $this->checkType($field, $value);
             if ($error !== null) {
                 $errors[$field->name] = $error;
@@ -94,6 +113,32 @@ final class FieldValidator
             'json' => (is_array($value)) ? null : 'must be an object/array',
             default => 'unknown field type',
         };
+    }
+
+    /**
+     * Normalize a multiple reference/asset value to an ordered, deduped uuid array.
+     * Returns the array on success, or a string error message on failure.
+     *
+     * @return list<string>|string
+     */
+    private function normalizeMultiValue(FieldDefinition $field, mixed $value): array|string
+    {
+        if (!is_array($value) || !array_is_list($value)) { // reject objects/maps; [] is a valid empty list
+            return 'must be an array of uuids';
+        }
+        $out = [];
+        foreach ($value as $item) {
+            if (!is_string($item) || $item === '') {
+                return 'each item must be a non-empty uuid';
+            }
+            if (!in_array($item, $out, true)) { // dedupe, first occurrence kept
+                $out[] = $item;
+            }
+        }
+        if ($field->maxItems !== null && count($out) > $field->maxItems) {
+            return "must have at most {$field->maxItems} items";
+        }
+        return $out;
     }
 
     private function assetExistsOnMediaDisk(string $uuid): bool

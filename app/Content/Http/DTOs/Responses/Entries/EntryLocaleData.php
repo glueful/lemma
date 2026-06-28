@@ -15,6 +15,7 @@ final class EntryLocaleData implements ResponseData
         public readonly ?string $route_slug,
         public readonly ?\DateTimeInterface $draft_updated_at,
         public readonly ?\DateTimeInterface $published_at,
+        public readonly ?EntryLocaleScheduleData $scheduled,
     ) {
     }
 }

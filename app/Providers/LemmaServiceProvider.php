@@ -7,7 +7,9 @@ namespace App\Providers;
 use App\Setup\SetupService;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
+use App\Content\Delivery\ReferenceFilterResolver;
 use App\Content\Delivery\ReferenceResolver;
+use App\Content\Delivery\ReferenceTargetResolver;
 use App\Content\Delivery\SortCompiler;
 use App\Content\Console\PruneVersionsCommand;
 use App\Content\Console\ResyncCommand;
@@ -33,6 +35,7 @@ use App\Content\Http\Controllers\ContentTypeController;
 use App\Http\Controllers\SetupController;
 use App\Content\Http\Controllers\DeliveryController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\LocaleAdminController;
 use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
@@ -367,6 +370,16 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            ReferenceFilterResolver::class => [
+                'class' => ReferenceFilterResolver::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ReferenceTargetResolver::class => [
+                'class' => ReferenceFilterResolver::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
             Projector::class => [
                 'class' => Projector::class,
                 'shared' => true,
@@ -457,6 +470,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             ScheduleController::class => [
                 'class' => ScheduleController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            LocaleAdminController::class => [
+                'class' => LocaleAdminController::class,
                 'shared' => true,
                 'autowire' => true,
             ],

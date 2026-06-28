@@ -45,3 +45,10 @@ export function useSaveRoute(uuid: string, locale: string) {
     },
   })
 }
+
+export async function deleteRoute(uuid: string, locale: string) {
+  const { error, response } = await client.DELETE('/entries/{uuid}/routes/{locale}', {
+    params: { path: { uuid, locale } },
+  })
+  if (error) throw toApiError(error, response)
+}

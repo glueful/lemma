@@ -31,7 +31,9 @@ describe('generatePassword', () => {
   })
   it('includes lower, upper, digit and symbol', () => {
     const p = generatePassword()
-    expect(p).toMatch(/[a-z]/); expect(p).toMatch(/[A-Z]/)
-    expect(p).toMatch(/[0-9]/); expect(p).toMatch(/[^A-Za-z0-9]/)
+    expect(p).toMatch(/[a-z]/)
+    expect(p).toMatch(/[A-Z]/)
+    expect(p).toMatch(/[0-9]/)
+    expect(p).toMatch(/[^A-Za-z0-9]/)
   })
 })

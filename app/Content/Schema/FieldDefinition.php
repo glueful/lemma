@@ -24,6 +24,12 @@ final class FieldDefinition
         public readonly ?string $format = null,
         /** Target content-type slug for a `reference` field (drives the admin picker); null otherwise. */
         public readonly ?string $referenceType = null,
+        /** Whether the field accepts multiple values (reference and asset fields only). */
+        public readonly bool $multiple = false,
+        /** Maximum number of selected items when `multiple` is true; null means unlimited. */
+        public readonly ?int $maxItems = null,
+        /** Field name on the referenced entry used as its slug identifier; reference fields only. */
+        public readonly ?string $referenceSlugField = null,
     ) {
     }
 
@@ -40,11 +46,13 @@ final class FieldDefinition
         }
         $filterable = (bool) ($raw['filterable'] ?? false);
         $filterType = $raw['filter_type'] ?? null;
-        if ($filterable) {
+        $membershipType = in_array($type, ['reference', 'asset'], true);
+        if ($filterable && !$membershipType) {
             if (!is_string($filterType) || !in_array($filterType, self::FILTER_TYPES, true)) {
                 throw new SchemaParseException("filterable field '{$name}' must declare a valid filter_type");
             }
         } else {
+            // membership fields (reference/asset) carry no scalar filter_type
             $filterType = null;
         }
         $enum = [];
@@ -73,11 +81,33 @@ final class FieldDefinition
 
         // `reference_type` names the target content type for a `reference` field (drives the admin's
         // reference picker). Only meaningful for reference fields; ignored for every other type.
+        // `reference_slug_field` is the field on the referenced entry that carries its slug;
+        // defaults to 'slug' and must match [a-z][a-z0-9_]*.
         $referenceType = null;
+        $referenceSlugField = null;
         if ($type === 'reference') {
             $rawRef = $raw['reference_type'] ?? null;
             if (is_string($rawRef) && $rawRef !== '') {
                 $referenceType = $rawRef;
+            }
+            $rawSlug = $raw['reference_slug_field'] ?? null;
+            $referenceSlugField = is_string($rawSlug) && $rawSlug !== '' ? $rawSlug : 'slug';
+            if (preg_match('/\A[a-z][a-z0-9_]*\z/', $referenceSlugField) !== 1) {
+                throw new SchemaParseException("field '{$name}' has invalid reference_slug_field");
+            }
+        }
+
+        // `multiple` and `max_items` apply to reference and asset fields only.
+        $multiple = false;
+        $maxItems = null;
+        if ($type === 'reference' || $type === 'asset') {
+            $multiple = (bool) ($raw['multiple'] ?? false);
+            if (array_key_exists('max_items', $raw) && $raw['max_items'] !== null) {
+                $mi = $raw['max_items'];
+                if (!is_int($mi) || $mi < 1) {
+                    throw new SchemaParseException("field '{$name}' max_items must be a positive integer");
+                }
+                $maxItems = $mi;
             }
         }
 
@@ -91,6 +121,9 @@ final class FieldDefinition
             enumValues: $enum,
             format: $format,
             referenceType: $referenceType,
+            multiple: $multiple,
+            maxItems: $maxItems,
+            referenceSlugField: $referenceSlugField,
         );
     }
 }

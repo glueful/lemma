@@ -32,6 +32,12 @@ export interface ContentTypeField {
   format?: 'plain' | 'rich'
   /** Target content-type slug for a `reference` field; undefined for every other type. */
   reference_type?: string | null
+  /** Whether a reference/asset field holds an ordered array of uuids. */
+  multiple?: boolean
+  /** Max array length for a multiple field; null = unbounded. */
+  max_items?: number | null
+  /** Target field used to resolve slug filter values for a reference field (default `slug`). */
+  reference_slug_field?: string | null
 }
 
 /** A content type with its full field schema. */
@@ -76,6 +82,9 @@ function normalizeField(
     enum: f.enum ?? [],
     // `format` is only meaningful for text; default existing/absent text fields to 'plain'.
     format: type === 'text' ? ((f.format as 'plain' | 'rich' | undefined) ?? 'plain') : undefined,
+    multiple: f.multiple ?? false,
+    max_items: f.max_items ?? null,
+    reference_slug_field: f.reference_slug_field ?? undefined,
   }
 }
 

@@ -12,16 +12,16 @@ const router = useRouter()
 const { success, error: notifyError } = useNotify()
 const type = computed(() => String(route.params.type))
 const uuid = computed(() => String(route.params.uuid))
-const locale = runtimeConfig.defaultLocale
+const locale = computed(() => String(route.query.locale ?? runtimeConfig.defaultLocale))
 
-const { data: versions, status } = useVersions(uuid, () => locale)
-const rollback = useRollback(uuid.value, locale, type.value)
+const { data: versions, status } = useVersions(uuid, locale)
+const rollback = useRollback(uuid.value, locale.value, type.value)
 
 async function onRollback(versionUuid: string) {
   try {
     await rollback.mutateAsync(versionUuid)
     success('Rolled back')
-    router.push(`/content/${type.value}/${uuid.value}`)
+    router.push(`/content/${type.value}/${uuid.value}?locale=${locale.value}`)
   } catch (e) {
     notifyError(e, 'Rollback failed')
   }
@@ -31,13 +31,13 @@ async function onRollback(versionUuid: string) {
 <template>
   <UDashboardPanel id="entry-versions">
     <template #header>
-      <UDashboardNavbar title="Versions">
+      <UDashboardNavbar :title="`Versions · ${locale}`">
         <template #leading>
           <UButton
             variant="ghost"
             color="neutral"
             icon="i-lucide-arrow-left"
-            :to="`/content/${type}/${uuid}`"
+            :to="`/content/${type}/${uuid}?locale=${locale}`"
             aria-label="Back to editor"
           />
         </template>

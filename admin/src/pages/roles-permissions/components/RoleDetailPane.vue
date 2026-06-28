@@ -15,7 +15,13 @@ defineEmits<{ edit: []; delete: [] }>()
         <div class="min-w-0">
           <div class="flex items-center gap-2">
             <h1 class="text-lg font-semibold text-highlighted">{{ role.name }}</h1>
-            <UBadge v-if="role.level != null" :label="`Level ${role.level}`" color="neutral" variant="subtle" size="xs" />
+            <UBadge
+              v-if="role.level != null"
+              :label="`Level ${role.level}`"
+              color="neutral"
+              variant="subtle"
+              size="xs"
+            />
           </div>
           <code class="text-sm text-muted">{{ role.slug }}</code>
           <p v-if="role.description" class="mt-1 text-sm text-muted">{{ role.description }}</p>

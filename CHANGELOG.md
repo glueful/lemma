@@ -57,6 +57,13 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - `csv.users` import adapter (and a bulk-import modal on the Users page) for creating users and
   their profiles from a CSV. Built on a reusable `AbstractCsvImporter` base that the content and
   user CSV importers share.
+- Multi-valued + filterable references: `reference`/`asset` fields can be declared `multiple`
+  (ordered uuid array, optional `max_items`), and `reference`/`asset` fields can be `filterable`.
+  Delivery filters published entries by a reference target via JSONB array containment —
+  `?filter[category][eq|in]=<uuid|slug>` — with slug→uuid resolution against the target type
+  (`reference_slug_field`, default `slug`), GIN-indexed, and correct across single/multi/flipped
+  fields. Admin gains builder controls and ordered multi-pickers. (Unblocks taxonomies + a future
+  WordPress categories/tags importer.)
 
 #### Localization
 - i18n-backed content locale validation through `ContentLocaleService`: when `glueful/i18n` is
@@ -70,6 +77,11 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 - Per-locale RBAC support through Aegis resource-filtered grants: locale-targeted admin routes
   now authorize against `locale:<code>` while locale-agnostic routes keep the coarse `lemma`
   resource. Seeded unscoped roles remain backward compatible.
+- Localization editor UX: per-locale publish/draft/scheduled status in the entry-editor locale
+  switcher, locale-aware versions page, copy-into-existing-locale (overwrite), translation-coverage
+  progress in the entry list, cross-locale route management, and bulk create/publish across locales.
+  Disabling a language now warns when it still has published or draft content, backed by a new
+  `GET /v1/admin/locales/{locale}/usage` endpoint.
 
 #### Publishing pipeline
 - A frozen PSR-14 content-event taxonomy (`entry.created/updated/published/unpublished/deleted`,

@@ -9,6 +9,19 @@
 [APPROACH.md](APPROACH.md) (vision) → [V1_DESIGN.md](V1_DESIGN.md) (V1 architecture
 decisions); the next phases derive from the same APPROACH.
 
+**Shipped since (2026‑06):**
+- **Admin SPA** — the Vue 3 + Vite + Nuxt UI editor UI is built out: content list + entry
+  editor (rich text, references, versions, redirects), media, users (+ bulk CSV import), roles/
+  permissions, webhooks, API keys, audit log, extensions, settings, utilities, auth/setup flows.
+  Remaining SPA work is polish, not net-new surfaces. Tracked in `docs/superpowers/plans/*admin-spa*`.
+- **Content importers** — `csv.content`, `markdown.content`, `wordpress.content` (WXR, v1: posts/
+  pages → entries) and `csv.users`, over the `glueful/import-export` engine with a mapping wizard.
+  Depth follow-ups remain (see below). Tracked in [ADAPTER_NOTES.md](ADAPTER_NOTES.md).
+- **Localization UI** — editor locale workflow complete: per-locale publish/draft/scheduled status
+  in the switcher, locale-aware versions page, copy-into-existing-locale (overwrite), translation-
+  coverage in the entry list, cross-locale route management, bulk create/publish, and a disable-
+  locale guard (`GET /v1/admin/locales/{locale}/usage`). Plan: `docs/superpowers/plans/2026-06-27-finish-localization-ui.md`.
+
 ---
 
 ## Large tracks (named in the vision, not yet started)
@@ -17,9 +30,15 @@ Each already has a home — there is **no** new doc to write to *track* these:
 
 | Track | Where it lives today | Shape |
 |-------|----------------------|-------|
-| **Admin SPA** — Vue 3 + Vite + Nuxt UI editor UI against the admin API | [APPROACH.md](APPROACH.md) §"Admin Interface" (stack, `public/admin` packaging rule, in‑memory‑token auth posture) | Frontend deliverable → needs an **implementation plan**, not an architecture doc (architecture already decided in APPROACH) |
-| **Content importers** — WordPress / Markdown‑MDX / CSV → entry mapping | [ADAPTER_NOTES.md](ADAPTER_NOTES.md) (adapters over the built `glueful/import-export` engine) | Per‑adapter specs/plans |
 | **Multi‑tenancy** — tenant‑owned content via `glueful/tenancy` | [V1_DESIGN.md](V1_DESIGN.md) §10 "Multi‑tenancy: deliberately not in the v1 schema" — the bounded, additive retrofit path + the guardrails that keep it cheap | Backend retrofit (add `tenant_uuid`, widen unique constraints, `BelongsToTenant` trait) — no row‑identity change |
+
+### Importer depth follow-ups (adapters shipped; these extend them)
+
+Over the built adapters ([ADAPTER_NOTES.md](ADAPTER_NOTES.md)):
+- **WordPress depth** — media/attachments, authors, categories/tags (needs a taxonomy model),
+  custom post types, post meta, and upsert-by-WP-id (re-import idempotency). v1 is posts/pages only.
+- **CSV / Markdown upsert-by-key** — both are create-only today; ADAPTER_NOTES recommends stable
+  key-column upserts.
 
 ## Per‑feature follow‑ups (each lives in its shipped spec's "Out of scope / follow‑ups")
 
@@ -45,7 +64,9 @@ Shape" as post‑V1 and have **no** design doc yet:
   route→render path, render caching) — write it when this phase is actually picked up.
 - **Block / page builder** — architectural (how blocks compose + persist).
 - **Approval / review workflow** — a state machine layered on draft/publish.
-- **Localization UI** — the visual locale workflow (the backend is done; this is editor UX).
+- **Localization UI** — ✅ **shipped** (2026‑06‑27). The visual locale workflow is complete; see
+  the "Shipped since" list above. Remaining localization work is the *field-localization
+  copy-on-change* follow-up in the per-feature table below, not editor UX.
 - **Forms**, **navigation / menu builder**, **taxonomies / collections** — feature modules.
 - **Ecommerce content integration**, **personalization / segmentation** — later, per APPROACH.
 
@@ -53,11 +74,11 @@ Shape" as post‑V1 and have **no** design doc yet:
 
 ## Recommended sequencing (opinion, not a commitment)
 
-1. **Admin SPA next.** V1 is a complete headless backend that *no human can use yet*; the
-   editor UI is what makes Lemma "usable out of the box" (APPROACH §"Admin Interface") and
-   unblocks real dogfooding. It needs a **plan**, not a `V2_DESIGN.md`.
-2. **`V2_DESIGN.md` for rendered delivery** — write it when rendered delivery becomes the
-   active phase, since that is where the next expensive‑to‑reverse decisions live.
-3. Everything else (importers, tenancy, the per‑feature follow‑ups) is pull‑based: pick one,
+1. **`V2_DESIGN.md` for rendered delivery** — the next big expensive‑to‑reverse decision set
+   (rendering model, theme/template storage, route→render path, render caching). This is the one
+   remaining track that warrants a design doc before a plan; write it when the phase is picked up.
+2. **Taxonomies / collections** — high‑reuse content primitive that also unblocks WordPress
+   categories/tags import and a future navigation/menu builder. Needs brainstorm → spec → plan.
+3. Everything else (importer depth, tenancy, the per‑feature follow‑ups) is pull‑based: pick one,
    run the proven loop — brainstorm → spec → plan → implement — starting from the linked home
    above.

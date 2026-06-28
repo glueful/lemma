@@ -11,6 +11,9 @@ import FieldEditor from '@/components/FieldEditor.vue'
 import { ApiError } from '@/api/errors'
 import { useNotify } from '@/composables/useNotify'
 import PublishPanel from './components/PublishPanel.vue'
+import LocaleSwitcher from './components/LocaleSwitcher.vue'
+import LocaleRoutesModal from './components/LocaleRoutesModal.vue'
+import BulkLocaleMenu from './components/BulkLocaleMenu.vue'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -22,7 +25,7 @@ const { success, warning, error: notifyError } = useNotify()
 
 // The locale being edited. Starts at the default but is driven by the header switcher; the draft,
 // save mutation, and PublishPanel all follow it.
-const locale = ref(runtimeConfig.defaultLocale)
+const locale = ref(String(route.query.locale ?? runtimeConfig.defaultLocale))
 
 // The content-type schema drives the field editor.
 const { data: contentTypes } = useContentTypes()
@@ -38,6 +41,9 @@ const schema = computed<FieldDef[]>(() =>
     format: (f.format ?? undefined) as FieldDef['format'],
     // Target type for a reference field — drives the searchable picker.
     referenceType: f.reference_type ?? undefined,
+    multiple: f.multiple ?? undefined,
+    maxItems: f.max_items ?? undefined,
+    referenceSlugField: f.reference_slug_field ?? undefined,
   })),
 )
 
@@ -52,7 +58,7 @@ function localeLabel(code: string): string {
 
 const { data: entryLocales } = useEntryLocales(uuid)
 const entryLocaleCodes = computed(() => (entryLocales.value ?? []).map((l) => l.locale))
-const switcherItems = computed(() =>
+const localeCopyItems = computed(() =>
   entryLocaleCodes.value.map((code) => ({ label: localeLabel(code), value: code })),
 )
 const addableLocales = computed(() =>
@@ -111,6 +117,33 @@ async function confirmCreate() {
   }
 }
 
+// ── Copy content into the current locale (overwrite) ───────────────────────────
+const copySource = ref('')
+const copySourceOptions = computed(() =>
+  entryLocaleCodes.value
+    .filter((c) => c !== locale.value)
+    .map((c) => ({ label: localeLabel(c), value: c })),
+)
+function openCopyInto(source: string) {
+  copySource.value = source
+}
+async function confirmCopyInto() {
+  const source = copySource.value
+  if (!source) return
+  try {
+    await createLocale.mutateAsync({
+      uuid: uuid.value,
+      locale: locale.value,
+      sourceLocale: source,
+      overwrite: true,
+    })
+    success(`Copied ${localeLabel(source)} content into ${localeLabel(locale.value)}`)
+    copySource.value = ''
+  } catch (e) {
+    notifyError(e, 'Couldn’t copy content')
+  }
+}
+
 // ── Draft ─────────────────────────────────────────────────────────────────────
 const { data: draft, status: draftStatus } = useDraft(uuid, () => locale.value)
 
@@ -128,6 +161,8 @@ watch(
   },
   { immediate: true },
 )
+
+const showRoutes = ref(false)
 
 const save = useSaveDraft(uuid.value, () => locale.value, type.value)
 
@@ -165,41 +200,56 @@ async function onSave() {
           ><span class="capitalize">{{ type }}</span></template
         >
         <template #right>
-          <template v-if="multiLocale">
-            <USelect
-              v-model="locale"
-              :items="switcherItems"
-              icon="i-lucide-languages"
+          <LocaleSwitcher
+            v-if="multiLocale"
+            v-model="locale"
+            :summaries="entryLocales ?? []"
+            :enabled="enabledLocales"
+            :addable="addableLocales"
+            @create="openCreate"
+          />
+          <UDropdownMenu
+            v-if="multiLocale && copySourceOptions.length"
+            :items="
+              copySourceOptions.map((o) => ({
+                label: `From ${o.label}`,
+                onSelect: () => openCopyInto(o.value),
+              }))
+            "
+            :content="{ align: 'end' }"
+          >
+            <UButton
+              icon="i-lucide-copy"
+              color="neutral"
+              variant="ghost"
               size="sm"
-              class="w-44"
+              aria-label="Copy content into this locale"
             />
-            <UDropdownMenu
-              v-if="addableLocales.length"
-              :items="
-                addableLocales.map((l) => ({
-                  label: `${l.name} (${l.code})`,
-                  onSelect: () => openCreate(l.code),
-                }))
-              "
-              :content="{ align: 'end' }"
-            >
-              <UButton
-                icon="i-lucide-plus"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                aria-label="Add a locale version"
-              />
-            </UDropdownMenu>
-          </template>
+          </UDropdownMenu>
           <UButton
             variant="ghost"
             color="neutral"
             icon="i-lucide-history"
-            :to="`/content/${type}/${uuid}/versions`"
+            :to="`/content/${type}/${uuid}/versions?locale=${locale}`"
           >
             Versions
           </UButton>
+          <UButton
+            v-if="multiLocale"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-signpost"
+            aria-label="Manage routes by locale"
+            @click="showRoutes = true"
+          />
+          <BulkLocaleMenu
+            v-if="multiLocale"
+            :uuid="uuid"
+            :type="type"
+            :current-locale="locale"
+            :summaries="entryLocales ?? []"
+            :addable="addableLocales"
+          />
           <UButton :loading="save.isLoading.value" @click="onSave">Save draft</UButton>
         </template>
       </UDashboardNavbar>
@@ -260,7 +310,7 @@ async function onSave() {
           label="Copy content from an existing locale"
         />
         <UFormField v-if="copyEnabled && entryLocaleCodes.length" label="Copy from">
-          <USelect v-model="copyFrom" :items="switcherItems" class="w-full" />
+          <USelect v-model="copyFrom" :items="localeCopyItems" class="w-full" />
         </UFormField>
       </div>
     </template>
@@ -282,4 +332,42 @@ async function onSave() {
       </div>
     </template>
   </UModal>
+
+  <UModal
+    :open="copySource !== ''"
+    title="Copy content into this locale"
+    @update:open="
+      (v: boolean) => {
+        if (!v) copySource = ''
+      }
+    "
+  >
+    <template #body>
+      <p class="text-sm text-muted">
+        Replace the <span class="text-default">{{ localeLabel(locale) }}</span> draft with content
+        from <span class="text-default">{{ localeLabel(copySource) }}</span
+        >? Shared (non-localized) fields are copied from the source; the target's localized fields
+        are cleared for re-translation. This overwrites the current draft.
+      </p>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          label="Cancel"
+          :disabled="createLocale.isLoading.value"
+          @click="copySource = ''"
+        />
+        <UButton
+          icon="i-lucide-copy"
+          label="Copy content"
+          :loading="createLocale.isLoading.value"
+          @click="confirmCopyInto"
+        />
+      </div>
+    </template>
+  </UModal>
+
+  <LocaleRoutesModal v-model:open="showRoutes" :uuid="uuid" :enabled="enabledLocales" />
 </template>

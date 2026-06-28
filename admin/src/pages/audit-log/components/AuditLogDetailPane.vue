@@ -34,7 +34,13 @@ function pretty(v: unknown): string {
 
     <template v-else-if="row && meta">
       <header class="mb-5 flex flex-wrap items-center gap-2">
-        <UBadge :label="meta.label" :color="meta.color" :icon="meta.icon" variant="subtle" size="lg" />
+        <UBadge
+          :label="meta.label"
+          :color="meta.color"
+          :icon="meta.icon"
+          variant="subtle"
+          size="lg"
+        />
         <span class="text-sm text-muted">
           <span class="font-medium text-default">{{ auditActorName(row) }}</span>
           <template v-if="target"> → {{ target }}</template>
@@ -69,7 +75,9 @@ function pretty(v: unknown): string {
             </div>
             <div>
               <dt class="text-xs text-muted">Action</dt>
-              <dd class="text-sm text-default"><code>{{ row.action }}</code></dd>
+              <dd class="text-sm text-default">
+                <code>{{ row.action }}</code>
+              </dd>
             </div>
             <div v-if="target">
               <dt class="text-xs text-muted">Target</dt>
@@ -81,11 +89,15 @@ function pretty(v: unknown): string {
             </div>
             <div v-if="row.context?.ip">
               <dt class="text-xs text-muted">IP address</dt>
-              <dd class="text-sm text-default"><code>{{ row.context.ip }}</code></dd>
+              <dd class="text-sm text-default">
+                <code>{{ row.context.ip }}</code>
+              </dd>
             </div>
             <div v-if="row.context?.request_id">
               <dt class="text-xs text-muted">Request ID</dt>
-              <dd class="truncate text-sm text-default"><code>{{ row.context.request_id }}</code></dd>
+              <dd class="truncate text-sm text-default">
+                <code>{{ row.context.request_id }}</code>
+              </dd>
             </div>
           </dl>
           <div v-if="row.context?.user_agent" class="mt-3">
@@ -116,9 +128,9 @@ function pretty(v: unknown): string {
         <!-- Full raw context payload, as formatted JSON -->
         <section v-if="row.context">
           <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Metadata</h3>
-          <pre
-            class="overflow-x-auto rounded-lg bg-elevated p-3 text-xs text-default"
-          >{{ pretty(row.context) }}</pre>
+          <pre class="overflow-x-auto rounded-lg bg-elevated p-3 text-xs text-default">{{
+            pretty(row.context)
+          }}</pre>
         </section>
       </div>
     </template>

@@ -107,6 +107,13 @@ export function useDeleteEntry() {
 }
 
 // ── Per-entry locales (localization UI) ───────────────────────────────────────────────────────────
+/** A pending/failed schedule summary for one locale (mirrors EntryRepository::localeSummary). */
+export interface EntryLocaleSchedule {
+  publish: string | null
+  unpublish: string | null
+  last_failure: { action: string; run_at: string | null; reason: string } | null
+}
+
 /** One locale an entry exists in (EntryRepository::localeSummary). */
 export interface EntryLocaleSummary {
   locale: string
@@ -115,6 +122,7 @@ export interface EntryLocaleSummary {
   route_slug: string | null
   draft_updated_at: string | null
   published_at: string | null
+  scheduled: EntryLocaleSchedule | null
 }
 
 export async function fetchEntryLocales(uuid: string): Promise<EntryLocaleSummary[]> {
@@ -132,15 +140,16 @@ export function useEntryLocales(uuid: MaybeRefOrGetter<string>) {
   })
 }
 
-/** Create a draft for `locale`, optionally seeding it by copying the draft from `sourceLocale`. */
+/** Create a draft for `locale`, optionally seeding by copying `sourceLocale`. `overwrite` replaces an existing draft. */
 export async function createLocaleDraft(
   uuid: string,
   locale: string,
   sourceLocale?: string,
+  overwrite = false,
 ): Promise<void> {
   const { error, response } = await client.POST('/entries/{uuid}/locales/{locale}', {
     params: { path: { uuid, locale } },
-    body: { source_locale: sourceLocale ?? null },
+    body: { source_locale: sourceLocale ?? null, overwrite },
   })
   if (error) throw toApiError(error, response)
 }
@@ -148,8 +157,12 @@ export async function createLocaleDraft(
 export function useCreateLocaleDraft() {
   const cache = useQueryCache()
   return useMutation({
-    mutation: (vars: { uuid: string; locale: string; sourceLocale?: string }) =>
-      createLocaleDraft(vars.uuid, vars.locale, vars.sourceLocale),
+    mutation: (vars: {
+      uuid: string
+      locale: string
+      sourceLocale?: string
+      overwrite?: boolean
+    }) => createLocaleDraft(vars.uuid, vars.locale, vars.sourceLocale, vars.overwrite ?? false),
     onSettled: (_data, _error, vars) => {
       cache.invalidateQueries({ key: ['entry-locales', vars.uuid] })
       cache.invalidateQueries({ key: qk.draft(vars.uuid, vars.locale) })

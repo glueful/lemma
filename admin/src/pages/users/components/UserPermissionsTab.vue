@@ -283,7 +283,9 @@ async function onSave() {
 
             <!-- From roles: inherited, read-only (managed via the user's roles, not here). -->
             <template v-if="rolePerms.length">
-              <p class="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
+              <p
+                class="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted"
+              >
                 From roles
               </p>
               <div

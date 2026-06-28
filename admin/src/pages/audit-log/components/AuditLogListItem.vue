@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTimeAgo } from '@vueuse/core'
-import { auditActionMeta, auditActorName, auditTargetLabel, type AuditLogRow } from '@/queries/audit'
+import {
+  auditActionMeta,
+  auditActorName,
+  auditTargetLabel,
+  type AuditLogRow,
+} from '@/queries/audit'
 
 const props = defineProps<{ row: AuditLogRow; selected?: boolean }>()
 defineEmits<{ select: [] }>()

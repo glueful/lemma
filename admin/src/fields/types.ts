@@ -18,4 +18,10 @@ export interface FieldDef {
   format?: 'plain' | 'rich'
   /** Target content-type slug for a `reference` field — drives the searchable entry picker. */
   referenceType?: string
+  /** Ordered-array reference/asset field. */
+  multiple?: boolean
+  /** Max items for a multiple field. */
+  maxItems?: number
+  /** Target field used to resolve reference slug filters (default `slug`). */
+  referenceSlugField?: string
 }

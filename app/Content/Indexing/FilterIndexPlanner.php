@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Indexing;
 
 use App\Content\Schema\ContentTypeSchema;
+use App\Content\Indexing\FieldSqlExpression;
 
 /**
  * Derives the desired Postgres expression indexes for a content type's filterable fields.
@@ -18,13 +19,20 @@ final class FilterIndexPlanner
     /**
      * Build the set of expression indexes a content type's current schema wants.
      *
-     * @return list<array{field:string,filter_type:string,index_name:string,expression:string}>
+     * Scalar filterable fields (filter_type declared) emit a btree expression index.
+     * Membership filterable fields (reference/asset with filterable=true, no scalar
+     * filter_type) emit a GIN expression index using the normalized jsonb array
+     * expression from {@see FieldSqlExpression::membershipArray()}.
+     *
+     * @return list<array{field:string,filter_type:string,method:string,index_name:string,expression:string}>
      */
     public function desiredIndexes(ContentTypeSchema $schema, string $typeUuid): array
     {
         $out = [];
         foreach ($schema->fields() as $field) {
-            if (!$field->filterable || $field->filterType === null) {
+            $membership = $field->filterable && in_array($field->type, ['reference', 'asset'], true);
+            $scalar = $field->filterable && $field->filterType !== null;
+            if (!$membership && !$scalar) {
                 continue;
             }
             $name = $field->name;
@@ -33,12 +41,21 @@ final class FilterIndexPlanner
             if (preg_match('/\A[a-z][a-z0-9_]*\z/', $name) !== 1) {
                 throw new \InvalidArgumentException("unsafe field name for index expression: '{$name}'");
             }
-            $out[] = [
-                'field' => $name,
-                'filter_type' => $field->filterType,
-                'index_name' => 'lemma_fidx_' . substr(sha1($typeUuid . $name), 0, 16),
-                'expression' => $this->expression($name, $field->filterType),
-            ];
+            $out[] = $membership
+                ? [
+                    'field'      => $name,
+                    'filter_type' => $field->type, // 'reference' | 'asset'
+                    'method'     => 'gin',
+                    'index_name' => 'lemma_fidx_' . substr(sha1($typeUuid . $name), 0, 16),
+                    'expression' => '(' . FieldSqlExpression::membershipArray($name) . ') jsonb_path_ops',
+                ]
+                : [
+                    'field'      => $name,
+                    'filter_type' => (string) $field->filterType,
+                    'method'     => 'btree',
+                    'index_name' => 'lemma_fidx_' . substr(sha1($typeUuid . $name), 0, 16),
+                    'expression' => $this->expression($name, (string) $field->filterType),
+                ];
         }
         return $out;
     }

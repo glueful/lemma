@@ -85,7 +85,15 @@ final class EnsureFilterIndexesJob extends Job
         foreach ($desired as $d) {
             $this->assertSafeName($d['index_name']);
             $current = $existingByName[$d['index_name']] ?? null;
-            if ($current === null || ($current['status'] ?? '') !== 'ready') {
+            $stale = $current !== null
+                && ($current['status'] ?? '') === 'ready'
+                && (string) ($current['filter_type'] ?? '') !== $d['filter_type'];
+            if ($stale) {
+                // Family changed (e.g. scalar 'number' → membership 'reference'); the index name is
+                // stable, so drop the old physical index before recreating with the new definition.
+                $this->dropIndex($db, $d['index_name'], $logger);
+            }
+            if ($current === null || ($current['status'] ?? '') !== 'ready' || $stale) {
                 $this->createIndex($db, $typeUuid, $d, $logger);
             }
         }
@@ -116,10 +124,13 @@ final class EnsureFilterIndexesJob extends Job
         $name = $d['index_name'];
         $this->upsertRegistry($db, $typeUuid, $d, 'pending');
 
+        $method = isset($d['method']) && $d['method'] === 'gin' ? 'gin' : 'btree';
+        $using = $method === 'gin' ? ' USING gin' : '';
         $sql = sprintf(
-            'CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (%s)',
+            'CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s%s (%s)',
             $name,
             self::TABLE,
+            $using,
             $d['expression']
         );
         try {

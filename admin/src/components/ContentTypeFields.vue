@@ -47,8 +47,10 @@ function onTypeChange(index: number, type: FieldType) {
     ...(type === 'enum' ? {} : { enum: [] }),
     // Text fields carry a presentation format (default plain); clear it for every other type.
     format: type === 'text' ? 'plain' : undefined,
-    // The reference target only applies to reference fields; clear it otherwise.
-    ...(type === 'reference' ? {} : { reference_type: undefined }),
+    // The reference target and slug filter only apply to reference fields; clear them otherwise.
+    ...(type === 'reference' ? {} : { reference_type: undefined, reference_slug_field: undefined }),
+    // Multiple/max_items only apply to reference and asset fields; clear them otherwise.
+    ...(type === 'reference' || type === 'asset' ? {} : { multiple: false, max_items: null }),
   })
 }
 
@@ -129,6 +131,43 @@ function setEnum(index: number, text: string) {
           placeholder="Choose a content type"
           class="w-full"
           @update:model-value="patch(index, { reference_type: String($event) })"
+        />
+      </UFormField>
+
+      <UFormField
+        v-if="field.type === 'reference' || field.type === 'asset'"
+        label="Multiple"
+        hint="Store an ordered list of targets"
+      >
+        <USwitch
+          :model-value="field.multiple ?? false"
+          @update:model-value="patch(index, { multiple: $event })"
+        />
+      </UFormField>
+
+      <UFormField
+        v-if="(field.type === 'reference' || field.type === 'asset') && field.multiple"
+        label="Max items"
+        hint="Leave blank for no limit"
+      >
+        <UInput
+          type="number"
+          :min="1"
+          :model-value="field.max_items ?? undefined"
+          @update:model-value="
+            patch(index, { max_items: Number($event) > 0 ? Number($event) : null })
+          "
+        />
+      </UFormField>
+
+      <UFormField
+        v-if="field.type === 'reference'"
+        label="Slug filter field"
+        hint="Target field used to resolve slug filters (default: slug)"
+      >
+        <UInput
+          :model-value="field.reference_slug_field ?? 'slug'"
+          @update:model-value="patch(index, { reference_slug_field: String($event) || 'slug' })"
         />
       </UFormField>
 

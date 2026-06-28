@@ -28,7 +28,10 @@ const isSelf = computed(() => session.user?.uuid === props.uuid)
 async function confirmDelete() {
   try {
     await remove.mutateAsync(props.uuid)
-    success('User deleted', user.value ? `“${userDisplayName(user.value)}” was removed.` : undefined)
+    success(
+      'User deleted',
+      user.value ? `“${userDisplayName(user.value)}” was removed.` : undefined,
+    )
     pendingDelete.value = false
     // Clear only ?user=, preserving any other query params.
     const query = { ...route.query }
@@ -64,7 +67,9 @@ function fmtDate(v?: string | null): string {
           </div>
         </div>
         <div class="text-right text-xs text-muted">
-          <p>User ID: <code>{{ user.uuid }}</code></p>
+          <p>
+            User ID: <code>{{ user.uuid }}</code>
+          </p>
           <p>Registered {{ fmtDate(user.created_at) }}</p>
           <UButton
             class="mt-1"

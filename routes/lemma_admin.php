@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Content\Http\Controllers\ContentTypeController;
 use App\Content\Http\Controllers\EntryController;
+use App\Content\Http\Controllers\LocaleAdminController;
 use App\Content\Http\Controllers\MigrationController;
 use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
@@ -85,6 +86,10 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
 
     $router->post('/entries/{uuid}/locales/{locale}', [EntryController::class, 'createLocaleDraft'])
         ->middleware('lemma_permission:content.create');
+
+    // Per-locale content usage counts — used to warn before disabling a language.
+    $router->get('/locales/{locale}/usage', [LocaleAdminController::class, 'usage'])
+        ->middleware('lemma_permission:content.manage');
 
     $router->get('/entries/{uuid}/versions/{locale}', [PublicationController::class, 'versions'])
         ->middleware('lemma_permission:content.view');

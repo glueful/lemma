@@ -26,7 +26,13 @@ const filtered = computed(() => {
   <div class="flex h-full min-h-0 w-full flex-col gap-3 lg:w-85 lg:shrink-0">
     <div class="flex items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-highlighted">Roles</h2>
-      <UButton icon="i-lucide-plus" class="px-3 rounded-xl" size="sm" aria-label="New role" @click="emit('create')" />
+      <UButton
+        icon="i-lucide-plus"
+        class="px-3 rounded-xl"
+        size="sm"
+        aria-label="New role"
+        @click="emit('create')"
+      />
     </div>
 
     <UInput v-model="search" icon="i-lucide-search" placeholder="Search roles…" class="w-full" />

@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { open, items } from '../navigation/sidebar'
+import { open, useVisibleNav } from '../navigation/sidebar'
+import { registerCoreModule } from '@/registry/coreModule'
+import { useCapabilitiesStore } from '@/stores/capabilities'
 import { useContentTypes } from '@/queries/contentTypes'
 
-// Content types are fetched live; injected as the Content section's children (the sidebar.ts
-// entry ships with empty children — see ADMIN_IA.md).
+registerCoreModule()
+useCapabilitiesStore().ensureLoaded() // post-auth: this layout only renders for authenticated users
+
+const nav = useVisibleNav()
 const { data: contentTypes } = useContentTypes()
 
+// nav.value[0] = main nav; inject live content types into the Content section's children (unchanged behavior).
 const mainItems = computed(() =>
-  items[0].map((item) =>
+  nav.value[0].map((item) =>
     item.label === 'Content'
       ? {
           ...item,
@@ -21,6 +26,7 @@ const mainItems = computed(() =>
       : item,
   ),
 )
+const utilityItems = computed(() => nav.value[1])
 </script>
 
 <template>
@@ -52,7 +58,7 @@ const mainItems = computed(() =>
 
         <UNavigationMenu
           :collapsed="collapsed"
-          :items="items[1]"
+          :items="utilityItems"
           orientation="vertical"
           tooltip
           class="mt-auto"

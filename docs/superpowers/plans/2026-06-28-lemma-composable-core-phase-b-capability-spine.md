@@ -14,7 +14,7 @@
 - **Core is NOT a capability.** Only packs register capabilities. Do not register any core capability; the production endpoint returns an empty list until a pack registers one (Phase D).
 - **Capability ids contain dots** (e.g. `lemma.forms`). Never read a per-capability flag via dotted config access — read the whole `lemma.capabilities` array once and index by the full id string.
 - **Default-on when installed.** A registered (installed) capability is enabled unless its id is present in `lemma.capabilities` with value `false`.
-- **The endpoint reports the ENABLED set only** (id, label, description, requires). Admin-contribution descriptors (nav/routes/settings/field-widgets) are **deferred to Phase C** — do not build them here.
+- **The endpoint reports the ENABLED set only** (id, label, description, requires). Admin-contribution descriptors (nav/routes/settings/field-widgets) are **deferred to the future runtime model** — Phase C's static registry matches by capability id and needs no backend descriptors, so do not build them here or in Phase C.
 - **No behavior change** to existing routes/endpoints; all changes are additive.
 - **Every new Lemma HTTP controller must be registered in `App\Providers\LemmaServiceProvider::services()`** (with a `use` import).
 - **New PHP files are PSR-12 clean** (blank line after `<?php`). Before committing, run `vendor/bin/phpcbf` then `vendor/bin/phpcs` on your new/changed files and ensure phpcs is clean. (`packages/` is outside the default phpcs scope, but `app/`, `config/`, `routes/`, `tests/` are in scope.)
@@ -611,7 +611,8 @@ use Glueful\Routing\Attributes\ApiResponse;
 /**
  * Reports the ENABLED capabilities (installed packs not disabled by the switchboard) for the
  * admin SPA, which mounts only the modules whose required capability is reported here. Read-only.
- * Admin-contribution descriptors (nav/routes/settings/field-widgets) are added in Phase C.
+ * Admin-contribution descriptors (nav/routes/settings/field-widgets) are a future-runtime concern,
+ * not part of the V1 payload (the Phase C static registry matches by capability id).
  */
 final class CapabilityAdminController
 {
@@ -695,7 +696,7 @@ git commit -m "Add GET /v1/admin/capabilities endpoint reporting enabled capabil
 - `GET /v1/admin/capabilities` returns the **enabled** capabilities (id/label/description/requires), guarded by `lemma_permission:system.access`; empty in production (no core capability) until a pack registers one.
 - `composer test` green; `composer phpcs` green; no behavior change to existing endpoints.
 
-**Deferred (not built here):** admin-contribution descriptors (nav/routes/settings/field-widgets) and the `registerAdminModule` JS registry — **Phase C** (Phase C extends the `/capabilities` payload with the descriptors and adds the SPA consumer). The first real capability registration arrives with the reference pack — **Phase D**.
+**Deferred (not built here):** the `registerAdminModule` JS registry + capability-gated SPA nav — **Phase C** (which consumes this `/capabilities` endpoint and matches by capability id; it does **not** extend the payload with backend descriptors). Backend admin-contribution descriptors (nav/routes/settings/field-widgets) are a **future-runtime concern** (the V1 static model doesn't consume them). The first real capability registration arrives with the reference pack — **Phase D**.
 
 ---
 
@@ -708,7 +709,7 @@ git commit -m "Add GET /v1/admin/capabilities endpoint reporting enabled capabil
 - §5 "Core is **not** a capability" → enforced by Global Constraints + DoD (no core capability registered; endpoint empty in prod) ✅
 - §5 migrations-gated-by-installed note → documented in the `config/lemma.php` comment (Task 3) ✅
 - §4.5 capability contracts in `lemma-contracts` → Task 1 ✅
-- §4.6 admin-contribution descriptors → explicitly deferred to Phase C (noted) ✅
+- §4.6 admin-contribution descriptors → deferred to the future runtime model (Phase C's static registry matches by capability id; noted) ✅
 - No spec gap within Phase B scope.
 
 **Placeholder scan:** No TBD/TODO. The two "confirm the existing imports / match the existing style" notes (Task 3 step 4c, Task 4 step 5) are not placeholders — they name the exact file and the exact pre-existing pattern (`ContainerInterface`/`ApplicationContext` imports already present; the route file's existing controller-import style) the implementer reuses rather than guesses.

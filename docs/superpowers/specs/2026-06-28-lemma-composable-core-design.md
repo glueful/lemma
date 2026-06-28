@@ -84,6 +84,13 @@ does not depend on `glueful/lemma` at all), so it physically cannot reach engine
 6. **Admin contribution descriptors** — PHP DTOs describing what a pack contributes to admin (nav
    entry, route, settings panel, field-widget). **Metadata only — no Vue runtime code.** The
    `/capabilities` endpoint serializes these so the SPA registry knows what to mount.
+   > **Scope refinement (decided during Phase C planning):** these backend descriptors serve the
+   > **future runtime-loaded model**, where the SPA doesn't have a pack's code and needs the server
+   > to describe what to mount. In the **V1 static model (Phase C)** the Vue module carries its own
+   > nav and is **matched by capability id** against the enabled set the endpoint already returns —
+   > so the descriptors are **NOT built in Phase C** and are **not** part of the V1 `/capabilities`
+   > payload. They land with the runtime model, alongside `registerAdminModule`'s
+   > `routes`/`settingsPanels`/`fieldWidgets` runtime fields.
 7. **Pack context / scoped service access** — a small `LemmaContext` / `ContentContext` giving packs
    scoped access to allowed core services: current + default locale, actor identity where available,
    URL/path rendering, settings lookup, media/blob reference helpers. The sanctioned alternative to
@@ -115,7 +122,7 @@ Three distinct layers keep **`composer remove`** and **"disable this pack"** as 
 |---|---|---|---|
 | **Installed** | Is the package physically present? | Composer-present, discovered via `extra.glueful.provider`. The provider registers `services()`, **migrations** (`loadMigrationsFrom`), and its `Capability` metadata into `CapabilityRegistry`. **Routes, jobs, subscribers, and admin contributions are *not* registered here — only when enabled.** | `composer remove` — code & deps gone. |
 | **Enabled** | Should its runtime behavior run? | `config/lemma.php` capability switchboard (mirrors the framework's `capabilities.php`), default-on when installed. | Flag off — code present, capability dormant. |
-| **Reported** | Should the admin expose it? | `GET /v1/admin/capabilities` returns **enabled** capabilities + their admin descriptors. | Not in payload → admin doesn't mount it. |
+| **Reported** | Should the admin expose it? | `GET /v1/admin/capabilities` returns the **enabled** capabilities (V1: `id`/`label`/`description`/`requires`; admin descriptors are a future-runtime addition — see §4.6). | Not in payload → SPA doesn't mount the module gated on that id. |
 
 **Gating rule.** **Routes, jobs, subscribers, and admin contributions are gated by *enabled* state.
 Migrations are registered when *installed*** (so disabling preserves tables for re-enable, uninstall
@@ -145,10 +152,17 @@ registerAdminModule({
 - At boot the shell calls `GET /v1/admin/capabilities`, then the registry **mounts only modules whose
   required capability the server reports as enabled**. A disabled/absent pack's nav is hidden and its
   routes are never added. **No hard-coded sidebar conditionals.**
-- **PHP reports enabled capabilities + admin descriptors. Vue has first-party screens statically
-  bundled. The SPA registry matches static modules to server-reported capability ids and mounts only
-  what the server reports.** A backend-only third-party pack can ship today and simply contributes no
-  screens until admin-UI support exists.
+- **PHP reports the enabled capability *ids*. Vue has first-party screens statically bundled, each
+  declaring its `requires` id. The SPA registry matches its static modules' `requires` against the
+  server-reported enabled ids and mounts only those.** In V1 the Vue module carries its own nav, so
+  the server does **not** send admin descriptors — matching is purely by capability id (see §4.6;
+  descriptors are a future-runtime concern). A backend-only third-party pack can ship today and simply
+  contributes no screens until admin-UI support exists.
+  > **Note (file-based routing reality, Phase C):** this SPA uses `vue-router/vite` file-based routes
+  > (`src/pages/**`), so routes always exist — the registry gates **nav visibility** (which modules'
+  > nav shows) and **route reachability** (`meta.requiresCapability` in the guard), not route
+  > *registration*. The `routes`/`settingsPanels`/`fieldWidgets` fields above are the future-runtime
+  > shape; Phase C builds `id` + `requires` + `nav`.
 
 **Future (runtime, Option 3):** the *same* `registerAdminModule` call accepts registrations loaded at
 runtime from pack bundles (served via Glueful's existing `serveFrontend()`, which mounts a built

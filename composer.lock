@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c6d2447bd88128c68e8770a6440055d2",
+    "content-hash": "9c6e0450870ce20b65a481d8d15ed46a",
     "packages": [
         {
             "name": "composer/semver",
@@ -910,6 +910,31 @@
                 "source": "https://github.com/glueful/import-export/tree/v1.1.1"
             },
             "time": "2026-06-16T07:05:28+00:00"
+        },
+        {
+            "name": "glueful/lemma-contracts",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-contracts",
+                "reference": "3b2173c410e2e90953967b6b8054e9c6761ac312"
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Contracts\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Thin, stable contracts (interfaces, DTOs, events, VOs) that Lemma capability packs compile against.",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "glueful/media",

@@ -86,9 +86,11 @@ use App\Content\Seo\PathRenderer;
 use App\Content\Seo\RedirectRepository;
 use App\Content\Seo\RouteResolver;
 use App\Content\Services\MigrationService;
+use App\Content\Authoring\EngineContentWriter;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Lemma\Contracts\Authoring\ContentWriter;
 use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Events\EventService;
@@ -245,6 +247,11 @@ final class LemmaServiceProvider extends ServiceProvider
             PublishService::class => [
                 'class' => PublishService::class,
                 'shared' => true,
+                'autowire' => true,
+            ],
+            ContentWriter::class => [
+                'class'    => EngineContentWriter::class,
+                'shared'   => true,
                 'autowire' => true,
             ],
             MigrationService::class => [

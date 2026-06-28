@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Capabilities\DefaultCapabilityRegistry;
 use App\Setup\SetupService;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
@@ -93,6 +94,7 @@ use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Lemma\Contracts\Authoring\ContentWriter;
+use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Context\LemmaContext;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
 use Glueful\Database\Connection;
@@ -174,6 +176,10 @@ final class LemmaServiceProvider extends ServiceProvider
                 'class' => RedirectRepository::class,
                 'shared' => true,
                 'autowire' => true,
+            ],
+            CapabilityRegistry::class => [
+                'factory' => [self::class, 'makeCapabilityRegistry'],
+                'shared' => true,
             ],
             PathRenderer::class => [
                 'factory' => [self::class, 'makePathRenderer'],
@@ -560,6 +566,15 @@ final class LemmaServiceProvider extends ServiceProvider
         // No-op: config/lemma.php is auto-loaded by the app config system, and DI
         // bindings are contributed declaratively via services(). Kept for lifecycle
         // symmetry and as the seam for future runtime registration.
+    }
+
+    public static function makeCapabilityRegistry(ContainerInterface $container): DefaultCapabilityRegistry
+    {
+        $context = $container->get(ApplicationContext::class);
+        /** @var array<string,bool> $overrides */
+        $overrides = (array) config($context, 'lemma.capabilities', []);
+
+        return new DefaultCapabilityRegistry($overrides);
     }
 
     public static function makePathRenderer(ContainerInterface $container): PathRenderer

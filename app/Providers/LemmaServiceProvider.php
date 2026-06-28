@@ -7,7 +7,9 @@ namespace App\Providers;
 use App\Setup\SetupService;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
+use App\Content\Delivery\ReferenceFilterResolver;
 use App\Content\Delivery\ReferenceResolver;
+use App\Content\Delivery\ReferenceTargetResolver;
 use App\Content\Delivery\SortCompiler;
 use App\Content\Console\PruneVersionsCommand;
 use App\Content\Console\ResyncCommand;
@@ -365,6 +367,16 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             ReferenceResolver::class => [
                 'class' => ReferenceResolver::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ReferenceFilterResolver::class => [
+                'class' => ReferenceFilterResolver::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ReferenceTargetResolver::class => [
+                'class' => ReferenceFilterResolver::class,
                 'shared' => true,
                 'autowire' => true,
             ],

@@ -12,6 +12,7 @@ use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ApiKeyAdminController;
 use App\Http\Controllers\CacheAdminController;
+use App\Http\Controllers\CapabilityAdminController;
 use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\GeneralSettingsController;
@@ -255,6 +256,11 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
         ->middleware('lemma_permission:system.access');
 
     $router->post('/webhooks/deliveries/{id}/retry', [WebhookController::class, 'retryDelivery'])
+        ->middleware('lemma_permission:system.access');
+
+    // Capabilities — reports installed packs whose capability is enabled by the switchboard.
+    // Read-only; consumed by the admin SPA to mount only available modules.
+    $router->get('/capabilities', [CapabilityAdminController::class, 'index'])
         ->middleware('lemma_permission:system.access');
 
     // Utilities — system ops tools (Health, Cache, Scheduled tasks). All gated by system.access.

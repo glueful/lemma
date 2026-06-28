@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Integration\Http;
+
+use App\Capabilities\DefaultCapabilityRegistry;
+use App\Http\Controllers\CapabilityAdminController;
+use App\Tests\Support\LemmaTestCase;
+use Glueful\Lemma\Contracts\Capability\Capability;
+
+final class CapabilityAdminApiTest extends LemmaTestCase
+{
+    public function testReturnsOnlyEnabledCapabilities(): void
+    {
+        // Hand-build a registry with one ENABLED and one DISABLED fake. This pins the
+        // endpoint to enabled(), NOT all(): an index() that returned all() would wrongly
+        // include test.disabled and fail this test.
+        $registry = new DefaultCapabilityRegistry(['test.disabled' => false]);
+        $registry->register(new Capability('test.fake', ['test.dep'], 'Fake', 'A fake capability'));
+        $registry->register(new Capability('test.disabled', label: 'Disabled'));
+
+        $controller = new CapabilityAdminController($registry);
+        $resp = $controller->index();
+
+        self::assertSame(200, $resp->getStatusCode());
+        $body = json_decode((string) $resp->getContent(), true);
+        self::assertTrue($body['success']);
+        self::assertArrayHasKey('capabilities', $body['data']);
+
+        $ids = array_map(fn (array $c) => $c['id'], $body['data']['capabilities']);
+        self::assertContains('test.fake', $ids);
+        self::assertNotContains('test.disabled', $ids); // disabled capability must be excluded
+
+        $fake = null;
+        foreach ($body['data']['capabilities'] as $c) {
+            if ($c['id'] === 'test.fake') {
+                $fake = $c;
+            }
+        }
+        self::assertNotNull($fake);
+        self::assertSame('Fake', $fake['label']);
+        self::assertSame('A fake capability', $fake['description']);
+        self::assertSame(['test.dep'], $fake['requires']);
+    }
+
+    public function testRouteIsRegisteredUnderAdminPermission(): void
+    {
+        $route = $this->findRoute('GET', '/v1/admin/capabilities');
+        self::assertNotNull($route, '/v1/admin/capabilities must be registered');
+        $middleware = (array) ($route['middleware'] ?? []);
+        self::assertContains(
+            'lemma_permission:system.access',
+            $middleware,
+            'capabilities endpoint must require system.access',
+        );
+    }
+}

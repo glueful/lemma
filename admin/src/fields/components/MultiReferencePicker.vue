@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import { refDebounced } from '@vueuse/core'
 import { useEntries } from '@/queries/entries'
 
@@ -15,10 +15,11 @@ const { data } = useEntries(
   () => debounced.value || undefined,
 )
 
-const titleByUuid = computed<Record<string, string>>(() => {
-  const m: Record<string, string> = {}
-  for (const e of data.value?.entries ?? []) m[e.uuid] = e.display_title || e.uuid
-  return m
+const titleCache = ref<Record<string, string>>({})
+watchEffect(() => {
+  for (const e of data.value?.entries ?? []) {
+    titleCache.value[e.uuid] = e.display_title || e.uuid
+  }
 })
 
 const atCap = computed(() => props.maxItems != null && model.value.length >= props.maxItems)
@@ -44,13 +45,13 @@ defineExpose({ add, remove })
   <div class="space-y-2">
     <div v-if="model.length" class="flex flex-wrap gap-1">
       <UBadge v-for="uuid in model" :key="uuid" color="neutral" variant="subtle" class="gap-1">
-        {{ titleByUuid[uuid] ?? uuid }}
+        {{ titleCache[uuid] ?? uuid }}
         <UButton
           icon="i-lucide-x"
           color="neutral"
           variant="ghost"
           size="xs"
-          :aria-label="`Remove ${uuid}`"
+          :aria-label="`Remove ${titleCache[uuid] ?? uuid}`"
           @click="remove(uuid)"
         />
       </UBadge>

@@ -26,12 +26,18 @@ const multiUuids = computed<string[]>({
 
 watch(file, async (f) => {
   if (!f) return
+  // Check cap BEFORE uploading to avoid orphaned blobs
+  if (isMultiple.value) {
+    const cap = props.field.maxItems
+    if (cap != null && multiUuids.value.length >= cap) {
+      file.value = null
+      return
+    }
+  }
   try {
     const asset = await upload.mutateAsync({ file: f })
     if (!asset.blob_uuid) return // guard: skip if uuid absent (should not happen)
     if (isMultiple.value) {
-      const cap = props.field.maxItems
-      if (cap != null && multiUuids.value.length >= cap) return
       multiUuids.value = [...multiUuids.value, asset.blob_uuid]
     } else {
       singleUuid.value = asset.blob_uuid

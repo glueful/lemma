@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Content\Delivery;
 
 use App\Content\Repositories\ContentTypeRepository;
-use App\Content\Schema\FieldDefinition;
 use Glueful\Database\Connection;
+use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
 
 /**
  * Resolves reference-filter input values (uuids and/or slugs) to a deduped list of target entry
@@ -27,19 +27,19 @@ final class ReferenceFilterResolver implements ReferenceTargetResolver
      * @param list<string> $values
      * @return list<string>
      */
-    public function resolve(FieldDefinition $field, string $locale, array $values): array
+    public function resolve(FieldDescriptor $field, string $locale, array $values): array
     {
         if ($values === []) {
             return [];
         }
 
-        $targetSlug = $field->referenceType ?? '';
+        $targetSlug = $field->referenceType() ?? '';
         $targetRow = $targetSlug !== '' ? $this->types->findBySlug($targetSlug) : null;
         if ($targetRow === null || !isset($targetRow['uuid'])) {
             return []; // unknown target type → matches nothing
         }
 
-        $slugField = $field->referenceSlugField ?? 'slug';
+        $slugField = $field->referenceSlugField() ?? 'slug';
         // Slug field is a schema identifier — interpolate (never bind) so the lookup can hit the
         // slug field's expression index. Re-assert the safe shape here.
         if (preg_match('/\A[a-z][a-z0-9_]*\z/', $slugField) !== 1) {

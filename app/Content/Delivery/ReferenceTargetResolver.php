@@ -4,17 +4,11 @@ declare(strict_types=1);
 
 namespace App\Content\Delivery;
 
-use App\Content\Schema\FieldDefinition;
+use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver as Contract;
 
 /**
- * Resolves a reference field's filter input values (uuids and/or slugs) to a deduped list of
- * published target entry uuids in the given delivery locale.
+ * @deprecated Use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver.
  */
-interface ReferenceTargetResolver
+interface ReferenceTargetResolver extends Contract
 {
-    /**
-     * @param list<string> $values
-     * @return list<string>
-     */
-    public function resolve(FieldDefinition $field, string $locale, array $values): array;
 }

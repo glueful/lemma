@@ -10,6 +10,7 @@ use App\Content\Delivery\UnfilterableFieldException;
 use App\Content\Delivery\InvalidFilterException;
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Validation\FieldValidator;
+use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
 use PHPUnit\Framework\TestCase;
 
 final class FilterCompilerTest extends TestCase
@@ -29,7 +30,7 @@ final class FilterCompilerTest extends TestCase
     private function compile(array $filter): array
     {
         $resolver = new class implements ReferenceTargetResolver {
-            public function resolve(\App\Content\Schema\FieldDefinition $field, string $locale, array $values): array
+            public function resolve(FieldDescriptor $field, string $locale, array $values): array
             {
                 return [];
             }

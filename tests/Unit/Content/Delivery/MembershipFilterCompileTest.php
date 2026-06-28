@@ -8,7 +8,7 @@ use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\InvalidFilterException;
 use App\Content\Delivery\ReferenceTargetResolver;
 use App\Content\Schema\ContentTypeSchema;
-use App\Content\Schema\FieldDefinition;
+use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
 use PHPUnit\Framework\TestCase;
 
 final class MembershipFilterCompileTest extends TestCase
@@ -21,7 +21,7 @@ final class MembershipFilterCompileTest extends TestCase
             public function __construct(private array $map)
             {
             }
-            public function resolve(FieldDefinition $field, string $locale, array $values): array
+            public function resolve(FieldDescriptor $field, string $locale, array $values): array
             {
                 return $this->map[implode(',', $values)] ?? [];
             }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Content\Schema;
 
-final class FieldDefinition
+use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
+
+final class FieldDefinition implements FieldDescriptor
 {
     public const TYPES = ['string', 'text', 'number', 'boolean', 'datetime', 'enum', 'reference', 'asset', 'json'];
     public const FILTER_TYPES = ['string', 'number', 'boolean', 'datetime', 'enum'];
@@ -31,6 +33,31 @@ final class FieldDefinition
         /** Field name on the referenced entry used as its slug identifier; reference fields only. */
         public readonly ?string $referenceSlugField = null,
     ) {
+    }
+
+    public function name(): string
+    {
+        return $this->name;
+    }
+
+    public function type(): string
+    {
+        return $this->type;
+    }
+
+    public function isMultiple(): bool
+    {
+        return $this->multiple;
+    }
+
+    public function referenceType(): ?string
+    {
+        return $this->referenceType;
+    }
+
+    public function referenceSlugField(): ?string
+    {
+        return $this->referenceSlugField;
     }
 
     /** @param array<string,mixed> $raw */

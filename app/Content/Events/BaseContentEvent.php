@@ -6,6 +6,7 @@ namespace App\Content\Events;
 
 use Glueful\Events\Contracts\BaseEvent;
 use Glueful\Extensions\Audit\Contracts\AuditableEvent;
+use Glueful\Lemma\Contracts\Events\ContentLifecycleEvent;
 
 /**
  * Base class for every Lemma content domain event.
@@ -29,7 +30,7 @@ use Glueful\Extensions\Audit\Contracts\AuditableEvent;
  * no extra wiring. The verb is derived from name() and the identity payload
  * becomes the audit context; each shape base supplies {@see auditTarget()}.
  */
-abstract class BaseContentEvent extends BaseEvent implements AuditableEvent
+abstract class BaseContentEvent extends BaseEvent implements AuditableEvent, ContentLifecycleEvent
 {
     public function __construct()
     {

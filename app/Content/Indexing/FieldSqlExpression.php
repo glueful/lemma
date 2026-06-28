@@ -33,4 +33,19 @@ final class FieldSqlExpression
             default => "(fields ->> '{$field}')",
         };
     }
+
+    /**
+     * Normalize `fields->'F'` to a jsonb array regardless of stored shape, so single, multi, and
+     * flipped-across-versions reference/asset values all filter identically via `@>`. IMMUTABLE
+     * (jsonb_typeof/jsonb_build_array are immutable), so it is usable in a GIN expression index.
+     *
+     * The caller MUST pass a validated `[a-z][a-z0-9_]*` field name — it is interpolated, never bound.
+     */
+    public static function membershipArray(string $field): string
+    {
+        return 'CASE'
+            . " WHEN fields -> '{$field}' IS NULL THEN '[]'::jsonb"
+            . " WHEN jsonb_typeof(fields -> '{$field}') = 'array' THEN fields -> '{$field}'"
+            . " ELSE jsonb_build_array(fields -> '{$field}') END";
+    }
 }

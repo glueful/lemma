@@ -15,7 +15,13 @@ final class ContentEventAuditActorTest extends TestCase
 {
     private function event(?string $actor): EntryCreated
     {
-        return new EntryCreated(entry: 'ent000000001', type: 'type00000001', locale: 'en', version: null, actor: $actor);
+        return new EntryCreated(
+            entry: 'ent000000001',
+            type: 'type00000001',
+            locale: 'en',
+            version: null,
+            actor: $actor,
+        );
     }
 
     public function testActorUuidOnlyWhenNoLabelResolved(): void

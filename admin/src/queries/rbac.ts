@@ -87,10 +87,7 @@ async function fetchPage<T>(
   }
 }
 
-export function useRolesPage(
-  page: MaybeRefOrGetter<number>,
-  perPage: MaybeRefOrGetter<number>,
-) {
+export function useRolesPage(page: MaybeRefOrGetter<number>, perPage: MaybeRefOrGetter<number>) {
   return useQuery({
     key: () => ['rbac', 'roles', 'page', toValue(page), toValue(perPage)],
     query: () => fetchPage<Role>('/rbac/roles', ['data', 'roles'], toValue(page), toValue(perPage)),
@@ -260,7 +257,8 @@ export function useUserPermissions(userUuid: MaybeRefOrGetter<string>) {
 // fanning out over the user's roles, collecting each role's permission UUIDs, and mapping those to
 // slugs via the full permissions list. Used to hide already-inherited permissions from the
 // direct-grant picker so admins only grant what a role doesn't already provide.
-const qkUserRolePermissions = (userUuid: string) => ['rbac', 'user-role-permissions', userUuid] as const
+const qkUserRolePermissions = (userUuid: string) =>
+  ['rbac', 'user-role-permissions', userUuid] as const
 
 export async function fetchUserRolePermissionSlugs(userUuid: string): Promise<string[]> {
   const [roles, allPerms] = await Promise.all([fetchUserRoles(userUuid), fetchPermissions()])

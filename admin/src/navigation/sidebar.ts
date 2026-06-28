@@ -79,14 +79,14 @@ export const items = [
           label: 'API Reference',
           icon: 'i-lucide-book-open',
           to: 'https://getlemma.com/docs/',
-          target: '_blank'
+          target: '_blank',
         },
         {
           label: 'Documentation',
           icon: 'i-lucide-library',
           to: 'https://getlemma.com/',
-          target: '_blank'
-        }
+          target: '_blank',
+        },
       ],
     },
     {

@@ -226,7 +226,12 @@ async function onSave() {
           <div class="flex items-center justify-between border-b border-default px-3 py-2">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium text-highlighted">Assigned</span>
-              <UBadge :label="String(assignedIds.size)" color="primary" variant="subtle" size="xs" />
+              <UBadge
+                :label="String(assignedIds.size)"
+                color="primary"
+                variant="subtle"
+                size="xs"
+              />
             </div>
             <UButton
               label="Select all"

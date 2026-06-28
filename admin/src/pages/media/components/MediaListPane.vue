@@ -102,7 +102,10 @@ async function uploadFiles() {
     success(ok === 1 ? 'Uploaded' : `Uploaded ${ok} files`)
   }
   if (failed.length) {
-    notifyError(lastError, `${failed.length} file${failed.length === 1 ? '' : 's'} failed to upload`)
+    notifyError(
+      lastError,
+      `${failed.length} file${failed.length === 1 ? '' : 's'} failed to upload`,
+    )
   }
   showUpload.value = false
 }
@@ -169,7 +172,9 @@ function fmtDate(v?: string | null): string {
           </div>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium text-default">{{ m.name }}</p>
-            <p class="truncate text-xs text-muted">{{ formatBytes(m.size) }} · {{ fmtDate(m.created_at) }}</p>
+            <p class="truncate text-xs text-muted">
+              {{ formatBytes(m.size) }} · {{ fmtDate(m.created_at) }}
+            </p>
           </div>
         </button>
       </div>

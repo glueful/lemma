@@ -61,7 +61,9 @@ async function toggle(ext: InstalledExtension) {
         >
           <UIcon name="i-lucide-package-check" class="size-5 shrink-0 text-muted" />
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-default">{{ extensionShortName(ext.name) }}</p>
+            <p class="truncate text-sm font-medium text-default">
+              {{ extensionShortName(ext.name) }}
+            </p>
             <p class="truncate text-xs text-muted">{{ ext.version ?? '—' }}</p>
           </div>
           <UBadge
@@ -132,7 +134,9 @@ async function toggle(ext: InstalledExtension) {
           </div>
           <div class="col-span-2">
             <dt class="text-xs text-muted">Provider</dt>
-            <dd class="break-all text-sm text-default"><code>{{ selected.provider }}</code></dd>
+            <dd class="break-all text-sm text-default">
+              <code>{{ selected.provider }}</code>
+            </dd>
           </div>
           <div>
             <dt class="text-xs text-muted">Author</dt>

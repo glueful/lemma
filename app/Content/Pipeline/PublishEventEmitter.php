@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Pipeline;
 
 use App\Content\Events\BaseContentEvent;
+use Glueful\Auth\Contracts\UserProviderInterface;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Events\EventService;
 
@@ -36,6 +37,37 @@ final class PublishEventEmitter
 
     public function emitAfterCommit(BaseContentEvent $event): void
     {
-        db($this->context)->afterCommit(fn() => $this->events->dispatch($event));
+        db($this->context)->afterCommit(function () use ($event): void {
+            // Content events fire after-commit, so the audit layer has no request to resolve an
+            // actor label from — populate it here from the actor uuid, so audit rows show a
+            // human-readable user (email/username) instead of a bare uuid.
+            $this->resolveActorLabel($event);
+            $this->events->dispatch($event);
+        });
+    }
+
+    /** Best-effort: resolve the actor uuid to an email/username display label. Never throws. */
+    private function resolveActorLabel(BaseContentEvent $event): void
+    {
+        $uuid = $event->auditActor()['uuid'] ?? null;
+        if (!is_string($uuid) || $uuid === '') {
+            return;
+        }
+        try {
+            if (!$this->context->hasContainer()) {
+                return;
+            }
+            $container = $this->context->getContainer();
+            if (!$container->has(UserProviderInterface::class)) {
+                return;
+            }
+            $provider = $container->get(UserProviderInterface::class);
+            $identity = $provider->findByUuid($uuid);
+            if ($identity !== null) {
+                $event->setAuditActorLabel($identity->email() ?? $identity->username());
+            }
+        } catch (\Throwable) {
+            // Label resolution is best-effort; a lookup failure must never break the dispatch.
+        }
     }
 }

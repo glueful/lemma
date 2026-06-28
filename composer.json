@@ -14,9 +14,9 @@
   "require": {
     "php": "^8.3",
     "glueful/aegis": "^1.13.1",
-    "glueful/audit": "^1.2.0",
+    "glueful/audit": "^1.2.1",
     "glueful/email-notification": "^1.10.0",
-    "glueful/framework": "^1.63.5",
+    "glueful/framework": "^1.64.0",
     "glueful/i18n": "^1.1.1",
     "glueful/import-export": "^1.1.1",
     "glueful/media": "^1.1.0",

@@ -97,17 +97,39 @@ abstract class BaseContentEvent extends BaseEvent implements AuditableEvent
     abstract public function auditTarget(): array;
 
     /**
+     * Optional display label (email/username) for the actor, resolved from the actor uuid at
+     * emit time. Content events dispatch after-commit, so the audit layer has no HTTP request to
+     * resolve a label from; {@see PublishEventEmitter} populates this so the audit row shows a
+     * human-readable actor instead of a bare uuid.
+     */
+    private ?string $auditActorLabel = null;
+
+    /** Set the resolved actor display label (email/username); empty values are ignored. */
+    public function setAuditActorLabel(?string $label): void
+    {
+        $this->auditActorLabel = ($label !== null && $label !== '') ? $label : null;
+    }
+
+    /**
      * The actor carried by the event (the user who saved/published), as a fallback for when there's
      * no HTTP request to resolve one from — these events dispatch after-commit and can also originate
-     * from CLI (`lemma:resync`). Only the uuid is known here; request resolution supplies the label
-     * when present and takes precedence.
+     * from CLI (`lemma:resync`). The uuid comes from the payload; the label, when known, is supplied
+     * by {@see PublishEventEmitter} via {@see setAuditActorLabel()}. Request resolution still wins
+     * when an HTTP request is present.
      *
      * @return array{uuid?:string|null,label?:string|null}
      */
     public function auditActor(): array
     {
         $actor = $this->payload()['actor'] ?? null;
+        if (!is_string($actor) || $actor === '') {
+            return [];
+        }
+        $out = ['uuid' => $actor];
+        if ($this->auditActorLabel !== null) {
+            $out['label'] = $this->auditActorLabel;
+        }
 
-        return is_string($actor) && $actor !== '' ? ['uuid' => $actor] : [];
+        return $out;
     }
 }

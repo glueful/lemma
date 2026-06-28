@@ -6,6 +6,16 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 
 ## [Unreleased]
 
+### Fixed
+- Audit log now shows the acting user's email/username (not a bare uuid) for content
+  create/update/delete/publish actions. Content events dispatch after-commit, so the audit layer
+  has no request to resolve a display label from; `PublishEventEmitter` now resolves the actor
+  uuid → email/username (via `UserProviderInterface`) and attaches it to the event before dispatch.
+- Media (asset) deletions are now audited. `MediaAdminController::destroy` soft-deletes via a raw
+  `blobs` status update that bypassed `BlobRepository`'s entity events, so the deletion went
+  unrecorded; it now dispatches a `MediaDeleted` audit event (category `media`) attributed to the
+  acting user.
+
 ### Added
 
 #### Delivery API (`/v1/content`)

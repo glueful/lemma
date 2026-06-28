@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Events\MediaDeleted;
+use Glueful\Auth\Contracts\UserProviderInterface;
+use Glueful\Auth\UserIdentity;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Events\EventService;
 use Glueful\Helpers\Utils;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
@@ -149,9 +153,10 @@ final class MediaAdminController
     )]
     #[ApiResponse(200, description: 'Deleted.')]
     #[ApiResponse(404, description: 'No such media.')]
-    public function destroy(string $uuid): Response
+    public function destroy(Request $request, string $uuid): Response
     {
-        if ($this->findBlob($uuid) === null) {
+        $blob = $this->findBlob($uuid);
+        if ($blob === null) {
             return Response::notFound('Media not found.');
         }
 
@@ -159,7 +164,71 @@ final class MediaAdminController
             ->where('uuid', '=', $uuid)
             ->update(['status' => 'deleted', 'deleted_at' => date('Y-m-d H:i:s')]);
 
+        // The raw status update bypasses BlobRepository's entity events, so audit the deletion
+        // explicitly — otherwise media deletes go unrecorded (uploads are audited via the repo).
+        [$actorUuid, $actorLabel] = $this->actor($request);
+        app($this->context, EventService::class)->dispatch(new MediaDeleted(
+            $uuid,
+            isset($blob['name']) ? (string) $blob['name'] : null,
+            $actorUuid,
+            $actorLabel,
+        ));
+
         return Response::success(['deleted' => true], 'Media deleted.');
+    }
+
+    /**
+     * The acting user's uuid + display label (email/username) from the request principal.
+     *
+     * @return array{0:?string,1:?string}
+     */
+    private function actor(Request $request): array
+    {
+        $uuid = null;
+        $label = null;
+
+        $user = $request->attributes->get('auth.user');
+        if ($user instanceof UserIdentity) {
+            $uuid = $user->uuid();
+            $label = $user->email() ?? $user->username();
+        } else {
+            // Fallback: the always-present post-auth `'user'` array attribute.
+            $raw = $request->attributes->get('user');
+            if (is_array($raw) && isset($raw['uuid']) && is_string($raw['uuid']) && $raw['uuid'] !== '') {
+                $uuid = $raw['uuid'];
+                $email = is_string($raw['email'] ?? null) ? $raw['email'] : null;
+                $username = is_string($raw['username'] ?? null) ? $raw['username'] : null;
+                $label = $email ?? $username;
+            }
+        }
+
+        // The request principal usually carries only the actor uuid (no email/username), so resolve a
+        // display label from the user store — otherwise the audit row shows a bare uuid. (Uploads get
+        // this for free via the audit layer's created_by fallback; the delete event must supply it.)
+        if ($uuid !== null && ($label === null || $label === '')) {
+            $label = $this->resolveLabel($uuid);
+        }
+
+        return [$uuid, $label];
+    }
+
+    /** Best-effort email/username for a user uuid via the user store. Never throws. */
+    private function resolveLabel(string $uuid): ?string
+    {
+        try {
+            if (!$this->context->hasContainer()) {
+                return null;
+            }
+            $container = $this->context->getContainer();
+            if (!$container->has(UserProviderInterface::class)) {
+                return null;
+            }
+            $identity = $container->get(UserProviderInterface::class)->findByUuid($uuid);
+
+            return $identity?->email() ?? $identity?->username();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /** POST /v1/admin/media/{uuid}/optimize — re-encode an image smaller, in place. */

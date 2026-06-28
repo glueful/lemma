@@ -251,7 +251,7 @@ function fmtDate(v?: string | null): string {
                   icon="i-lucide-x"
                   color="neutral"
                   size="xs"
-                  class="absolute end-1 top-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                  class="absolute inset-e-1 top-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                   :aria-label="`Remove ${file.name}`"
                   @click="removeFile(file)"
                 />

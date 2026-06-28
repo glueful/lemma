@@ -62,6 +62,7 @@
     "test:integration": "vendor/bin/phpunit --testsuite Integration",
     "phpcs": "vendor/bin/phpcs",
     "phpcbf": "vendor/bin/phpcbf",
+    "boundaries": "php scripts/check-pack-boundaries.php",
     "docs:openapi": "php glueful generate:openapi -f --clean",
     "ci": [
       "@phpcs",

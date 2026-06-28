@@ -44,6 +44,9 @@ defineProps<{
           <UBadge v-if="field.filterable" color="neutral" variant="outline" size="sm">
             filterable
           </UBadge>
+          <UBadge v-if="field.multiple" color="neutral" variant="outline" size="sm">
+            multiple{{ field.max_items ? ` · max ${field.max_items}` : '' }}
+          </UBadge>
         </div>
 
         <!-- rich text uses the same reusable editor the real entry form renders -->

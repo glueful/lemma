@@ -111,7 +111,7 @@ final class DeliveryController
         $locale = $this->locale($query->locale);
 
         try {
-            $filter = $this->compileFilter($query->filter, $schema);
+            $filter = $this->compileFilter($query->filter, $schema, $locale);
             $order = $this->sorts->compile($schema, $query->sort);
         } catch (UnfilterableFieldException | InvalidFilterException $e) {
             return Response::validation(['filter' => $e->getMessage()]);
@@ -361,12 +361,12 @@ final class DeliveryController
      * @param array<string,mixed> $filter the raw bracket-array filter from the request DTO
      * @return array{sql:string,bindings:list<mixed>}|null
      */
-    private function compileFilter(array $filter, ContentTypeSchema $schema): ?array
+    private function compileFilter(array $filter, ContentTypeSchema $schema, string $locale): ?array
     {
         if ($filter === []) {
             return null;
         }
-        return $this->filters->compile($schema, $filter);
+        return $this->filters->compile($schema, $filter, $locale);
     }
 
     /** @return array{0:int,1:int} */

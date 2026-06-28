@@ -36,7 +36,7 @@ final class FilterCompiler
     /** Max values accepted in a reference/asset `in` (and max resolved targets). */
     private const MEMBERSHIP_MAX_VALUES = 50;
 
-    public function __construct(private readonly ?ReferenceTargetResolver $references = null)
+    public function __construct(private readonly ReferenceTargetResolver $references)
     {
     }
 
@@ -44,7 +44,7 @@ final class FilterCompiler
      * @param array<string,mixed> $filterParam  e.g. ['price' => ['gt' => '10'], 'status' => ['in' => 'a,b']]
      * @return array{sql:string,bindings:list<mixed>}
      */
-    public function compile(ContentTypeSchema $schema, array $filterParam, string $locale = ''): array
+    public function compile(ContentTypeSchema $schema, array $filterParam, string $locale): array
     {
         $clauses = [];
         $bindings = [];
@@ -172,10 +172,10 @@ final class FilterCompiler
                 throw new InvalidFilterException("operator 'eq' for '{$field->name}' takes a single value");
             }
 
-            if ($field->type === 'reference' && $this->references !== null) {
+            if ($field->type === 'reference') {
                 $targets = $this->references->resolve($field, $locale, $values);
             } else {
-                $targets = array_values(array_unique($values)); // asset or no resolver: uuid-only
+                $targets = array_values(array_unique($values)); // asset: uuid-only
             }
 
             if ($targets === []) {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Content;
 
 use App\Content\Delivery\FilterCompiler;
+use App\Content\Delivery\ReferenceTargetResolver;
 use App\Content\Delivery\UnfilterableFieldException;
 use App\Content\Delivery\InvalidFilterException;
 use App\Content\Schema\ContentTypeSchema;
@@ -27,7 +28,13 @@ final class FilterCompilerTest extends TestCase
 
     private function compile(array $filter): array
     {
-        return (new FilterCompiler())->compile($this->schema(), $filter);
+        $resolver = new class implements ReferenceTargetResolver {
+            public function resolve(\App\Content\Schema\FieldDefinition $field, string $locale, array $values): array
+            {
+                return [];
+            }
+        };
+        return (new FilterCompiler($resolver))->compile($this->schema(), $filter, 'en');
     }
 
     public function testNumberGreaterThan(): void

@@ -7,6 +7,7 @@ namespace App\Tests\Integration\Content;
 use App\Content\Delivery\Cursor;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
+use App\Content\Delivery\ReferenceTargetResolver;
 use App\Content\Delivery\SortCompiler;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
@@ -124,7 +125,13 @@ final class DeliveryRepositoryTest extends LemmaTestCase
         $this->publishFields($type, ['title' => 'Pricey', 'price' => 50], 'pricey');
 
         $schema = (new ContentTypeRepository($this->connection()))->schemaFor($type);
-        $filter = (new FilterCompiler())->compile($schema, ['price' => ['gt' => '10']]);
+        $resolver = new class implements ReferenceTargetResolver {
+            public function resolve(\App\Content\Schema\FieldDefinition $field, string $locale, array $values): array
+            {
+                return [];
+            }
+        };
+        $filter = (new FilterCompiler($resolver))->compile($schema, ['price' => ['gt' => '10']], 'en');
 
         $rows = $this->repo()->listPublished($type, 'en', limit: 20, filter: $filter);
 

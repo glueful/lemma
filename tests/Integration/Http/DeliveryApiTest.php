@@ -65,7 +65,7 @@ final class DeliveryApiTest extends LemmaTestCase
             $this->appContext(),
             $repo,
             $types,
-            new FilterCompiler(),
+            $this->container()->get(FilterCompiler::class),
             new SortCompiler(),
             new ReferenceResolver($repo),
             new Projector(),

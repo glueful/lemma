@@ -1525,6 +1525,9 @@ export interface operations {
                   enum?: string[]
                   format?: string | null
                   reference_type?: string | null
+                  multiple?: boolean | null
+                  max_items?: number | null
+                  reference_slug_field?: string | null
                 }[]
                 schema_version?: number
                 created_by?: string | null
@@ -1630,6 +1633,9 @@ export interface operations {
             enum?: string[]
             format?: string | null
             reference_type?: string | null
+            multiple?: boolean | null
+            max_items?: number | null
+            reference_slug_field?: string | null
           }[]
         }
       }
@@ -1681,6 +1687,9 @@ export interface operations {
                   enum?: string[]
                   format?: string | null
                   reference_type?: string | null
+                  multiple?: boolean | null
+                  max_items?: number | null
+                  reference_slug_field?: string | null
                 }[]
                 schema_version?: number
                 created_by?: string | null
@@ -3887,6 +3896,9 @@ export interface operations {
                   enum?: string[]
                   format?: string | null
                   reference_type?: string | null
+                  multiple?: boolean | null
+                  max_items?: number | null
+                  reference_slug_field?: string | null
                 }[]
                 schema_version?: number
                 created_by?: string | null
@@ -8609,6 +8621,9 @@ export interface operations {
             enum?: string[]
             format?: string | null
             reference_type?: string | null
+            multiple?: boolean | null
+            max_items?: number | null
+            reference_slug_field?: string | null
           }[]
         }
       }
@@ -8653,6 +8668,9 @@ export interface operations {
                   enum?: string[]
                   format?: string | null
                   reference_type?: string | null
+                  multiple?: boolean | null
+                  max_items?: number | null
+                  reference_slug_field?: string | null
                 }[]
                 schema_version?: number
                 created_by?: string | null

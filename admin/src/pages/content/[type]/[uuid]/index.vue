@@ -41,6 +41,9 @@ const schema = computed<FieldDef[]>(() =>
     format: (f.format ?? undefined) as FieldDef['format'],
     // Target type for a reference field — drives the searchable picker.
     referenceType: f.reference_type ?? undefined,
+    multiple: f.multiple ?? undefined,
+    maxItems: f.max_items ?? undefined,
+    referenceSlugField: f.reference_slug_field ?? undefined,
   })),
 )
 

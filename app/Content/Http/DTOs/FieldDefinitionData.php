@@ -43,6 +43,12 @@ final class FieldDefinitionData implements RequestData
         public readonly ?string $format = null,
         #[Rule('string')]
         public readonly ?string $reference_type = null,
+        #[Rule('boolean')]
+        public readonly ?bool $multiple = null,
+        #[Rule('numeric')]
+        public readonly ?int $max_items = null,
+        #[Rule('string')]
+        public readonly ?string $reference_slug_field = null,
     ) {
     }
 
@@ -63,6 +69,9 @@ final class FieldDefinitionData implements RequestData
             'enum' => $this->enum,
             'format' => $this->format,
             'reference_type' => $this->reference_type,
+            'multiple' => $this->multiple ?? false,
+            'max_items' => $this->max_items,
+            'reference_slug_field' => $this->reference_slug_field,
         ];
     }
 }

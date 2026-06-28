@@ -37,6 +37,12 @@ final class FieldSchemaData implements ResponseData
         public readonly ?string $format = null,
         /** Target content-type slug for a `reference` field (drives the admin picker). */
         public readonly ?string $reference_type = null,
+        /** Whether a reference/asset field holds an ordered array of uuids. */
+        public readonly ?bool $multiple = null,
+        /** Max array length for a multiple field; null = unbounded. */
+        public readonly ?int $max_items = null,
+        /** Target field used to resolve slug filter values for a reference field (default `slug`). */
+        public readonly ?string $reference_slug_field = null,
     ) {
     }
 }

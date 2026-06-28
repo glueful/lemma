@@ -4783,6 +4783,24 @@
                                                                                 "string",
                                                                                 "null"
                                                                             ]
+                                                                        },
+                                                                        "multiple": {
+                                                                            "type": [
+                                                                                "boolean",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "max_items": {
+                                                                            "type": [
+                                                                                "integer",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "reference_slug_field": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
                                                                         }
                                                                     }
                                                                 }
@@ -5013,6 +5031,24 @@
                                                     ]
                                                 },
                                                 "reference_type": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "multiple": {
+                                                    "type": [
+                                                        "boolean",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_items": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "reference_slug_field": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -5278,6 +5314,24 @@
                                                                         ]
                                                                     },
                                                                     "reference_type": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "multiple": {
+                                                                        "type": [
+                                                                            "boolean",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "max_items": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "reference_slug_field": {
                                                                         "type": [
                                                                             "string",
                                                                             "null"
@@ -13018,6 +13072,24 @@
                                                                         ]
                                                                     },
                                                                     "reference_type": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "multiple": {
+                                                                        "type": [
+                                                                            "boolean",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "max_items": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "reference_slug_field": {
                                                                         "type": [
                                                                             "string",
                                                                             "null"
@@ -25161,6 +25233,24 @@
                                                         "string",
                                                         "null"
                                                     ]
+                                                },
+                                                "multiple": {
+                                                    "type": [
+                                                        "boolean",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_items": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "reference_slug_field": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             }
                                         }
@@ -25285,6 +25375,24 @@
                                                                         ]
                                                                     },
                                                                     "reference_type": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "multiple": {
+                                                                        "type": [
+                                                                            "boolean",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "max_items": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "reference_slug_field": {
                                                                         "type": [
                                                                             "string",
                                                                             "null"

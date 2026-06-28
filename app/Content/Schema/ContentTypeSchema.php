@@ -52,6 +52,9 @@ final class ContentTypeSchema
             'enum' => $f->enumValues,
             'format' => $f->format,
             'reference_type' => $f->referenceType,
+            'multiple' => $f->multiple,
+            'max_items' => $f->maxItems,
+            'reference_slug_field' => $f->type === 'reference' ? $f->referenceSlugField : null,
         ], static fn($v): bool => $v !== false && $v !== null && $v !== []), $this->fields());
     }
 }

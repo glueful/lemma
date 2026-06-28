@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 namespace Glueful\Lemma\Contracts\Delivery;
 
 use Glueful\Lemma\Contracts\Schema\FieldDescriptor;

@@ -1,11 +1,14 @@
 import type { RouteLocationNormalized, RouteLocationRaw } from 'vue-router'
 import { runtimeConfig } from '@/runtime/config'
 import { useSessionStore } from '@/stores/session'
+import { useCapabilitiesStore } from '@/stores/capabilities'
 
 declare module 'vue-router' {
   interface RouteMeta {
     // Protected pages opt in via definePage({ meta: { requiresAuth: true } }).
     requiresAuth?: boolean
+    /** Capability id (e.g. 'lemma.forms') that must be enabled for this route to be reachable. */
+    requiresCapability?: string
   }
 }
 
@@ -13,11 +16,14 @@ declare module 'vue-router' {
  * Global navigation guard, extracted as a pure function so it can be unit-tested without a router.
  *
  * Order matters: the install gate runs first (a fresh instance has no admin to authenticate
- * against, so everything funnels to /setup), then the auth gate.
+ * against, so everything funnels to /setup), then the auth gate, then the capability gate.
  *
- * Returns `true` to allow navigation, or a redirect target.
+ * Returns `true` to allow navigation, a redirect target, or a Promise of either.
+ * The install + auth branches are synchronous; only the capability branch returns a Promise.
  */
-export function installAndAuthGuard(to: RouteLocationNormalized): true | RouteLocationRaw {
+export function installAndAuthGuard(
+  to: RouteLocationNormalized,
+): true | RouteLocationRaw | Promise<true | RouteLocationRaw> {
   // (1) Install gate. Until setup has run, force everything to /setup; once installed, /setup is inert.
   if (!runtimeConfig.installed && to.path !== '/setup') return { path: '/setup' }
   if (runtimeConfig.installed && to.path === '/setup') return { path: '/login' }
@@ -28,5 +34,16 @@ export function installAndAuthGuard(to: RouteLocationNormalized): true | RouteLo
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (to.path === '/login' && session.isAuthenticated) return { path: '/' }
+
+  // (3) Capability gate: a disabled pack's route is unreachable by direct URL.
+  //     Only THIS branch is async — it returns a Promise; the branches above stay synchronous.
+  const cap = to.meta.requiresCapability
+  if (cap !== undefined && session.isAuthenticated) {
+    const caps = useCapabilitiesStore()
+    return caps
+      .ensureLoaded()
+      .then((): true | RouteLocationRaw => (caps.isEnabled(cap) ? true : { path: '/' }))
+  }
+
   return true
 }

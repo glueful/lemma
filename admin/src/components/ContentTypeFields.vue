@@ -155,7 +155,7 @@ function setEnum(index: number, text: string) {
           :min="1"
           :model-value="field.max_items ?? undefined"
           @update:model-value="
-            patch(index, { max_items: Number.isFinite(Number($event)) ? Number($event) : null })
+            patch(index, { max_items: Number($event) > 0 ? Number($event) : null })
           "
         />
       </UFormField>

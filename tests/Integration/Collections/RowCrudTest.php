@@ -9,9 +9,11 @@ use Glueful\Database\Schema\Interfaces\SchemaBuilderInterface;
 use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Data\Actor;
 use Glueful\Lemma\Collections\Data\RowRepository;
+use Glueful\Lemma\Collections\Data\RowValidator;
 use Glueful\Lemma\Collections\Exceptions\RowNotFoundException;
 use Glueful\Lemma\Collections\Exceptions\RowValidationException;
 use Glueful\Lemma\Collections\Schema\CollectionDefinition;
+use Glueful\Lemma\Collections\Schema\CollectionField;
 
 final class RowCrudTest extends LemmaTestCase
 {
@@ -418,5 +420,23 @@ final class RowCrudTest extends LemmaTestCase
         );
 
         self::assertSame('my-slug', (string) $updated['slug']);
+    }
+
+    public function testValidateThrowsOnUnmappedFieldType(): void
+    {
+        // A registered field type with no coercion rule is a pack misconfiguration — fail loudly,
+        // never silently store it as a string.
+        $def = new CollectionDefinition('clx_bogus', 'bogustypes', 'Bogus', 'collection_bogus', 'table', [
+            CollectionField::fromArray(['name' => 'weird', 'type' => 'collections.nonsense', 'settings' => []]),
+        ], 1, 'active');
+
+        $this->expectException(\LogicException::class);
+        $this->container()->get(RowValidator::class)->validate($def, ['weird' => 'x'], false);
+    }
+
+    public function testActorRejectsUnknownType(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Actor('superuser', 'u1');
     }
 }

@@ -12,9 +12,16 @@ namespace Glueful\Lemma\Collections\Data;
  */
 final readonly class Actor
 {
+    public const TYPES = ['api_key', 'user', 'admin'];
+
     public function __construct(
         public string $type,
         public ?string $id,
     ) {
+        if (!in_array($type, self::TYPES, true)) {
+            throw new \InvalidArgumentException(
+                "Actor type must be one of api_key, user, admin; got '{$type}'.",
+            );
+        }
     }
 }

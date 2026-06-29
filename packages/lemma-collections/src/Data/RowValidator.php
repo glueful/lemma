@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Glueful\Lemma\Collections\Data;
 
 use Glueful\Database\Connection;
+use Glueful\Helpers\Utils;
 use Glueful\Lemma\Collections\Exceptions\RowValidationException;
 use Glueful\Lemma\Collections\Schema\CollectionDefinition;
 use Glueful\Lemma\Collections\Schema\CollectionField;
@@ -168,14 +169,14 @@ final class RowValidator
 
             case 'collections.email':
                 $coerced = (string) $value;
-                if (filter_var($coerced, FILTER_VALIDATE_EMAIL) === false) {
+                if (!Utils::isValidEmail($coerced)) {
                     return [null, sprintf("Field '%s' must be a valid email address.", $name)];
                 }
                 break;
 
             case 'collections.url':
                 $coerced = (string) $value;
-                if (filter_var($coerced, FILTER_VALIDATE_URL) === false) {
+                if (Utils::validateUrl($coerced) === null) {
                     return [null, sprintf("Field '%s' must be a valid URL.", $name)];
                 }
                 break;
@@ -256,8 +257,13 @@ final class RowValidator
                 break;
 
             default:
-                // Unknown type: pass through as string.
-                $coerced = (string) $value;
+                // A registered field type with no coercion rule is a pack misconfiguration,
+                // not user input — fail loudly rather than silently storing it as a string.
+                throw new \LogicException(sprintf(
+                    "RowValidator: no coercion rule for field type '%s' (field '%s').",
+                    $field->type,
+                    $name,
+                ));
         }
 
         // Unique constraint check (runs only when coercion succeeded).

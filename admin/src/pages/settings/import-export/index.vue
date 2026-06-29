@@ -604,7 +604,7 @@ function fmtTime(v?: string | null): string {
               record {{ err.record_number }}
             </span>
           </div>
-          <p class="mt-0.5 break-words text-sm text-default">{{ err.message }}</p>
+          <p class="mt-0.5 wrap-break-word text-sm text-default">{{ err.message }}</p>
         </li>
       </ul>
     </template>

@@ -72,7 +72,7 @@ final class RowRepository
 
         $stored = $this->fetchOrFail($def, $uuid);
 
-        $this->events->dispatch(new CollectionRowCreated($def->name, $uuid, $stored));
+        $this->events->dispatch(new CollectionRowCreated($def->name, $uuid, $stored, $actor));
 
         return $stored;
     }
@@ -111,7 +111,7 @@ final class RowRepository
 
         $stored = $this->fetchOrFail($def, $uuid);
 
-        $this->events->dispatch(new CollectionRowUpdated($def->name, $uuid, $stored));
+        $this->events->dispatch(new CollectionRowUpdated($def->name, $uuid, $stored, $actor));
 
         return $stored;
     }
@@ -126,7 +126,7 @@ final class RowRepository
      * @throws RowNotFoundException        when no row with $uuid exists.
      * @throws \Glueful\Lemma\Collections\Exceptions\RowReferencedException when referenced.
      */
-    public function delete(CollectionDefinition $def, string $uuid): void
+    public function delete(CollectionDefinition $def, string $uuid, Actor $actor): void
     {
         $this->fetchOrFail($def, $uuid);
 
@@ -136,7 +136,7 @@ final class RowRepository
             ->where('uuid', $uuid)
             ->delete();
 
-        $this->events->dispatch(new CollectionRowDeleted($def->name, $uuid));
+        $this->events->dispatch(new CollectionRowDeleted($def->name, $uuid, $actor));
     }
 
     /**

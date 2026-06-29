@@ -246,7 +246,7 @@ final class CollectionDataController
         }
 
         try {
-            $this->rows->delete($def, $uuid);
+            $this->rows->delete($def, $uuid, $this->actor->resolve($request));
         } catch (RowNotFoundException $e) {
             return Response::notFound($e->getMessage());
         } catch (RowReferencedException $e) {

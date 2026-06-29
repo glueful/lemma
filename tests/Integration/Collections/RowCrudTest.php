@@ -246,7 +246,7 @@ final class RowCrudTest extends LemmaTestCase
     public function testDeleteWithUnknownUuidThrowsRowNotFoundException(): void
     {
         $this->expectException(RowNotFoundException::class);
-        $this->repo()->delete($this->def, 'non-existent-uuid-0000');
+        $this->repo()->delete($this->def, 'non-existent-uuid-0000', $this->adminActor());
     }
 
     /**

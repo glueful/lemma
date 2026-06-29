@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Glueful\Lemma\Collections\Events;
 
 use Glueful\Events\Contracts\BaseEvent;
+use Glueful\Lemma\Collections\Data\Actor;
 
 /**
  * Dispatched after a row has been successfully deleted from a collection's table.
@@ -18,10 +19,12 @@ final class CollectionRowDeleted extends BaseEvent
     /**
      * @param string $collectionName  The logical name of the collection (not table name).
      * @param string $rowUuid         The UUID of the deleted row.
+     * @param Actor  $actor           The actor that performed the delete (for audit attribution).
      */
     public function __construct(
         public readonly string $collectionName,
         public readonly string $rowUuid,
+        public readonly Actor $actor,
     ) {
         parent::__construct();
     }

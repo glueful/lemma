@@ -310,7 +310,7 @@ final class RelationsTest extends LemmaTestCase
         );
 
         $this->expectException(RowReferencedException::class);
-        $this->repo()->delete($this->authors, (string) $author['uuid']);
+        $this->repo()->delete($this->authors, (string) $author['uuid'], $this->actor());
     }
 
     /**
@@ -326,7 +326,7 @@ final class RelationsTest extends LemmaTestCase
         );
 
         $this->expectException(RowReferencedException::class);
-        $this->repo()->delete($this->authors, (string) $author['uuid']);
+        $this->repo()->delete($this->authors, (string) $author['uuid'], $this->actor());
     }
 
     /**
@@ -336,7 +336,7 @@ final class RelationsTest extends LemmaTestCase
     {
         $author = $this->repo()->create($this->authors, ['name' => 'Grace'], $this->actor());
 
-        $this->repo()->delete($this->authors, (string) $author['uuid']);
+        $this->repo()->delete($this->authors, (string) $author['uuid'], $this->actor());
 
         self::assertTrue(true); // reaching here means no exception was thrown
     }
@@ -363,6 +363,8 @@ final class RelationsTest extends LemmaTestCase
         self::assertSame((string) $row['uuid'], $created[0]->rowUuid);
         self::assertIsArray($created[0]->row);
         self::assertSame((string) $row['uuid'], (string) $created[0]->row['uuid']);
+        self::assertSame('admin', $created[0]->actor->type);
+        self::assertSame('u1', $created[0]->actor->id);
     }
 
     /**
@@ -390,6 +392,8 @@ final class RelationsTest extends LemmaTestCase
         self::assertSame(self::AUTHORS_COLLECTION, $events[0]->collectionName);
         self::assertSame((string) $row['uuid'], $events[0]->rowUuid);
         self::assertSame('Ivan Updated', (string) $events[0]->row['name']);
+        self::assertSame('admin', $events[0]->actor->type);
+        self::assertSame('u1', $events[0]->actor->id);
     }
 
     /**
@@ -401,7 +405,7 @@ final class RelationsTest extends LemmaTestCase
         $row = $this->repo()->create($this->authors, ['name' => 'Judy'], $this->actor());
         $this->capturedEvents = [];
 
-        $this->repo()->delete($this->authors, (string) $row['uuid']);
+        $this->repo()->delete($this->authors, (string) $row['uuid'], $this->actor());
 
         $events = array_values(array_filter(
             $this->capturedEvents,
@@ -411,5 +415,8 @@ final class RelationsTest extends LemmaTestCase
         self::assertCount(1, $events, 'CollectionRowDeleted must be dispatched exactly once on delete');
         self::assertSame(self::AUTHORS_COLLECTION, $events[0]->collectionName);
         self::assertSame((string) $row['uuid'], $events[0]->rowUuid);
+        // The deleting actor is carried for audit attribution (the row itself is gone).
+        self::assertSame('admin', $events[0]->actor->type);
+        self::assertSame('u1', $events[0]->actor->id);
     }
 }

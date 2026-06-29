@@ -8,10 +8,15 @@ use Glueful\Lemma\Contracts\Schema\FieldTypeDefinition;
 use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
 
 /**
- * Registers the core collection field types under the "collections.*" namespace.
+ * Registers the full set of collection field types under the "collections.*" namespace.
  *
- * Task 4 will complete the full set; this task seeds `collections.text` only
- * to prove the provider wiring.
+ * Capability rules (spec §4):
+ *   - Scalar types (text, longtext, integer, decimal, boolean, date, datetime, email, url, enum):
+ *       filterable+sortable+indexable=true  (longtext: filterable+sortable=false, indexable=true)
+ *   - JSON/object types (json): filterable=false, sortable=false, indexable=false
+ *   - Reference/asset types (relation, asset): filterable=false, sortable=false, multi=true
+ *
+ * No collections.* key may collide with a content.* key.
  */
 final class CollectionFieldTypes
 {
@@ -26,11 +31,99 @@ final class CollectionFieldTypes
     private static function definitions(): array
     {
         return [
+            // --- Scalar types: filterable, sortable, indexable ---
             self::make('collections.text', 'Text', 'scalar', 'text-input', [
                 'filterable' => true,
                 'sortable'   => true,
                 'indexable'  => true,
                 'multi'      => false,
+                'localized'  => false,
+            ]),
+            // Long text: not filterable/sortable (no B-tree on unbounded text), but full-text indexable
+            self::make('collections.longtext', 'Long Text', 'scalar', 'textarea', [
+                'filterable' => false,
+                'sortable'   => false,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            self::make('collections.integer', 'Integer', 'scalar', 'number-input', [
+                'filterable' => true,
+                'sortable'   => true,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            self::make('collections.decimal', 'Decimal', 'scalar', 'number-input', [
+                'filterable' => true,
+                'sortable'   => true,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            self::make('collections.boolean', 'Boolean', 'scalar', 'toggle', [
+                'filterable' => true,
+                'sortable'   => true,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            self::make('collections.date', 'Date', 'scalar', 'date-input', [
+                'filterable' => true,
+                'sortable'   => true,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            self::make('collections.datetime', 'Date & Time', 'scalar', 'datetime-input', [
+                'filterable' => true,
+                'sortable'   => true,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            self::make('collections.email', 'Email', 'scalar', 'text-input', [
+                'filterable' => true,
+                'sortable'   => true,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            self::make('collections.url', 'URL', 'scalar', 'text-input', [
+                'filterable' => true,
+                'sortable'   => true,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            self::make('collections.enum', 'Enum (select)', 'scalar', 'select', [
+                'filterable' => true,
+                'sortable'   => true,
+                'indexable'  => true,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            // --- JSON/structured types: not filterable or sortable ---
+            self::make('collections.json', 'JSON', 'json', 'json-editor', [
+                'filterable' => false,
+                'sortable'   => false,
+                'indexable'  => false,
+                'multi'      => false,
+                'localized'  => false,
+            ]),
+            // --- Relation/asset types: not filterable/sortable, may be multi ---
+            self::make('collections.relation', 'Relation', 'json', 'reference-picker', [
+                'filterable' => false,
+                'sortable'   => false,
+                'indexable'  => false,
+                'multi'      => true,
+                'localized'  => false,
+            ]),
+            self::make('collections.asset', 'Asset', 'json', 'asset-picker', [
+                'filterable' => false,
+                'sortable'   => false,
+                'indexable'  => false,
+                'multi'      => true,
                 'localized'  => false,
             ]),
         ];

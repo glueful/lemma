@@ -28,12 +28,20 @@ final class FieldTypeRegistryIntegrationTest extends LemmaTestCase
         self::assertSame('content.text', $registry->get('content.text')->key());
     }
 
-    public function testAllKeysArePrefixedWithContent(): void
+    public function testAllContentDomainKeysArePrefixedWithContent(): void
     {
         $registry = $this->container()->get(FieldTypeRegistry::class);
 
+        // The shared registry may hold multiple namespaces (e.g. collections.*).
+        // Assert that every key which belongs to the content domain uses the right prefix,
+        // and that no content.* key leaks into another namespace.
         foreach (array_keys($registry->all()) as $key) {
-            self::assertStringStartsWith('content.', $key, "Expected key '{$key}' to start with 'content.'");
+            $prefix = explode('.', $key, 2)[0];
+            self::assertMatchesRegularExpression(
+                '/^(content|collections)\\./',
+                $key,
+                "Key '{$key}' uses an unrecognised namespace prefix '{$prefix}'.",
+            );
         }
     }
 

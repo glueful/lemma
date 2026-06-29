@@ -32,6 +32,33 @@ decisions); the next phases derive from the same APPROACH.
 
 ---
 
+## Composable‑core: pack vs. core (extraction boundary — settled)
+
+Lemma is a **composable core** — a canonical content engine + `glueful/lemma-contracts` (thin
+interfaces/DTOs) + **removable capability packs** that depend only on contracts/framework, never on
+`glueful/lemma`. Spec: [composable‑core design](superpowers/specs/2026-06-28-lemma-composable-core-design.md).
+
+- **Shipped extraction:** `glueful/lemma-importers` (the four format adapters: `csv.content`,
+  `markdown.content`, `wordpress.content`, `csv.users`) — the proven reference pack. It registers the
+  `lemma.importers` capability, writes content only through the `ContentWriter` contract, is backend +
+  UI gated, and `composer boundaries` enforces the boundary.
+- **Stays core — do NOT re‑litigate as `lemma-seo`:** `app/Content/Seo/` (the routing/addressability
+  layer — `RouteResolver`, `PathRenderer`, `CanonicalProjector`, `RedirectRepository`) is **not** an
+  extraction candidate. It's woven into three core seams at once: `PathRenderer` backs the
+  `LemmaContext::renderPath()` contract that *other packs consume*; route resolution + canonical
+  projection are constructor deps of the core `DeliveryController` and are stamped into every delivery
+  response (`$item['seo']`); and route assignment is part of the entry authoring lifecycle
+  (`EntryController` → `RouteRepository`). Extracting it would invert the dependency (core → pack),
+  which the architecture forbids. Public addressability is a core delivery feature of a headless CMS.
+- **The remaining packs are NEW BUILDS, not extractions.** A future `lemma-seo` pack is the *additive*
+  SEO toolkit (sitemaps, SEO meta‑fields, redirect import/export, `lemma:seo:check`) built on the
+  delivery‑reader contract — distinct from the core routing above. Same for **Render / Forms /
+  Collections / Search / Analytics**: the contract seams already exist (`ContentDeliveryReader`,
+  lifecycle events, `ContentReindexer`, `ContentWriter`), but core holds **no extractable code** for
+  them — they're forward feature‑builds against the contracts, picked up via the tracks below.
+
+---
+
 ## Large tracks (named in the vision, not yet started)
 
 Each already has a home — there is **no** new doc to write to *track* these:

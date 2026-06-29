@@ -7,7 +7,7 @@ namespace App\Tests\Integration\Console;
 use App\Content\Console\ResyncCommand;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
-use App\Content\Search\ContentReindexerInterface;
+use Glueful\Lemma\Contracts\Search\ContentReindexer;
 use App\Content\Services\PublishService;
 use App\Tests\Support\LemmaTestCase;
 use App\Tests\Support\RecordingArrayCache;
@@ -81,7 +81,7 @@ final class ResyncCommandTest extends LemmaTestCase
         $this->setSingleton('cache.store', $this->cache);
 
         $this->reindexer = new RecordingContentReindexer();
-        $this->setSingleton(ContentReindexerInterface::class, $this->reindexer);
+        $this->setSingleton(ContentReindexer::class, $this->reindexer);
 
         $this->webhooks = new RecordingWebhookDispatcher();
         $this->setSingleton(WebhookDispatcher::class, $this->webhooks);

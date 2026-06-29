@@ -9,7 +9,7 @@ use App\Content\Pipeline\Listeners\PurgeCdnListener;
 use App\Content\Pipeline\Listeners\ReindexSearchListener;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
-use App\Content\Search\ContentReindexerInterface;
+use Glueful\Lemma\Contracts\Search\ContentReindexer;
 use App\Content\Services\PublishService;
 use App\Tests\Support\LemmaTestCase;
 use App\Tests\Support\RecordingContentReindexer;
@@ -70,7 +70,7 @@ final class CapabilityGatingTest extends LemmaTestCase
 
         // The content reindexer is unbound entirely by default.
         self::assertFalse(
-            $this->container()->has(ContentReindexerInterface::class),
+            $this->container()->has(ContentReindexer::class),
             'default install must not bind a content reindexer'
         );
     }
@@ -128,7 +128,7 @@ final class CapabilityGatingTest extends LemmaTestCase
     public function testReindexSearchListenerCallsContentReindexerWhenBound(): void
     {
         $reindexer = new RecordingContentReindexer();
-        $this->setSingleton(ContentReindexerInterface::class, $reindexer);
+        $this->setSingleton(ContentReindexer::class, $reindexer);
 
         $listener = $this->container()->get(ReindexSearchListener::class);
         $listener(new EntryPublished($this->entry, $this->type, 'en', 1, 'user00000001'));

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Support;
 
-use App\Content\Search\ContentReindexerInterface;
+use Glueful\Lemma\Contracts\Search\ContentReindexer;
 
-final class RecordingContentReindexer implements ContentReindexerInterface
+final class RecordingContentReindexer implements ContentReindexer
 {
     /** @var list<array{entry: string, locale: string}> */
     public array $requests = [];

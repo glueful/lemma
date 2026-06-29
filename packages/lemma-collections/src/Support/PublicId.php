@@ -4,35 +4,25 @@ declare(strict_types=1);
 
 namespace Glueful\Lemma\Collections\Support;
 
+use Glueful\Helpers\Utils;
+
 /**
- * Generates collision-resistant, URL-safe public identifiers (nanoid-style).
+ * Public row/collection identifiers: an optionally-prefixed nanoid.
  *
- * Output format:  [{prefix}_]{16 random chars from [A-Za-z0-9]}
- * Examples: "prod_aBcD1234eFgH5678" (with prefix), "aBcD1234eFgH5678" (without).
+ * The random part delegates to the framework's canonical {@see Utils::generateNanoID()} —
+ * the same CSPRNG-backed, unbiased generator every Lemma content repository uses for its
+ * uuids (`Utils::generateNanoID(12)`). This adds only the optional `{prefix}_` so a
+ * collection row can carry a human-readable, URL-safe public id, e.g. "prod_V1StGXR8Z5jdHi6".
  *
- * 16 chars from a 62-char alphabet → ~95 bits of entropy — sufficient for row-level IDs
- * without a coordination overhead. The `_` separator makes the prefix visually distinct
- * and the whole string URL-safe without encoding.
- *
- * Max output length: 16 (no prefix) or prefix_length + 1 + 16 (with prefix).
- * For a two-char prefix like "sc" the total is 19 chars — within the 24-char DB columns
- * used by lemma-collections.
+ * 16-char nanoid → a prefixed id like "sc_…" stays within the 24-char definition uuid column.
  */
 final class PublicId
 {
-    private const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    private const SIZE     = 16;
+    private const SIZE = 16;
 
     public static function generate(string $prefix = ''): string
     {
-        $alphabet = self::ALPHABET;
-        $alphabetLen = strlen($alphabet);
-        $id = '';
-        $bytes = random_bytes(self::SIZE);
-
-        for ($i = 0; $i < self::SIZE; $i++) {
-            $id .= $alphabet[ord($bytes[$i]) % $alphabetLen];
-        }
+        $id = Utils::generateNanoID(self::SIZE);
 
         return $prefix === '' ? $id : $prefix . '_' . $id;
     }

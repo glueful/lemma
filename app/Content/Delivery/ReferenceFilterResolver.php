@@ -6,6 +6,7 @@ namespace App\Content\Delivery;
 
 use App\Content\Repositories\ContentTypeRepository;
 use Glueful\Database\Connection;
+use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
 use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
 
 /**

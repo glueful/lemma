@@ -7,7 +7,7 @@ namespace App\Tests\Integration\Content;
 use App\Content\Delivery\Cursor;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
-use App\Content\Delivery\ReferenceTargetResolver;
+use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
 use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
 use App\Content\Delivery\SortCompiler;
 use App\Content\Repositories\ContentTypeRepository;

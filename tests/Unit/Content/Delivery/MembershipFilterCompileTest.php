@@ -6,8 +6,8 @@ namespace App\Tests\Unit\Content\Delivery;
 
 use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\InvalidFilterException;
-use App\Content\Delivery\ReferenceTargetResolver;
 use App\Content\Schema\ContentTypeSchema;
+use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
 use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
 use PHPUnit\Framework\TestCase;
 

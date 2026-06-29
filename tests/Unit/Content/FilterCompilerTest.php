@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Content;
 
 use App\Content\Delivery\FilterCompiler;
-use App\Content\Delivery\ReferenceTargetResolver;
 use App\Content\Delivery\UnfilterableFieldException;
 use App\Content\Delivery\InvalidFilterException;
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Validation\FieldValidator;
+use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
 use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
 use PHPUnit\Framework\TestCase;
 

@@ -22,6 +22,9 @@ final class CreateCollectionDefinitionsTable implements MigrationInterface
             $table->text('fields');
             $table->integer('schema_version')->default(1);
             $table->string('status', 16)->default('active');
+            // Per-operation access policy {read,write,delete} of public|scoped (JSON). NULL rows
+            // hydrate to the safe all-scoped default in CollectionDefinition::fromRow().
+            $table->text('access_policy')->nullable();
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
             $table->unique('uuid');

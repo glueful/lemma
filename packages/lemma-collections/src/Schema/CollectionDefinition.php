@@ -23,6 +23,11 @@ final class CollectionDefinition
         public readonly array $fields,
         public readonly int $schemaVersion,
         public readonly string $status,
+        public readonly AccessPolicy $accessPolicy = new AccessPolicy(
+            AccessPolicy::SCOPED,
+            AccessPolicy::SCOPED,
+            AccessPolicy::SCOPED,
+        ),
     ) {
     }
 
@@ -43,6 +48,12 @@ final class CollectionDefinition
             (array) $rawFields,
         ));
 
+        $rawPolicy = $row['access_policy'] ?? null;
+        if (is_string($rawPolicy) && $rawPolicy !== '') {
+            $rawPolicy = json_decode($rawPolicy, true);
+        }
+        $accessPolicy = is_array($rawPolicy) ? AccessPolicy::fromArray($rawPolicy) : AccessPolicy::default();
+
         return new self(
             uuid: (string) ($row['uuid'] ?? ''),
             name: (string) ($row['name'] ?? ''),
@@ -52,6 +63,7 @@ final class CollectionDefinition
             fields: $fields,
             schemaVersion: (int) ($row['schema_version'] ?? 1),
             status: (string) ($row['status'] ?? 'draft'),
+            accessPolicy: $accessPolicy,
         );
     }
 

@@ -8,6 +8,7 @@ use Glueful\Database\Connection;
 use Glueful\Lemma\Collections\Exceptions\CollectionValidationException;
 use Glueful\Lemma\Collections\Exceptions\DestructiveConfirmationRequiredException;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
+use Glueful\Lemma\Collections\Schema\AccessPolicy;
 use Glueful\Lemma\Collections\Schema\CollectionDefinition;
 use Glueful\Lemma\Collections\Schema\CollectionField;
 use Glueful\Lemma\Collections\Schema\ColumnMapper;
@@ -118,6 +119,10 @@ final class CollectionManager
             (array) ($payload['fields'] ?? []),
         ));
 
+        $accessPolicy = isset($payload['access']) && is_array($payload['access'])
+            ? AccessPolicy::fromArray($payload['access'])
+            : AccessPolicy::default();
+
         $def = new CollectionDefinition(
             uuid: $uuid,
             name: $name,
@@ -127,6 +132,7 @@ final class CollectionManager
             fields: $fields,
             schemaVersion: 1,
             status: 'active',
+            accessPolicy: $accessPolicy,
         );
 
         $this->repo->insert($def);
@@ -460,6 +466,7 @@ final class CollectionManager
             fields: $fields,
             schemaVersion: $current->schemaVersion + 1,
             status: $current->status,
+            accessPolicy: $current->accessPolicy,
         );
     }
 }

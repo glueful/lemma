@@ -36,6 +36,7 @@ final class CollectionDefinitionRepository
             'fields'         => $this->serializeFields($def),
             'schema_version' => $def->schemaVersion,
             'status'         => $def->status,
+            'access_policy'  => (string) json_encode($def->accessPolicy->toArray()),
             'created_at'     => $now,
             'updated_at'     => $now,
         ]);
@@ -56,6 +57,7 @@ final class CollectionDefinitionRepository
                 'fields'         => $this->serializeFields($def),
                 'schema_version' => $def->schemaVersion,
                 'status'         => $def->status,
+                'access_policy'  => (string) json_encode($def->accessPolicy->toArray()),
                 'updated_at'     => date('Y-m-d H:i:s'),
             ]);
     }

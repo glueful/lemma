@@ -63,8 +63,10 @@ final class ContentImporterWritesViaContractTest extends LemmaTestCase
     {
         foreach ($this->adapters() as $cls) {
             $src = (string) file_get_contents((new \ReflectionClass($cls))->getFileName());
+            // Mirror the authoritative guard in scripts/check-pack-boundaries.php — the
+            // [^\w] class must include a leading backslash so a bare FQCN (\App\Foo) is caught.
             self::assertDoesNotMatchRegularExpression(
-                '/(^|[^\\\\\\w])App\\\\/m',
+                '/(^|[^\\w])App\\\\/m',
                 $src,
                 "{$cls} must not reference App\\",
             );

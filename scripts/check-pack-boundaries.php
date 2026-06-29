@@ -26,6 +26,9 @@ foreach (glob($root . '/packages/*', GLOB_ONLYDIR) ?: [] as $pkgDir) {
     if (basename($pkgDir) === 'lemma-contracts') {
         continue;
     }
+    if (!is_dir($pkgDir . '/src')) {
+        continue;
+    }
     $srcIterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($pkgDir . '/src', FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::LEAVES_ONLY,
@@ -37,7 +40,7 @@ foreach (glob($root . '/packages/*', GLOB_ONLYDIR) ?: [] as $pkgDir) {
         }
         $src = (string) file_get_contents($file->getPathname());
         // Matches `use App\...`, `\App\...`, or a bare `App\` namespace reference.
-        if (preg_match('/(^|[^\\\\\\w])App\\\\/m', $src) === 1) {
+        if (preg_match('/(^|[^\\w])App\\\\/m', $src) === 1) {
             $violations[] = basename($pkgDir) . '/src/' . $file->getFilename()
                 . ' references App\\ (packs must use contracts, not the app)';
         }

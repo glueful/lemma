@@ -7,9 +7,11 @@ namespace Glueful\Lemma\Collections;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Extensions\ServiceProvider;
+use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\CollectionFieldTypes;
 use Glueful\Lemma\Collections\Schema\ColumnMapper;
+use Glueful\Lemma\Collections\Schema\DdlPlanner;
 use Glueful\Lemma\Collections\Schema\SchemaMaterializer;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
@@ -26,6 +28,11 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
                 'shared'   => true,
                 'autowire' => true,
             ],
+            DdlPlanner::class => [
+                'class'    => DdlPlanner::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             SchemaMaterializer::class => [
                 'class'    => SchemaMaterializer::class,
                 'shared'   => true,
@@ -33,6 +40,11 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
             ],
             CollectionDefinitionRepository::class => [
                 'class'    => CollectionDefinitionRepository::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            CollectionManager::class => [
+                'class'    => CollectionManager::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

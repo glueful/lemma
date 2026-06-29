@@ -128,7 +128,8 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
         // capability is on. Disabling lemma.collections leaves migrations/tables intact but removes
         // the public surface entirely — requests 404 rather than reaching a disabled handler.
         if (app($context, CapabilityRegistry::class)->isEnabled('lemma.collections')) {
-            $this->loadRoutesFrom(__DIR__ . '/Http/routes.php'); // file added in Task 11
+            $this->loadRoutesFrom(__DIR__ . '/Http/routes.php');
+            $this->loadRoutesFrom(__DIR__ . '/Http/admin-routes.php');
         }
     }
 }

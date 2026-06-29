@@ -167,6 +167,27 @@ final class RemovabilityTest extends LemmaTestCase
     }
 
     /**
+     * The admin route surface is loaded inside the same capability gate, so it is equally absent
+     * when disabled — GET /v1/admin/collections returns 404, not 401 from a live-but-disabled auth gate.
+     */
+    public function testDisabledBootAdminCollectionsRouteReturns404(): void
+    {
+        $response = (new Application(self::$disabledApp))->handle(
+            Request::create('/v1/admin/collections', 'GET', [], [], [], [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_ACCEPT'  => 'application/json',
+            ]),
+        );
+
+        self::assertSame(
+            404,
+            $response->getStatusCode(),
+            'Disabled-boot GET /v1/admin/collections must return 404 (admin route unregistered), '
+                . 'got: ' . $response->getStatusCode(),
+        );
+    }
+
+    /**
      * The collection_definitions metadata table must exist in the disabled boot.
      * The provider registers migrations outside the isEnabled gate (spec §5 / Task 2),
      * so disabling the capability never drops the schema.

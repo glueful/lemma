@@ -55,7 +55,6 @@ use App\Content\Events\ModelDeleted;
 use App\Content\Events\ModelUpdated;
 use App\Content\Http\DeliveryAccessMiddleware;
 use App\Content\Http\OptionalApiKeyAuthMiddleware;
-use App\Content\Http\RequireContentScope;
 use App\Content\Http\RequireLemmaPermission;
 use App\Content\Localization\ContentLocaleService;
 use App\Content\Events\AssetAttached;
@@ -363,12 +362,6 @@ final class LemmaServiceProvider extends ServiceProvider
                 'class' => DeliveryController::class,
                 'shared' => true,
                 'autowire' => true,
-            ],
-            RequireContentScope::class => [
-                'class' => RequireContentScope::class,
-                'shared' => true,
-                'autowire' => true,
-                'alias' => ['require_content_scope'],
             ],
             DeliveryAccessMiddleware::class => [
                 'class' => DeliveryAccessMiddleware::class,

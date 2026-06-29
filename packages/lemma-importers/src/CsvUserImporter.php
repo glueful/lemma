@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\ImportExport;
+namespace Glueful\Lemma\Importers;
 
 use Glueful\Auth\PasswordHasher;
 use Glueful\Bootstrap\ApplicationContext;
@@ -11,6 +11,8 @@ use Glueful\Extensions\Aegis\AegisPermissionProvider;
 use Glueful\Extensions\ImportExport\Support\ImportContext;
 use Glueful\Extensions\ImportExport\Support\ImportOptions;
 use Glueful\Extensions\Users\Repositories\UserRepository;
+use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
 
 /**
  * Bulk-creates users from a CSV — one user per row.
@@ -24,6 +26,8 @@ use Glueful\Extensions\Users\Repositories\UserRepository;
  */
 final class CsvUserImporter extends AbstractCsvImporter
 {
+    use RequiresImportersCapability;
+
     /** Mappable fields (account + profile + roles). */
     public const FIELDS = ['username', 'email', 'password', 'status', 'first_name', 'last_name', 'roles'];
     private const REQUIRED = ['username', 'email'];
@@ -33,6 +37,7 @@ final class CsvUserImporter extends AbstractCsvImporter
         Connection $db,
         private readonly UserRepository $users,
         private readonly AegisPermissionProvider $aegis,
+        private readonly CapabilityRegistry $capabilities,
     ) {
         parent::__construct($context, $db);
     }
@@ -47,8 +52,14 @@ final class CsvUserImporter extends AbstractCsvImporter
         return 'Users (CSV)';
     }
 
+    protected function assertEnabled(): void
+    {
+        $this->assertImportersEnabled($this->capabilities);
+    }
+
     protected function validatePlan(array $header, ImportOptions $options): void
     {
+        $this->assertEnabled();
         $mapping = $this->mappingOption($options->options);
         if ($mapping === []) {
             throw new \InvalidArgumentException('A column mapping is required.');

@@ -11,6 +11,10 @@
       "email": "michael@glueful.dev"
     }
   ],
+  "repositories": [
+    { "type": "path", "url": "packages/lemma-contracts" },
+    { "type": "path", "url": "packages/lemma-importers" }
+  ],
   "require": {
     "php": "^8.3",
     "glueful/aegis": "^1.13.1",
@@ -19,6 +23,8 @@
     "glueful/framework": "^1.64.0",
     "glueful/i18n": "^1.1.1",
     "glueful/import-export": "^1.1.1",
+    "glueful/lemma-contracts": "*",
+    "glueful/lemma-importers": "*",
     "glueful/media": "^1.1.0",
     "glueful/users": "^2.3.0",
     "league/commonmark": "^2.8",
@@ -58,6 +64,7 @@
     "test:integration": "vendor/bin/phpunit --testsuite Integration",
     "phpcs": "vendor/bin/phpcs",
     "phpcbf": "vendor/bin/phpcbf",
+    "boundaries": "php scripts/check-pack-boundaries.php",
     "docs:openapi": "php glueful generate:openapi -f --clean",
     "ci": [
       "@phpcs",

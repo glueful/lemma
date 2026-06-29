@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Capabilities\DefaultCapabilityRegistry;
 use App\Setup\SetupService;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\ReferenceFilterResolver;
 use App\Content\Delivery\ReferenceResolver;
-use App\Content\Delivery\ReferenceTargetResolver;
 use App\Content\Delivery\SortCompiler;
 use App\Content\Console\PruneVersionsCommand;
 use App\Content\Console\ResyncCommand;
@@ -22,6 +22,7 @@ use App\Content\Backfill\BackfillRunner;
 use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\ApiKeyAdminController;
 use App\Http\Controllers\CacheAdminController;
+use App\Http\Controllers\CapabilityAdminController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\HealthAdminController;
@@ -42,11 +43,7 @@ use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
 use App\Content\ImportExport\LemmaContentExporter;
-use App\Content\ImportExport\CsvContentImporter;
 use App\Content\ImportExport\LemmaContentImporter;
-use App\Content\ImportExport\MarkdownContentImporter;
-use App\Content\ImportExport\WordpressContentImporter;
-use App\ImportExport\CsvUserImporter;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Events\EntryCreated;
 use App\Content\Events\EntryDeleted;
@@ -86,9 +83,17 @@ use App\Content\Seo\PathRenderer;
 use App\Content\Seo\RedirectRepository;
 use App\Content\Seo\RouteResolver;
 use App\Content\Services\MigrationService;
+use App\Content\Authoring\EngineContentWriter;
+use App\Content\Context\EngineLemmaContext;
+use App\Content\Delivery\EngineContentDeliveryReader;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Lemma\Contracts\Authoring\ContentWriter;
+use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Contracts\Context\LemmaContext;
+use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
+use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
 use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Events\EventService;
@@ -169,6 +174,10 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            CapabilityRegistry::class => [
+                'factory' => [self::class, 'makeCapabilityRegistry'],
+                'shared' => true,
+            ],
             PathRenderer::class => [
                 'factory' => [self::class, 'makePathRenderer'],
                 'shared' => true,
@@ -247,6 +256,26 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            ContentWriter::class => [
+                'class'    => EngineContentWriter::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ContentDeliveryReader::class => [
+                'class'    => EngineContentDeliveryReader::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            LemmaContext::class => [
+                'class'    => EngineLemmaContext::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            \Glueful\Lemma\Contracts\Schema\ContentTypeReader::class => [
+                'class'    => \App\Content\Schema\EngineContentTypeReader::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             MigrationService::class => [
                 'class' => MigrationService::class,
                 'shared' => true,
@@ -309,6 +338,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             HealthAdminController::class => [
                 'class' => HealthAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CapabilityAdminController::class => [
+                'class' => CapabilityAdminController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -419,30 +453,6 @@ final class LemmaServiceProvider extends ServiceProvider
                 'autowire' => true,
                 'tags' => ['import_export.importer'],
             ],
-            CsvContentImporter::class => [
-                'class' => CsvContentImporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.importer'],
-            ],
-            MarkdownContentImporter::class => [
-                'class' => MarkdownContentImporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.importer'],
-            ],
-            CsvUserImporter::class => [
-                'class' => CsvUserImporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.importer'],
-            ],
-            WordpressContentImporter::class => [
-                'class' => WordpressContentImporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.importer'],
-            ],
 
             OptionalApiKeyAuthMiddleware::class => [
                 'class' => OptionalApiKeyAuthMiddleware::class,
@@ -539,6 +549,15 @@ final class LemmaServiceProvider extends ServiceProvider
         // No-op: config/lemma.php is auto-loaded by the app config system, and DI
         // bindings are contributed declaratively via services(). Kept for lifecycle
         // symmetry and as the seam for future runtime registration.
+    }
+
+    public static function makeCapabilityRegistry(ContainerInterface $container): DefaultCapabilityRegistry
+    {
+        $context = $container->get(ApplicationContext::class);
+        /** @var array<string,bool> $overrides */
+        $overrides = (array) config($context, 'lemma.capabilities', []);
+
+        return new DefaultCapabilityRegistry($overrides);
     }
 
     public static function makePathRenderer(ContainerInterface $container): PathRenderer

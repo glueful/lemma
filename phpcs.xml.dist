@@ -6,6 +6,7 @@
     <file>app</file>
     <file>config</file>
     <file>database</file>
+    <file>packages</file>
     <file>routes</file>
     <file>scripts</file>
     <file>tests</file>

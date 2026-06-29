@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Content\Schema;
 
-final class ContentTypeSchema
+use Glueful\Lemma\Contracts\Schema\ContentSchemaReader;
+
+final class ContentTypeSchema implements ContentSchemaReader
 {
     /** @param array<string,FieldDefinition> $byName */
     private function __construct(private readonly array $byName)

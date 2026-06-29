@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Content\Validation;
 
-final class ValidationException extends \RuntimeException
+use Glueful\Lemma\Contracts\Authoring\ValidationFailed;
+
+final class ValidationException extends \RuntimeException implements ValidationFailed
 {
     /** @param array<string,string> $errors */
     public function __construct(private readonly array $errors)

@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace App\Content\Search;
 
+use Glueful\Lemma\Contracts\Search\ContentReindexer;
+
 /**
- * Provider-neutral seam for search extensions that can reindex published content.
- *
- * Lemma owns the content lifecycle and sends only identity data. The installed search
- * provider owns document construction, indexing, queueing, and adapter-specific behavior.
+ * @deprecated Use Glueful\Lemma\Contracts\Search\ContentReindexer. Retained as an
+ *             alias so existing bindings/implementors keep resolving during migration.
  */
-interface ContentReindexerInterface
+interface ContentReindexerInterface extends ContentReindexer
 {
-    public function reindexEntry(string $entryUuid, string $locale): void;
 }

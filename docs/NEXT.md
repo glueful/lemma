@@ -21,6 +21,14 @@ decisions); the next phases derive from the same APPROACH.
   in the switcher, locale-aware versions page, copy-into-existing-locale (overwrite), translation-
   coverage in the entry list, cross-locale route management, bulk create/publish, and a disable-
   locale guard (`GET /v1/admin/locales/{locale}/usage`). Plan: `docs/superpowers/plans/2026-06-27-finish-localization-ui.md`.
+- **Multi‑valued + filterable references** — reference fields can hold an array of targets
+  (`multiple`/`maxItems`), resolve targets by uuid **or** a configurable slug field
+  (`referenceSlugField`), and be filtered at the delivery layer via JSONB array containment over
+  the published spine (GIN `jsonb_path_ops` expression index, auto-planned per content type).
+  Admin: `MultiReferencePicker`. This is the **taxonomy enabler** — categories/tags now model as
+  content-type-as-terms + a reference filter. Spec:
+  `docs/superpowers/specs/2026-06-27-multivalued-filterable-references-design.md`; plan:
+  `docs/superpowers/plans/2026-06-27-multivalued-filterable-references.md`.
 
 ---
 
@@ -35,8 +43,9 @@ Each already has a home — there is **no** new doc to write to *track* these:
 ### Importer depth follow-ups (adapters shipped; these extend them)
 
 Over the built adapters ([ADAPTER_NOTES.md](ADAPTER_NOTES.md)):
-- **WordPress depth** — media/attachments, authors, categories/tags (needs a taxonomy model),
-  custom post types, post meta, and upsert-by-WP-id (re-import idempotency). v1 is posts/pages only.
+- **WordPress depth** — media/attachments, authors, **categories/tags** (now unblocked — model
+  them as a terms content type + multi-valued reference fields, shipped above), custom post types,
+  post meta, and upsert-by-WP-id (re-import idempotency). v1 is posts/pages only.
 - **CSV / Markdown upsert-by-key** — both are create-only today; ADAPTER_NOTES recommends stable
   key-column upserts.
 
@@ -67,7 +76,11 @@ Shape" as post‑V1 and have **no** design doc yet:
 - **Localization UI** — ✅ **shipped** (2026‑06‑27). The visual locale workflow is complete; see
   the "Shipped since" list above. Remaining localization work is the *field-localization
   copy-on-change* follow-up in the per-feature table below, not editor UX.
-- **Forms**, **navigation / menu builder**, **taxonomies / collections** — feature modules.
+- **Taxonomies / collections** — the underlying **reference primitive shipped** (multi-valued +
+  filterable references, above), so categories/tags already work as content-type-as-terms today.
+  What remains is the **delivery surface**: term-archive endpoints + facet counts over a
+  *published*-reference projection, an additive layer the references spec explicitly deferred.
+- **Forms**, **navigation / menu builder** — feature modules.
 - **Ecommerce content integration**, **personalization / segmentation** — later, per APPROACH.
 
 ---
@@ -77,8 +90,12 @@ Shape" as post‑V1 and have **no** design doc yet:
 1. **`V2_DESIGN.md` for rendered delivery** — the next big expensive‑to‑reverse decision set
    (rendering model, theme/template storage, route→render path, render caching). This is the one
    remaining track that warrants a design doc before a plan; write it when the phase is picked up.
-2. **Taxonomies / collections** — high‑reuse content primitive that also unblocks WordPress
-   categories/tags import and a future navigation/menu builder. Needs brainstorm → spec → plan.
-3. Everything else (importer depth, tenancy, the per‑feature follow‑ups) is pull‑based: pick one,
+2. **Taxonomies → term‑archives + facets** — the reference primitive is now shipped, so this is no
+   longer a from‑scratch module: it's the smaller, additive delivery surface (term‑archive
+   endpoints + facet counts over a published‑reference projection) the references spec deferred.
+   High reuse — it makes the references work visible to end‑users and feeds a future
+   navigation/menu builder. Needs brainstorm → spec → plan.
+3. Everything else (importer depth — incl. now‑unblocked WordPress categories/tags, tenancy, the
+   per‑feature follow‑ups) is pull‑based: pick one,
    run the proven loop — brainstorm → spec → plan → implement — starting from the linked home
    above.

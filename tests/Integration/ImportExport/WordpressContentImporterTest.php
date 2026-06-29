@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\ImportExport;
 
-use App\Content\ImportExport\WordpressContentImporter;
+use Glueful\Lemma\Importers\WordpressContentImporter;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Extensions\ImportExport\Support\ImportBatch;
 use Glueful\Extensions\ImportExport\Support\ImportContext;

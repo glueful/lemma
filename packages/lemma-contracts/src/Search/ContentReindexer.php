@@ -1,0 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Glueful\Lemma\Contracts\Search;
+
+/**
+ * Reindex a single published entry/locale into a pack-owned search index.
+ * Implemented by a search pack when installed; unbound in core by default
+ * (the reindex listener no-ops when nothing is bound).
+ */
+interface ContentReindexer
+{
+    public function reindexEntry(string $entryUuid, string $locale): void;
+}

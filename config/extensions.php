@@ -24,5 +24,6 @@ return [
         'Glueful\Extensions\ImportExport\ImportExportServiceProvider',
         'Glueful\Extensions\Media\MediaServiceProvider',
         'Glueful\Extensions\Users\UsersServiceProvider',
+        'Glueful\Lemma\Importers\LemmaImportersServiceProvider',
     ],
 ];

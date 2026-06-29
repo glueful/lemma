@@ -2,17 +2,16 @@
 
 declare(strict_types=1);
 
-namespace App\Content\ImportExport;
+namespace Glueful\Lemma\Importers;
 
-use App\Content\Repositories\ContentTypeRepository;
-use App\Content\Repositories\EntryRepository;
-use App\Content\Services\PublishService;
-use App\Content\Validation\FieldValidator;
-use App\ImportExport\AbstractCsvImporter;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Extensions\ImportExport\Support\ImportContext;
 use Glueful\Extensions\ImportExport\Support\ImportOptions;
+use Glueful\Lemma\Contracts\Authoring\ContentWriter;
+use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
+use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
 
 /**
  * Imports a CSV file into entries of one content type — one entry per row.
@@ -21,16 +20,20 @@ use Glueful\Extensions\ImportExport\Support\ImportOptions;
  * the content specifics: the `options` bag (`content_type` slug, `mapping` of field => column, and
  * optional `locale`/`publish`), and a per-row map → type-coerce → validate → create-draft (publish
  * optional). v1 is create-only (no upsert by a stable key).
+ *
+ * Writes via the {@see ContentWriter} contract; schema access via {@see ContentTypeReader}.
+ * No direct dependency on engine repositories, services, or validators.
  */
 final class CsvContentImporter extends AbstractCsvImporter
 {
+    use RequiresImportersCapability;
+
     public function __construct(
         ApplicationContext $context,
         Connection $db,
-        private readonly ContentTypeRepository $types,
-        private readonly FieldValidator $validator,
-        private readonly EntryRepository $entries,
-        private readonly PublishService $publisher,
+        private readonly ContentWriter $writer,
+        private readonly ContentTypeReader $types,
+        private readonly CapabilityRegistry $capabilities,
     ) {
         parent::__construct($context, $db);
     }
@@ -45,8 +48,15 @@ final class CsvContentImporter extends AbstractCsvImporter
         return 'CSV';
     }
 
+    protected function assertEnabled(): void
+    {
+        $this->assertImportersEnabled($this->capabilities);
+    }
+
     protected function validatePlan(array $header, ImportOptions $options): void
     {
+        $this->assertEnabled();
+
         $slug = $this->stringOption($options->options, 'content_type');
         $mapping = $this->mappingOption($options->options);
         if ($slug === '') {
@@ -55,7 +65,7 @@ final class CsvContentImporter extends AbstractCsvImporter
         if ($mapping === []) {
             throw new \InvalidArgumentException('A column mapping is required.');
         }
-        if ($this->types->findBySlug($slug) === null) {
+        if ($this->types->findUuidBySlug($slug) === null) {
             throw new \InvalidArgumentException(sprintf('Unknown content type "%s".', $slug));
         }
         foreach ($mapping as $field => $column) {
@@ -75,22 +85,22 @@ final class CsvContentImporter extends AbstractCsvImporter
     protected function prepare(ImportContext $context): array
     {
         $slug = $this->stringOption($context->options, 'content_type');
-        $type = $this->types->findBySlug($slug);
-        if ($type === null) {
+        $typeUuid = $this->types->findUuidBySlug($slug);
+        if ($typeUuid === null) {
             throw new \RuntimeException(sprintf('Content type "%s" no longer exists.', $slug));
         }
-        $typeUuid = (string) $type['uuid'];
         $schema = $this->types->schemaFor($typeUuid);
+        if ($schema === null) {
+            throw new \RuntimeException(sprintf('Schema for content type "%s" could not be loaded.', $slug));
+        }
         $fieldsByName = [];
         foreach ($schema->fields() as $field) {
-            $fieldsByName[$field->name] = $field;
+            $fieldsByName[$field->name()] = $field;
         }
         $locale = $this->stringOption($context->options, 'locale');
 
         return [
             'typeUuid' => $typeUuid,
-            'schemaVersion' => (int) ($type['schema_version'] ?? 1),
-            'schema' => $schema,
             'fieldsByName' => $fieldsByName,
             'mapping' => $this->mappingOption($context->options),
             'locale' => $locale !== '' ? $locale : 'en',
@@ -106,27 +116,19 @@ final class CsvContentImporter extends AbstractCsvImporter
             if ($def === null) {
                 continue; // mapped to a field that isn't in the schema — ignore
             }
-            $payload[$field] = $this->coerce($def->type, (string) ($row[$column] ?? ''));
+            $payload[$field] = $this->coerce($def->type(), (string) ($row[$column] ?? ''));
         }
 
-        $clean = $this->validator->validate($prepared['schema'], $payload);
+        $clean = $this->writer->validate($prepared['typeUuid'], $prepared['locale'], $payload);
         if ($context->mode === 'commit') {
-            $entryUuid = $this->entries->createEntry(
+            $entryUuid = $this->writer->createDraft(
                 $prepared['typeUuid'],
                 $prepared['locale'],
-                $prepared['schemaVersion'],
-                $context->actorUuid,
-            );
-            $this->entries->saveDraft(
-                $entryUuid,
-                $prepared['locale'],
                 $clean,
-                $prepared['schemaVersion'],
-                0,
                 $context->actorUuid,
             );
             if ($prepared['publish']) {
-                $this->publisher->publish($entryUuid, $prepared['locale'], $context->actorUuid);
+                $this->writer->publish($entryUuid, $prepared['locale'], $context->actorUuid);
             }
         }
     }

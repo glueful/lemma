@@ -72,6 +72,16 @@ return [
         'bundle_path' => env('LEMMA_ADMIN_BUNDLE_PATH', dirname(__DIR__) . '/public/admin'),
     ],
 
+    // Capability switchboard for first-party packs. Each installed pack registers a
+    // Capability (id like 'lemma.forms') into the CapabilityRegistry; it is ENABLED by
+    // default. List a full capability id here as `false` to DISABLE it without
+    // uninstalling the pack (routes/jobs/subscribers/admin contributions are gated by
+    // enabled state; migrations are not — they run when installed). Keys are full
+    // capability ids (with dots); this whole map is read at once, never via dotted access.
+    'capabilities' => [
+        // 'lemma.forms' => false,
+    ],
+
     // Scheduled publish/unpublish. The framework scheduler's per-job `enabled` key is not
     // the gate; ScheduleRunner reads this switch before firing any due rows.
     'scheduler' => [

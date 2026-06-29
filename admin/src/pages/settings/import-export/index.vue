@@ -1,3 +1,15 @@
+<!--
+  Route meta via a <route> block instead of definePage(): vue-tsc / the
+  unplugin-vue-router Volar plugin deterministically fails to inject the
+  definePage macro type for this one route (`/settings/import-export/`) —
+  "Cannot find name 'definePage'" — though the build and runtime are fine and
+  every other page resolves it. The <route> block (sfc-route-blocks Volar plugin)
+  declares the same meta and type-checks cleanly.
+-->
+<route lang="json">
+{ "meta": { "requiresAuth": true } }
+</route>
+
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watchEffect } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
@@ -14,8 +26,10 @@ import {
 import { useContentTypes } from '@/queries/contentTypes'
 import { runtimeConfig } from '@/runtime/config'
 import { useNotify } from '@/composables/useNotify'
+import { useCapabilitiesStore } from '@/stores/capabilities'
 
-definePage({ meta: { requiresAuth: true } })
+const caps = useCapabilitiesStore()
+caps.ensureLoaded()
 
 const { success, error: notifyError } = useNotify()
 
@@ -52,8 +66,13 @@ async function onExport() {
 
 // ── Import ──────────────────────────────────────────────────────────────────
 const importAdapter = ref('')
+// Format-adapter keys belong to the lemma.importers pack; the core snapshot
+// importer (lemma.content) is always available regardless of the capability.
+const FORMAT_ADAPTER_KEYS = ['csv.content', 'markdown.content', 'wordpress.content']
 const importerItems = computed(() =>
-  (adapters.value?.importers ?? []).map((a) => ({ label: a.label, value: a.key })),
+  (adapters.value?.importers ?? [])
+    .filter((a) => caps.isEnabled('lemma.importers') || !FORMAT_ADAPTER_KEYS.includes(a.key))
+    .map((a) => ({ label: a.label, value: a.key })),
 )
 watchEffect(() => {
   if (!importAdapter.value && importerItems.value.length) {
@@ -334,32 +353,81 @@ function fmtTime(v?: string | null): string {
             </div>
           </UCard>
 
-          <!-- Import -->
+          <!-- Import: core snapshot always visible; format adapters gated by lemma.importers -->
           <UCard>
             <template #header><h2 class="font-semibold text-default">Import</h2></template>
             <div class="space-y-4">
               <UFormField label="Adapter">
-                <USelect v-model="importAdapter" :items="importerItems" class="w-full" />
-              </UFormField>
-
-              <UFormField
-                v-if="needsWizard"
-                label="Content type"
-                :hint="
-                  isWordpress
-                    ? 'Each WordPress post/page becomes an entry of this type'
-                    : isMarkdown
-                      ? 'The Markdown document becomes an entry of this type'
-                      : 'Each CSV row becomes an entry of this type'
-                "
-              >
                 <USelect
-                  v-model="wizardType"
-                  :items="typeItems"
-                  placeholder="Choose a content type"
+                  v-model="importAdapter"
+                  :items="importerItems"
+                  data-testid="importer-adapter"
                   class="w-full"
                 />
               </UFormField>
+
+              <!--
+                Format-adapter wizard section: content-type selector, body-field routing,
+                field mapping, and publish toggle. Only present when the lemma.importers
+                capability is on (format adapters are also filtered from the dropdown above
+                when the capability is off, so needsWizard will always be false then too).
+              -->
+              <div v-if="caps.isEnabled('lemma.importers')" data-test="format-import" class="space-y-4">
+                <UFormField
+                  v-if="needsWizard"
+                  label="Content type"
+                  :hint="
+                    isWordpress
+                      ? 'Each WordPress post/page becomes an entry of this type'
+                      : isMarkdown
+                        ? 'The Markdown document becomes an entry of this type'
+                        : 'Each CSV row becomes an entry of this type'
+                  "
+                >
+                  <USelect
+                    v-model="wizardType"
+                    :items="typeItems"
+                    placeholder="Choose a content type"
+                    class="w-full"
+                  />
+                </UFormField>
+
+                <UFormField
+                  v-if="hasBodyField && wizardType"
+                  label="Body field"
+                  :hint="
+                    isWordpress
+                      ? 'The post body (content:encoded HTML) is stored here'
+                      : 'The Markdown body is converted to HTML and stored here'
+                  "
+                >
+                  <USelect
+                    v-model="bodyField"
+                    :items="bodyFieldItems"
+                    placeholder="Choose a text field"
+                    class="w-full"
+                  />
+                </UFormField>
+
+                <UFormField
+                  v-if="needsWizard && wizardType && sourceKeys.length"
+                  :label="`Map fields to ${sourceLabel}`"
+                  hint="Required fields (*) must be mapped"
+                >
+                  <div class="space-y-2">
+                    <div v-for="f in wizardFields" :key="f.name" class="flex items-center gap-2">
+                      <span class="w-28 shrink-0 truncate text-sm text-default">
+                        {{ f.name }}<span v-if="f.required" class="text-error">*</span>
+                      </span>
+                      <USelect v-model="wizardMapping[f.name]" :items="keyItems" class="flex-1" />
+                    </div>
+                  </div>
+                </UFormField>
+
+                <UFormField v-if="needsWizard" label="On commit">
+                  <USwitch v-model="wizardPublish" label="Publish imported entries" />
+                </UFormField>
+              </div>
 
               <UFormField
                 label="File"
@@ -385,42 +453,6 @@ function fmtTime(v?: string | null): string {
                     {{ selectedFile?.name ?? 'No file' }}
                   </span>
                 </div>
-              </UFormField>
-
-              <UFormField
-                v-if="hasBodyField && wizardType"
-                label="Body field"
-                :hint="
-                  isWordpress
-                    ? 'The post body (content:encoded HTML) is stored here'
-                    : 'The Markdown body is converted to HTML and stored here'
-                "
-              >
-                <USelect
-                  v-model="bodyField"
-                  :items="bodyFieldItems"
-                  placeholder="Choose a text field"
-                  class="w-full"
-                />
-              </UFormField>
-
-              <UFormField
-                v-if="needsWizard && wizardType && sourceKeys.length"
-                :label="`Map fields to ${sourceLabel}`"
-                hint="Required fields (*) must be mapped"
-              >
-                <div class="space-y-2">
-                  <div v-for="f in wizardFields" :key="f.name" class="flex items-center gap-2">
-                    <span class="w-28 shrink-0 truncate text-sm text-default">
-                      {{ f.name }}<span v-if="f.required" class="text-error">*</span>
-                    </span>
-                    <USelect v-model="wizardMapping[f.name]" :items="keyItems" class="flex-1" />
-                  </div>
-                </div>
-              </UFormField>
-
-              <UFormField v-if="needsWizard" label="On commit">
-                <USwitch v-model="wizardPublish" label="Publish imported entries" />
               </UFormField>
 
               <UFormField label="Mode">
@@ -588,7 +620,7 @@ function fmtTime(v?: string | null): string {
               record {{ err.record_number }}
             </span>
           </div>
-          <p class="mt-0.5 break-words text-sm text-default">{{ err.message }}</p>
+          <p class="mt-0.5 wrap-break-word text-sm text-default">{{ err.message }}</p>
         </li>
       </ul>
     </template>

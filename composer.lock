@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c6d2447bd88128c68e8770a6440055d2",
+    "content-hash": "51e7c887112abc39d1c35d658cafe165",
     "packages": [
         {
             "name": "composer/semver",
@@ -910,6 +910,67 @@
                 "source": "https://github.com/glueful/import-export/tree/v1.1.1"
             },
             "time": "2026-06-16T07:05:28+00:00"
+        },
+        {
+            "name": "glueful/lemma-contracts",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-contracts",
+                "reference": "3b2173c410e2e90953967b6b8054e9c6761ac312"
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Contracts\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Thin, stable contracts (interfaces, DTOs, events, VOs) that Lemma capability packs compile against.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "glueful/lemma-importers",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-importers",
+                "reference": "2bc62ed439d73d03daef3dc98dd22eaf0d3c035e"
+            },
+            "require": {
+                "glueful/aegis": "^1.13.1",
+                "glueful/framework": "^1.64.0",
+                "glueful/import-export": "^1.1.1",
+                "glueful/lemma-contracts": "*",
+                "glueful/users": "^2.3.0",
+                "league/commonmark": "^2.8",
+                "php": "^8.3"
+            },
+            "type": "glueful-extension",
+            "extra": {
+                "glueful": {
+                    "provider": "Glueful\\Lemma\\Importers\\LemmaImportersServiceProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Importers\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Lemma content format importers (CSV / Markdown / WordPress) as a removable capability pack.",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "glueful/media",

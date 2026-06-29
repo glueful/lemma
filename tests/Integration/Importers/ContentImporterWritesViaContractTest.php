@@ -63,7 +63,11 @@ final class ContentImporterWritesViaContractTest extends LemmaTestCase
     {
         foreach ($this->adapters() as $cls) {
             $src = (string) file_get_contents((new \ReflectionClass($cls))->getFileName());
-            self::assertDoesNotMatchRegularExpression('/(^|[^\\\\\\w])App\\\\/m', $src, "{$cls} must not reference App\\");
+            self::assertDoesNotMatchRegularExpression(
+                '/(^|[^\\\\\\w])App\\\\/m',
+                $src,
+                "{$cls} must not reference App\\",
+            );
         }
     }
 }

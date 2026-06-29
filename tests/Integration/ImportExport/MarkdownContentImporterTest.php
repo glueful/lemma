@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\ImportExport;
 
-use App\Content\ImportExport\MarkdownContentImporter;
+use Glueful\Lemma\Importers\MarkdownContentImporter;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Extensions\ImportExport\Support\ImportBatch;
 use Glueful\Extensions\ImportExport\Support\ImportContext;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\ImportExport;
 
-use App\Content\ImportExport\CsvContentImporter;
+use Glueful\Lemma\Importers\CsvContentImporter;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Extensions\ImportExport\Support\ImportBatch;
 use Glueful\Extensions\ImportExport\Support\ImportContext;

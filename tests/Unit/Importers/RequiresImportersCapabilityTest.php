@@ -17,6 +17,7 @@ final class RequiresImportersCapabilityTest extends TestCase
     {
         return new class {
             use RequiresImportersCapability;
+
             public function run(CapabilityRegistry $caps): void
             {
                 $this->assertImportersEnabled($caps);

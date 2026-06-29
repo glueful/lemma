@@ -126,21 +126,16 @@ final class QueryCompiler
             }
         }
 
-        // Count matching rows BEFORE applying pagination.
-        // QueryBuilder::count() builds SELECT COUNT(*) … WHERE …, ignoring LIMIT/OFFSET.
-        $total = $qb->clone()->count();
-
-        // --- Offset pagination ---
-        $qb->limit($perPage)->offset(($page - 1) * $perPage);
-
-        /** @var list<array<string, mixed>> $data */
-        $data = $qb->get();
+        // Offset pagination via the framework query builder: it runs the COUNT and the
+        // LIMIT/OFFSET page fetch (honouring the where/orderBy/select already applied) in one call.
+        /** @var array{data:list<array<string,mixed>>,total:int,current_page:int,per_page:int} $result */
+        $result = $qb->paginate($page, $perPage);
 
         return new ListResult(
-            data: $data,
+            data: array_values($result['data']),
             page: $page,
             perPage: $perPage,
-            total: $total,
+            total: $result['total'],
         );
     }
 

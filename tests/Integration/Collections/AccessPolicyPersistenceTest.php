@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Collections;
 
 use App\Tests\Support\LemmaTestCase;
+use Glueful\Database\Schema\Interfaces\SchemaBuilderInterface;
 use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 
@@ -14,6 +15,23 @@ use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
  */
 final class AccessPolicyPersistenceTest extends LemmaTestCase
 {
+    private const NAMES = ['articles', 'secrets'];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Collection creation materializes real tables (DDL is not rolled back with the test
+        // transaction), so drop any leftovers from a prior run before recreating.
+        foreach (self::NAMES as $name) {
+            $table = 'collection_' . substr(hash('sha256', $name), 0, 12);
+            if ($this->schema()->hasTable($table)) {
+                $this->schema()->dropTableIfExists($table);
+            }
+            $this->connection()->table('collection_definitions')->where('name', $name)->delete();
+        }
+    }
+
     public function testCreateWithAccessPolicyRoundTripsThroughTheDatabase(): void
     {
         $this->manager()->create([
@@ -45,6 +63,11 @@ final class AccessPolicyPersistenceTest extends LemmaTestCase
         self::assertSame('scoped', $loaded->accessPolicy->read);
         self::assertSame('scoped', $loaded->accessPolicy->write);
         self::assertSame('scoped', $loaded->accessPolicy->delete);
+    }
+
+    private function schema(): SchemaBuilderInterface
+    {
+        return $this->container()->get(SchemaBuilderInterface::class);
     }
 
     private function manager(): CollectionManager

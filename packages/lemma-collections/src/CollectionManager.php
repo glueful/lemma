@@ -10,6 +10,7 @@ use Glueful\Lemma\Collections\Exceptions\DestructiveConfirmationRequiredExceptio
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\CollectionDefinition;
 use Glueful\Lemma\Collections\Schema\CollectionField;
+use Glueful\Lemma\Collections\Schema\ColumnMapper;
 use Glueful\Lemma\Collections\Schema\DdlPlanner;
 use Glueful\Lemma\Collections\Schema\SchemaChange;
 use Glueful\Lemma\Collections\Schema\SchemaMaterializer;
@@ -87,6 +88,7 @@ final class CollectionManager
         private readonly DdlPlanner $planner,
         private readonly SchemaMaterializer $materializer,
         private readonly Connection $connection,
+        private readonly ColumnMapper $columnMapper,
     ) {
     }
 
@@ -124,17 +126,22 @@ final class CollectionManager
             storageMode: 'table',
             fields: $fields,
             schemaVersion: 1,
-            status: 'draft',
+            status: 'active',
         );
 
         $this->repo->insert($def);
 
-        $this->materializer->apply(
-            $def,
-            $this->planner->planCreate($def),
-            $actorType,
-            $actorId,
-        );
+        try {
+            $this->materializer->apply(
+                $def,
+                $this->planner->planCreate($def),
+                $actorType,
+                $actorId,
+            );
+        } catch (\Throwable $e) {
+            $this->repo->delete($def->uuid);
+            throw $e;
+        }
 
         return $def;
     }
@@ -345,12 +352,18 @@ final class CollectionManager
             throw CollectionValidationException::make($errors);
         }
 
-        // fields: validate each field's name (format, system-column, SQL-keyword).
+        // fields: validate each field's name (format, system-column, SQL-keyword) and type.
+        $supportedTypes = $this->columnMapper->supportedTypes();
         foreach ((array) ($payload['fields'] ?? []) as $i => $fieldData) {
             $fieldName = isset($fieldData['name']) ? (string) $fieldData['name'] : '';
             $error     = $this->validateFieldName($fieldName);
             if ($error !== null) {
                 $errors["fields.{$i}.name"] = $error;
+            }
+
+            $fieldType = isset($fieldData['type']) ? (string) $fieldData['type'] : '';
+            if (!in_array($fieldType, $supportedTypes, true)) {
+                $errors["fields.{$i}.type"] = sprintf("Unsupported field type '%s'.", $fieldType);
             }
         }
 

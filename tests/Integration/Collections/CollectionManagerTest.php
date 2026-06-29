@@ -407,6 +407,55 @@ final class CollectionManagerTest extends LemmaTestCase
     }
 
     /**
+     * create() with a field whose type is not a supported collections column type must throw
+     * CollectionValidationException (422-mapped) AND must not leave an orphaned
+     * collection_definitions row — the compensating cleanup deletes the row before rethrowing.
+     */
+    public function testCreateWithUnsupportedFieldTypeIsRejectedAndNoOrphanPersists(): void
+    {
+        $caught = null;
+        try {
+            $this->manager()->create([
+                'name'   => 'articles',
+                'fields' => [
+                    ['name' => 'title', 'type' => 'collections.nope', 'settings' => []],
+                ],
+            ], 'admin', null);
+        } catch (CollectionValidationException $e) {
+            $caught = $e;
+        }
+
+        self::assertNotNull($caught, 'CollectionValidationException must be thrown for unsupported field type');
+        self::assertArrayHasKey('fields.0.type', $caught->errors());
+        self::assertStringContainsString('collections.nope', $caught->errors()['fields.0.type']);
+
+        // Orphan prevention: no definition row must be persisted for this name.
+        self::assertNull(
+            $this->repo()->findByName('articles'),
+            'No collection_definitions row must persist when create() fails on an unsupported field type',
+        );
+    }
+
+    /**
+     * create() must set status to 'active' on both the returned definition and the
+     * persisted row (spec §4.1 default; previously incorrectly set to 'draft').
+     */
+    public function testCreateSetsStatusToActive(): void
+    {
+        $def = $this->manager()->create([
+            'name'   => 'articles',
+            'label'  => 'Articles',
+            'fields' => [],
+        ], 'admin', null);
+
+        self::assertSame('active', $def->status, 'Returned CollectionDefinition must have status active');
+
+        $stored = $this->repo()->findByName('articles');
+        self::assertNotNull($stored);
+        self::assertSame('active', $stored->status, 'Persisted row must have status active');
+    }
+
+    /**
      * addField() with a reserved name ('uuid' — a system column) must throw
      * CollectionValidationException, proving addField validates via the shared helper.
      */

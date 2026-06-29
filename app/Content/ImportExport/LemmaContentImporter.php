@@ -154,12 +154,10 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
         }
 
         if ($kind === 'asset_manifest') {
-            // Raw hard DELETE by design: this upserts a blob by uuid, so the old row must
-            // physically go before the re-insert below. The query builder's delete() behaves
-            // differently on the soft-delete-aware `blobs` table and breaks the upsert
-            // (see LemmaContentImporterTest::testCommitUpsertsLemmaContentBundle).
-            $delete = $this->db->getPDO()->prepare('DELETE FROM blobs WHERE uuid = :uuid');
-            $delete->execute(['uuid' => (string) $data['uuid']]);
+            // Hard delete (bypass soft-delete): this upserts a blob by uuid, so the old row must
+            // physically go before the re-insert below — forceDelete() skips the soft-delete that
+            // delete() applies to the deleted_at-bearing `blobs` table.
+            $this->db->table('blobs')->where('uuid', '=', (string) $data['uuid'])->forceDelete();
             $this->db->table($table)->insert($data);
             return;
         }

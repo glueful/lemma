@@ -10,6 +10,9 @@ use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Data\RowRepository;
 use Glueful\Lemma\Collections\Data\RowValidator;
+use Glueful\Lemma\Collections\Http\ActorResolver;
+use Glueful\Lemma\Collections\Http\CollectionScopeMiddleware;
+use Glueful\Lemma\Collections\Http\Controllers\CollectionDataController;
 use Glueful\Lemma\Collections\Query\QueryCompiler;
 use Glueful\Lemma\Collections\Relations\RelationResolver;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
@@ -69,6 +72,22 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
             ],
             QueryCompiler::class => [
                 'class'    => QueryCompiler::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ActorResolver::class => [
+                'class'    => ActorResolver::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            CollectionScopeMiddleware::class => [
+                'class'    => CollectionScopeMiddleware::class,
+                'shared'   => true,
+                'autowire' => true,
+                'alias'    => ['collection_scope'],
+            ],
+            CollectionDataController::class => [
+                'class'    => CollectionDataController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

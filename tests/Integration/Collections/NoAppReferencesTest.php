@@ -24,36 +24,44 @@ final class NoAppReferencesTest extends TestCase
      */
     public function testNoAppReferencesInPackSource(): void
     {
-        $srcDir = dirname(__DIR__, 3) . '/packages/lemma-collections/src';
+        $packRoot = dirname(__DIR__, 3) . '/packages/lemma-collections';
 
-        self::assertDirectoryExists($srcDir, 'lemma-collections src directory must exist');
-
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($srcDir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::LEAVES_ONLY,
-        );
+        self::assertDirectoryExists($packRoot . '/src', 'lemma-collections src directory must exist');
 
         $violations = [];
 
-        foreach ($iterator as $file) {
-            /** @var \SplFileInfo $file */
-            if ($file->getExtension() !== 'php') {
+        // Pack PHP lives under src/ (classes) and routes/ (route files); both must be App-free.
+        foreach (['src', 'routes'] as $sub) {
+            $dir = $packRoot . '/' . $sub;
+            if (!is_dir($dir)) {
                 continue;
             }
 
-            $content = (string) file_get_contents($file->getPathname());
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::LEAVES_ONLY,
+            );
 
-            // Quick whole-file check with the same regex as the boundary guard script.
-            // The /m flag makes ^ anchor to the start of each line.
-            if (preg_match('/(^|[^\\w])App\\\\/m', $content) !== 1) {
-                continue;
-            }
+            foreach ($iterator as $file) {
+                /** @var \SplFileInfo $file */
+                if ($file->getExtension() !== 'php') {
+                    continue;
+                }
 
-            // Slow path: find the exact line numbers for the failure message.
-            $relativePath = ltrim(str_replace($srcDir, '', $file->getPathname()), '/\\');
-            foreach (explode("\n", $content) as $lineIndex => $line) {
-                if (preg_match('/(^|[^\\w])App\\\\/', $line) === 1) {
-                    $violations[] = $relativePath . ':' . ($lineIndex + 1) . ' — ' . trim($line);
+                $content = (string) file_get_contents($file->getPathname());
+
+                // Quick whole-file check with the same regex as the boundary guard script.
+                // The /m flag makes ^ anchor to the start of each line.
+                if (preg_match('/(^|[^\\w])App\\\\/m', $content) !== 1) {
+                    continue;
+                }
+
+                // Slow path: find the exact line numbers for the failure message.
+                $relativePath = ltrim(str_replace($packRoot, '', $file->getPathname()), '/\\');
+                foreach (explode("\n", $content) as $lineIndex => $line) {
+                    if (preg_match('/(^|[^\\w])App\\\\/', $line) === 1) {
+                        $violations[] = $relativePath . ':' . ($lineIndex + 1) . ' — ' . trim($line);
+                    }
                 }
             }
         }
@@ -61,7 +69,7 @@ final class NoAppReferencesTest extends TestCase
         self::assertSame(
             [],
             $violations,
-            'lemma-collections/src must not reference App\\ namespace (pack boundary violation):'
+            'lemma-collections src/ and routes/ must not reference App\\ namespace (pack boundary violation):'
                 . "\n  " . implode("\n  ", $violations),
         );
     }

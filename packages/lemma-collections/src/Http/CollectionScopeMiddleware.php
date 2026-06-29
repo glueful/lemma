@@ -15,9 +15,13 @@ use Symfony\Component\HttpFoundation\Request;
  * Registered under the alias 'collection_scope'.
  *
  * Requires the request's API key to carry a scope that satisfies the operation:
- *   GET                         → collections.{name}.read
- *   POST / PATCH                → collections.{name}.write
- *   DELETE                      → collections.{name}.delete
+ *   GET                         → {name}.read
+ *   POST / PATCH                → {name}.write
+ *   DELETE                      → {name}.delete
+ *
+ * The capability string is `{collection}.{action}` (e.g. `products.write`) — the same two-segment
+ * `{resource}.{action}` shape as Aegis permissions, so an api-key scope and a session user's
+ * permission are one identical string.
  *
  * The collection name is read from the '_route_params' request attribute that the
  * router injects before middleware runs. Fail-closed: a missing name, missing scopes
@@ -71,6 +75,6 @@ final class CollectionScopeMiddleware implements RouteMiddleware
             default                             => 'read',
         };
 
-        return 'collections.' . $name . '.' . $operation;
+        return $name . '.' . $operation;
     }
 }

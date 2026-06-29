@@ -77,7 +77,7 @@ final class PublicApiTest extends LemmaTestCase
 
     public function testWriteScopeCannotRead(): void
     {
-        $key = $this->mintKey(['collections.' . self::COL . '.write']);
+        $key = $this->mintKey([self::COL . '.write']);
 
         $response = $this->appRequest('GET', '/v1/collections/' . self::COL, key: $key);
 
@@ -88,7 +88,7 @@ final class PublicApiTest extends LemmaTestCase
 
     public function testListWithReadScopeReturns200(): void
     {
-        $key = $this->mintKey(['collections.' . self::COL . '.read']);
+        $key = $this->mintKey([self::COL . '.read']);
 
         $response = $this->appRequest('GET', '/v1/collections/' . self::COL, key: $key);
 
@@ -101,7 +101,7 @@ final class PublicApiTest extends LemmaTestCase
 
     public function testCreateWithWriteScopeRoundTripsAndReturnsUuid(): void
     {
-        $key = $this->mintKey(['collections.' . self::COL . '.write']);
+        $key = $this->mintKey([self::COL . '.write']);
 
         $response = $this->appRequest('POST', '/v1/collections/' . self::COL, key: $key, body: [
             'title' => 'Widget',
@@ -119,7 +119,7 @@ final class PublicApiTest extends LemmaTestCase
 
     public function testRowCreatedViaApiKeyHasApiKeyActorColumns(): void
     {
-        [$keyUuid, $plainKey] = $this->mintKeyWithUuid(['collections.' . self::COL . '.write']);
+        [$keyUuid, $plainKey] = $this->mintKeyWithUuid([self::COL . '.write']);
 
         $response = $this->appRequest('POST', '/v1/collections/' . self::COL, key: $plainKey, body: [
             'title' => 'Audited Widget',
@@ -136,7 +136,7 @@ final class PublicApiTest extends LemmaTestCase
 
     public function testBulkCreateAllValidInsertsAllRows(): void
     {
-        $key = $this->mintKey(['collections.' . self::COL . '.write']);
+        $key = $this->mintKey([self::COL . '.write']);
 
         $response = $this->appRequest('POST', '/v1/collections/' . self::COL . '/bulk', key: $key, body: [
             'rows' => [
@@ -157,7 +157,7 @@ final class PublicApiTest extends LemmaTestCase
 
     public function testBulkCreateWithOneInvalidRowRejects422AndZeroInserted(): void
     {
-        $key = $this->mintKey(['collections.' . self::COL . '.write']);
+        $key = $this->mintKey([self::COL . '.write']);
 
         $response = $this->appRequest('POST', '/v1/collections/' . self::COL . '/bulk', key: $key, body: [
             'rows' => [
@@ -180,7 +180,7 @@ final class PublicApiTest extends LemmaTestCase
 
     public function testShowByUuidReturnsRow(): void
     {
-        $key = $this->mintKey(['collections.' . self::COL . '.write', 'collections.' . self::COL . '.read']);
+        $key = $this->mintKey([self::COL . '.write', self::COL . '.read']);
 
         $created = $this->appRequest('POST', '/v1/collections/' . self::COL, key: $key, body: ['title' => 'Findable']);
         $uuid    = $this->json($created)['data']['uuid'];
@@ -193,7 +193,7 @@ final class PublicApiTest extends LemmaTestCase
 
     public function testShowWithUnknownUuidReturns404(): void
     {
-        $key = $this->mintKey(['collections.' . self::COL . '.read']);
+        $key = $this->mintKey([self::COL . '.read']);
 
         $response = $this->appRequest('GET', '/v1/collections/' . self::COL . '/nonexistent-uuid-0000', key: $key);
 
@@ -207,7 +207,7 @@ final class PublicApiTest extends LemmaTestCase
         // The show route accepts any string as {uuid}. A bare numeric string
         // ("1") should not match any row because rows are identified by uuid strings
         // (nanoid format), not by auto-increment integers.
-        $key = $this->mintKey(['collections.' . self::COL . '.write', 'collections.' . self::COL . '.read']);
+        $key = $this->mintKey([self::COL . '.write', self::COL . '.read']);
         $this->appRequest('POST', '/v1/collections/' . self::COL, key: $key, body: ['title' => 'Numeric Check']);
 
         $response = $this->appRequest('GET', '/v1/collections/' . self::COL . '/1', key: $key);
@@ -233,9 +233,9 @@ final class PublicApiTest extends LemmaTestCase
         ], 'admin', 'setup');
 
         $key = $this->mintKey([
-            'collections.' . self::COL . '.write',
-            'collections.' . self::COL . '.delete',
-            'collections.' . self::COL2 . '.write',
+            self::COL . '.write',
+            self::COL . '.delete',
+            self::COL2 . '.write',
         ]);
 
         // Create a product row.

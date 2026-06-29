@@ -14,8 +14,8 @@ use Glueful\Routing\Router;
  *   1. optional_api_key  — verifies the key when present; anonymous requests pass
  *                          through but carry no api_key_scopes attribute.
  *   2. collection_scope  — default-deny: requires api_key_scopes to include
- *                          collections.{name}.read|write|delete. No key or
- *                          insufficient scope → 403.
+ *                          {name}.read|write|delete (e.g. products.write). No
+ *                          key or insufficient scope → 403.
  *
  * Paths are uuid-keyed; numeric auto-increment ids are never exposed.
  */

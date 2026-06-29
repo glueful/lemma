@@ -1,3 +1,15 @@
+<!--
+  Route meta via a <route> block instead of definePage(): vue-tsc / the
+  unplugin-vue-router Volar plugin deterministically fails to inject the
+  definePage macro type for this one route (`/settings/import-export/`) —
+  "Cannot find name 'definePage'" — though the build and runtime are fine and
+  every other page resolves it. The <route> block (sfc-route-blocks Volar plugin)
+  declares the same meta and type-checks cleanly.
+-->
+<route lang="json">
+{ "meta": { "requiresAuth": true } }
+</route>
+
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watchEffect } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
@@ -15,8 +27,6 @@ import { useContentTypes } from '@/queries/contentTypes'
 import { runtimeConfig } from '@/runtime/config'
 import { useNotify } from '@/composables/useNotify'
 import { useCapabilitiesStore } from '@/stores/capabilities'
-
-definePage({ meta: { requiresAuth: true } })
 
 const caps = useCapabilitiesStore()
 caps.ensureLoaded()

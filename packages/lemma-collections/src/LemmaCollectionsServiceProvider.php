@@ -7,7 +7,10 @@ namespace Glueful\Lemma\Collections;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Extensions\ServiceProvider;
+use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\CollectionFieldTypes;
+use Glueful\Lemma\Collections\Schema\ColumnMapper;
+use Glueful\Lemma\Collections\Schema\SchemaMaterializer;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
@@ -18,7 +21,21 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
     public static function services(): array
     {
         return [
-            // filled in by later tasks (manager, repositories, controllers, middleware)
+            ColumnMapper::class => [
+                'class'    => ColumnMapper::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            SchemaMaterializer::class => [
+                'class'    => SchemaMaterializer::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            CollectionDefinitionRepository::class => [
+                'class'    => CollectionDefinitionRepository::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
         ];
     }
 

@@ -24,11 +24,8 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
 
     public function register(ApplicationContext $context): void
     {
-        $this->loadMigrationsFrom(
-            __DIR__ . '/../migrations',
-            MigrationPriority::DEPENDENT,
-            'lemma-collections',
-        );
+        // No-op: migrations are loaded in boot() (the framework extension convention —
+        // cf. aegis/users/import-export); DI bindings are declared via services().
     }
 
     public function boot(ApplicationContext $context): void
@@ -40,6 +37,14 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
         ));
 
         CollectionFieldTypes::register(app($context, FieldTypeRegistry::class));
+
+        // Migrations register on INSTALL, not enable (outside the gate below), so disabling
+        // the capability still preserves the tables.
+        $this->loadMigrationsFrom(
+            __DIR__ . '/../migrations',
+            MigrationPriority::DEPENDENT,
+            'lemma-collections',
+        );
 
         // Routes are gated by ENABLED state (spec §5): register the public API only when the
         // capability is on. Disabling lemma.collections leaves migrations/tables intact but removes

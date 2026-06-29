@@ -120,6 +120,7 @@ final class DdlPlannerTest extends TestCase
         self::assertCount(1, $ops);
         self::assertSame('add_index', $ops[0]->op);
         self::assertSame('slug', $ops[0]->field?->name);
+        self::assertTrue($ops[0]->destructive);
     }
 
     public function testDropUniqueIndexIsPlanned(): void
@@ -204,7 +205,7 @@ final class DdlPlannerTest extends TestCase
 
     // ----------------------------------------- planAlter: new field with unique — no separate add_index
 
-    public function testAddingFieldWithUniqueEmitsAddFieldAndAddIndex(): void
+    public function testAddingNewFieldWithUniqueEmitsOnlyAddField(): void
     {
         $p     = new DdlPlanner();
         $empty = self::def([]);
@@ -217,5 +218,92 @@ final class DdlPlannerTest extends TestCase
         // new field — the add_field carries the unique setting; add_index is NOT emitted
         // separately for brand-new fields (the index is created with the column)
         self::assertNotContains('add_index', $opNames);
+    }
+
+    // ----------------------------------------- planAlter: storage-signature blocks (v1 rule)
+
+    public function testNullableFlipIsBlocked(): void
+    {
+        $p       = new DdlPlanner();
+        $current = self::def(['body' => self::text(['nullable' => true])]);
+        $next    = self::def(['body' => self::text(['nullable' => false])]);
+
+        $this->expectException(BlockedSchemaChangeException::class);
+        $this->expectExceptionMessageMatches('/body/');
+        $p->planAlter($current, $next);
+    }
+
+    public function testLengthChangeIsBlocked(): void
+    {
+        $p       = new DdlPlanner();
+        $current = self::def(['code' => self::text(['length' => 50])]);
+        $next    = self::def(['code' => self::text(['length' => 100])]);
+
+        $this->expectException(BlockedSchemaChangeException::class);
+        $this->expectExceptionMessageMatches('/code/');
+        $p->planAlter($current, $next);
+    }
+
+    public function testMultiFlipIsBlocked(): void
+    {
+        $p       = new DdlPlanner();
+        $current = self::def(['tags' => self::field('tags', 'collections.relation', ['multi' => false])]);
+        $next    = self::def(['tags' => self::field('tags', 'collections.relation', ['multi' => true])]);
+
+        $this->expectException(BlockedSchemaChangeException::class);
+        $this->expectExceptionMessageMatches('/tags/');
+        $p->planAlter($current, $next);
+    }
+
+    public function testRelationTargetChangeIsBlocked(): void
+    {
+        $p       = new DdlPlanner();
+        $current = self::def(['ref' => self::field('ref', 'collections.relation', ['target' => 'posts'])]);
+        $next    = self::def(['ref' => self::field('ref', 'collections.relation', ['target' => 'pages'])]);
+
+        $this->expectException(BlockedSchemaChangeException::class);
+        $this->expectExceptionMessageMatches('/ref/');
+        $p->planAlter($current, $next);
+    }
+
+    public function testRetypeRemainsBlocked(): void
+    {
+        // Confirm that type-change is still blocked under the generalised storage-signature rule.
+        $p = new DdlPlanner();
+        $this->expectException(BlockedSchemaChangeException::class);
+        $p->planAlter(
+            self::def(['count' => self::integer()]),
+            self::def(['count' => self::text()]),
+        );
+    }
+
+    // ----------------------------------------- planAlter: index-only change is NOT blocked
+
+    public function testIndexOnlyChangeEmitsIndexOpWithoutException(): void
+    {
+        // Changing only `index` (storage unchanged) must emit an index op — no exception.
+        $p       = new DdlPlanner();
+        $without = self::def(['email' => self::text()]);
+        $with    = self::def(['email' => self::text(['index' => true])]);
+
+        $ops = $p->planAlter($without, $with);
+
+        self::assertCount(1, $ops);
+        self::assertSame('add_index', $ops[0]->op);
+    }
+
+    public function testUniqueOnlyChangeEmitsIndexOpWithoutException(): void
+    {
+        // Changing only `unique` (storage unchanged) must emit an index op — no exception.
+        $p       = new DdlPlanner();
+        $without = self::def(['slug' => self::text()]);
+        $with    = self::def(['slug' => self::text(['unique' => true])]);
+
+        // Must not throw — only emit add_index.
+        $ops = $p->planAlter($without, $with);
+
+        $opNames = array_map(fn ($o) => $o->op, $ops);
+        self::assertContains('add_index', $opNames);
+        self::assertNotContains('add_field', $opNames);
     }
 }

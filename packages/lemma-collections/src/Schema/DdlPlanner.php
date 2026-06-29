@@ -15,8 +15,10 @@ use Glueful\Lemma\Collections\Exceptions\BlockedSchemaChangeException;
  *  - planAlter diffs field lists by name:
  *      · name only in $next       → add_field (destructive: false)
  *      · name only in $current    → drop_field (destructive: true)
- *      · same name, different type → throws BlockedSchemaChangeException (retype is blocked)
- *      · same name, unique/index setting changed → add_index / drop_index
+ *      · same name, changed storage signature → throws BlockedSchemaChangeException.
+ *        Storage signature = type + (nullable, length, precision, scale, bigint, target, multi).
+ *        `index` and `unique` are explicitly excluded and diffed separately (see below).
+ *      · same name, only index/unique changed → add_index / drop_index (not blocked)
  *  - Adding a unique index (false→true) is flagged destructive: true (needs data pre-flight).
  *  - Index ops for brand-new fields are NOT emitted separately; the add_field op already
  *    carries the field's settings; the materializer creates the index with the column.
@@ -38,8 +40,11 @@ final class DdlPlanner
      *
      * @return list<SchemaChange>
      *
-     * @throws BlockedSchemaChangeException when a field present in both definitions has
-     *                                       a different type (retype is not allowed in v1).
+     * @throws BlockedSchemaChangeException when a field present in both definitions has a
+     *                                       changed storage signature (type, nullable, length,
+     *                                       precision, scale, bigint, target, or multi).
+     *                                       In-place column changes are not supported in v1;
+     *                                       callers must drop + re-add the field instead.
      */
     public function planAlter(CollectionDefinition $current, CollectionDefinition $next): array
     {
@@ -55,15 +60,24 @@ final class DdlPlanner
             $nextMap[$field->name] = $field;
         }
 
-        // Detect retypes before emitting any ops — fail fast on blocked changes.
+        // Detect any storage-signature change before emitting ops — fail fast on blocked changes.
         foreach ($nextMap as $name => $nextField) {
             if (!isset($currentMap[$name])) {
                 continue;
             }
             $currentField = $currentMap[$name];
+            $currentSig   = $this->storageSignature($currentField);
+            $nextSig      = $this->storageSignature($nextField);
+
+            if ($currentSig === $nextSig) {
+                continue;
+            }
+
             if ($currentField->type !== $nextField->type) {
                 throw BlockedSchemaChangeException::retype($name, $currentField->type, $nextField->type);
             }
+
+            throw BlockedSchemaChangeException::storageSignatureChanged($name, $currentSig, $nextSig);
         }
 
         $ops = [];
@@ -98,7 +112,37 @@ final class DdlPlanner
     }
 
     /**
-     * Produce add_index / drop_index ops for a field whose name and type are unchanged.
+     * Build a normalized storage-signature array for a field.
+     *
+     * Covers every setting that defines the physical column or relation semantics.
+     * `index` and `unique` are intentionally excluded — those are diffed separately
+     * as index ops and are never a reason to block an alter.
+     *
+     * Defaults:
+     *   nullable → true  (most columns are nullable unless explicitly set otherwise)
+     *   multi    → false
+     *   All others → null when absent (no opinion)
+     *
+     * @return array<string, mixed>
+     */
+    private function storageSignature(CollectionField $field): array
+    {
+        $s = $field->settings;
+
+        return [
+            'type'      => $field->type,
+            'nullable'  => isset($s['nullable']) ? (bool) $s['nullable'] : true,
+            'length'    => $s['length'] ?? null,
+            'precision' => $s['precision'] ?? null,
+            'scale'     => $s['scale'] ?? null,
+            'bigint'    => (bool) ($s['bigint'] ?? false),
+            'target'    => $s['target'] ?? null,
+            'multi'     => (bool) ($s['multi'] ?? false),
+        ];
+    }
+
+    /**
+     * Produce add_index / drop_index ops for a field whose storage signature is unchanged.
      *
      * @return list<SchemaChange>
      */

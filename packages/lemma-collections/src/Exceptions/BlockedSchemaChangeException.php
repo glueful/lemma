@@ -7,9 +7,12 @@ namespace Glueful\Lemma\Collections\Exceptions;
 /**
  * Thrown by DdlPlanner when a schema change cannot be expressed as a safe operation.
  *
- * The only v1 blocked operation is retype: a field name present in both
- * the current and next CollectionDefinition whose `type` value differs.
- * Retype would silently corrupt stored data; callers must drop + re-add instead.
+ * Blocked operations in v1:
+ *  - retype: a field whose `type` key changed
+ *  - any other storage-signature change (nullable, length, precision, scale,
+ *    bigint, target, multi) on an existing same-name field
+ *
+ * Callers must drop + re-add the field to remodel its column.
  */
 final class BlockedSchemaChangeException extends \RuntimeException
 {
@@ -21,6 +24,30 @@ final class BlockedSchemaChangeException extends \RuntimeException
             $fieldName,
             $fromType,
             $toType,
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $from  Normalized storage signature before the change.
+     * @param array<string, mixed> $to    Normalized storage signature after the change.
+     */
+    public static function storageSignatureChanged(
+        string $fieldName,
+        array $from,
+        array $to,
+    ): self {
+        $changed = [];
+        foreach ($to as $key => $value) {
+            if (($from[$key] ?? null) !== $value) {
+                $changed[] = $key;
+            }
+        }
+
+        return new self(sprintf(
+            "Cannot change the storage definition of field '%s' in-place in v1 (changed: %s)."
+            . " Drop and re-add the field to remodel its column.",
+            $fieldName,
+            implode(', ', $changed),
         ));
     }
 }

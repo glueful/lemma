@@ -86,6 +86,8 @@ use App\Content\Services\MigrationService;
 use App\Content\Authoring\EngineContentWriter;
 use App\Content\Context\EngineLemmaContext;
 use App\Content\Delivery\EngineContentDeliveryReader;
+use App\Content\Schema\FieldTypes\DefaultFieldTypeRegistry;
+use App\Content\Schema\FieldTypes\EditorialFieldTypes;
 use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
@@ -94,6 +96,7 @@ use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Context\LemmaContext;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
 use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
+use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
 use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Events\EventService;
@@ -220,6 +223,11 @@ final class LemmaServiceProvider extends ServiceProvider
         return [
             SetupService::class => [
                 'class'    => SetupService::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            FieldTypeRegistry::class => [
+                'class'    => DefaultFieldTypeRegistry::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
@@ -752,6 +760,8 @@ final class LemmaServiceProvider extends ServiceProvider
         }
 
         $this->registerEventListeners($context);
+
+        EditorialFieldTypes::register(app($context, FieldTypeRegistry::class));
 
         // Console: register Lemma's app commands. commands() is a console-only no-op in
         // the HTTP phase (runningInConsole() guards it), so this is free during requests.

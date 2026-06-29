@@ -11,6 +11,7 @@ use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Data\RowRepository;
 use Glueful\Lemma\Collections\Data\RowValidator;
 use Glueful\Lemma\Collections\Query\QueryCompiler;
+use Glueful\Lemma\Collections\Relations\RelationResolver;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\CollectionFieldTypes;
 use Glueful\Lemma\Collections\Schema\ColumnMapper;
@@ -53,6 +54,11 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
             ],
             RowValidator::class => [
                 'class'    => RowValidator::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            RelationResolver::class => [
+                'class'    => RelationResolver::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

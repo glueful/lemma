@@ -7,7 +7,15 @@ declare module 'vue-router' {
   interface RouteMeta {
     // Protected pages opt in via definePage({ meta: { requiresAuth: true } }).
     requiresAuth?: boolean
-    /** Capability id (e.g. 'lemma.forms') that must be enabled for this route to be reachable. */
+    /**
+     * Capability id (e.g. 'lemma.forms') that must be enabled for this route to be reachable.
+     *
+     * **Important:** a `requiresCapability` route should also set `requiresAuth: true`.
+     * The capability gate only runs when the user is authenticated
+     * (`cap !== undefined && session.isAuthenticated`), so a cap-gated route
+     * without `requiresAuth` would be reachable while logged out — the guard
+     * would skip the capability check entirely and return `true`.
+     */
     requiresCapability?: string
   }
 }

@@ -25,6 +25,7 @@ describe('install + auth guard', () => {
   beforeEach(() => {
     cfg.installed = false
     session.isAuthenticated = false
+    caps.isEnabled = (_: string): boolean => false
   })
 
   it('redirects everything to /setup when not installed', () => {

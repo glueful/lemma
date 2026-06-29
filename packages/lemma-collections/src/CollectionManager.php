@@ -63,6 +63,25 @@ final class CollectionManager
         'updated_by_id',
     ];
 
+    /**
+     * Curated common-subset SQL reserved words that must not be used as field names.
+     *
+     * This is not an exhaustive ANSI SQL catalogue — it covers the keywords most likely
+     * to cause query-builder or DDL conflicts. Field names that match (case-insensitively)
+     * are rejected with a clear validation error.
+     *
+     * @var list<string>
+     */
+    private const SQL_KEYWORDS = [
+        'select', 'from', 'where', 'order', 'group', 'table', 'index', 'key',
+        'default', 'drop', 'alter', 'create', 'insert', 'update', 'delete',
+        'join', 'on', 'as', 'in', 'and', 'or', 'not', 'null', 'primary',
+        'unique', 'foreign', 'references', 'constraint', 'column', 'values',
+        'set', 'into', 'distinct', 'having', 'limit', 'offset', 'union',
+        'like', 'between', 'exists', 'case', 'when', 'then', 'else', 'end',
+        'asc', 'desc', 'all', 'any', 'true', 'false',
+    ];
+
     public function __construct(
         private readonly CollectionDefinitionRepository $repo,
         private readonly DdlPlanner $planner,
@@ -133,7 +152,13 @@ final class CollectionManager
         string $actorType,
         ?string $actorId,
     ): CollectionDefinition {
-        $current  = $this->loadOrFail($name);
+        $current   = $this->loadOrFail($name);
+        $fieldName = isset($field['name']) ? (string) $field['name'] : '';
+        $error     = $this->validateFieldName($fieldName);
+        if ($error !== null) {
+            throw CollectionValidationException::make(['name' => $error]);
+        }
+
         $newField = CollectionField::fromArray($field);
 
         $next = $this->rebuildWith($current, [...$current->fields, $newField]);
@@ -320,14 +345,12 @@ final class CollectionManager
             throw CollectionValidationException::make($errors);
         }
 
-        // fields: validate each field's name against system columns.
+        // fields: validate each field's name (format, system-column, SQL-keyword).
         foreach ((array) ($payload['fields'] ?? []) as $i => $fieldData) {
             $fieldName = isset($fieldData['name']) ? (string) $fieldData['name'] : '';
-            if (in_array($fieldName, self::SYSTEM_COLUMNS, true)) {
-                $errors["fields.{$i}.name"] = sprintf(
-                    "Field name '%s' conflicts with a system column.",
-                    $fieldName,
-                );
+            $error     = $this->validateFieldName($fieldName);
+            if ($error !== null) {
+                $errors["fields.{$i}.name"] = $error;
             }
         }
 
@@ -379,6 +402,32 @@ final class CollectionManager
     private function isTableEmpty(string $tableName): bool
     {
         return $this->connection->table($tableName)->count() === 0;
+    }
+
+    /**
+     * Validate a single field name against format rules, system-column names, and SQL keywords.
+     *
+     * Returns a human-readable error message when the name is invalid, or null when acceptable.
+     * The same check is applied by create() (via the field loop) and addField().
+     */
+    private function validateFieldName(string $name): ?string
+    {
+        if ($name === '' || preg_match('/^[a-z][a-z0-9_]*$/', $name) !== 1) {
+            return sprintf(
+                "Field name '%s' must start with a lowercase letter and contain only [a-z0-9_].",
+                $name,
+            );
+        }
+
+        if (in_array($name, self::SYSTEM_COLUMNS, true)) {
+            return sprintf("Field name '%s' conflicts with a system column.", $name);
+        }
+
+        if (in_array(strtolower($name), self::SQL_KEYWORDS, true)) {
+            return sprintf("Field name '%s' is a reserved SQL keyword.", $name);
+        }
+
+        return null;
     }
 
     /**

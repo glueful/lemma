@@ -303,4 +303,135 @@ final class CollectionManagerTest extends LemmaTestCase
             'definition row must be deleted after dropCollection',
         );
     }
+
+    /**
+     * dropField() on an empty table bumps schema_version on both the returned definition
+     * and the persisted row.
+     */
+    public function testDropFieldOnEmptyTableIncrementsSchemaVersion(): void
+    {
+        $manager = $this->manager();
+
+        $def = $manager->create([
+            'name'   => 'articles',
+            'fields' => [
+                ['name' => 'notes', 'type' => 'collections.longtext', 'settings' => []],
+            ],
+        ], 'admin', null);
+
+        self::assertSame(1, $def->schemaVersion, 'schema_version must be 1 after create');
+
+        // Empty table — no confirmation required.
+        $updated = $manager->dropField('articles', 'notes', [], 'admin', null);
+
+        self::assertSame(2, $updated->schemaVersion, 'returned definition must have schema_version 2');
+
+        $stored = $this->repo()->findByName('articles');
+        self::assertNotNull($stored);
+        self::assertSame(2, $stored->schemaVersion, 'persisted row must have schema_version 2');
+    }
+
+    /**
+     * dropCollection() without confirmation on a non-empty table must throw
+     * DestructiveConfirmationRequiredException.
+     */
+    public function testDropCollectionWithoutConfirmOnPopulatedTableThrows(): void
+    {
+        $manager = $this->manager();
+        $def     = $manager->create([
+            'name'   => 'articles',
+            'fields' => [],
+        ], 'admin', null);
+
+        // Seed a row so the table is non-empty.
+        $this->connection()->table($def->tableName)->insert([
+            'uuid'            => 'test-uuid-drop-col',
+            'created_at'      => null,
+            'updated_at'      => null,
+            'created_by_type' => null,
+            'created_by_id'   => null,
+            'updated_by_type' => null,
+            'updated_by_id'   => null,
+        ]);
+
+        $this->expectException(DestructiveConfirmationRequiredException::class);
+
+        // No confirmation token → must throw.
+        $manager->dropCollection('articles', [], 'admin', null);
+    }
+
+    /**
+     * create() with a field whose name is a SQL reserved word (e.g. 'select') must throw
+     * CollectionValidationException.
+     */
+    public function testCreateWithSqlKeywordFieldNameIsRejected(): void
+    {
+        $caught = null;
+        try {
+            $this->manager()->create([
+                'name'   => 'articles',
+                'fields' => [
+                    ['name' => 'select', 'type' => 'collections.text', 'settings' => []],
+                ],
+            ], 'admin', null);
+        } catch (CollectionValidationException $e) {
+            $caught = $e;
+        }
+
+        self::assertNotNull($caught, 'CollectionValidationException must be thrown for SQL keyword field name');
+        self::assertArrayHasKey('fields.0.name', $caught->errors());
+        self::assertStringContainsString('select', $caught->errors()['fields.0.name']);
+    }
+
+    /**
+     * create() with a field named 'created_by_id' (a system column not covered by the
+     * existing uuid test) must throw CollectionValidationException.
+     */
+    public function testCreateWithCreatedByIdFieldNameIsRejected(): void
+    {
+        $caught = null;
+        try {
+            $this->manager()->create([
+                'name'   => 'articles',
+                'fields' => [
+                    ['name' => 'created_by_id', 'type' => 'collections.text', 'settings' => []],
+                ],
+            ], 'admin', null);
+        } catch (CollectionValidationException $e) {
+            $caught = $e;
+        }
+
+        self::assertNotNull($caught, 'CollectionValidationException must be thrown for system column field name');
+        self::assertArrayHasKey('fields.0.name', $caught->errors());
+        self::assertStringContainsString('created_by_id', $caught->errors()['fields.0.name']);
+    }
+
+    /**
+     * addField() with a reserved name ('uuid' — a system column) must throw
+     * CollectionValidationException, proving addField validates via the shared helper.
+     */
+    public function testAddFieldWithReservedNameIsRejected(): void
+    {
+        $manager = $this->manager();
+        $manager->create([
+            'name'   => 'articles',
+            'fields' => [],
+        ], 'admin', null);
+
+        $caught = null;
+        try {
+            $manager->addField(
+                'articles',
+                ['name' => 'uuid', 'type' => 'collections.text', 'settings' => []],
+                'admin',
+                null,
+            );
+        } catch (CollectionValidationException $e) {
+            $caught = $e;
+        }
+
+        self::assertNotNull($caught, 'CollectionValidationException must be thrown when addField uses a reserved name');
+        self::assertArrayHasKey('name', $caught->errors());
+        self::assertStringContainsString('uuid', $caught->errors()['name']);
+    }
 }

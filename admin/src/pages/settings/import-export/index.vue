@@ -66,8 +66,13 @@ async function onExport() {
 
 // ── Import ──────────────────────────────────────────────────────────────────
 const importAdapter = ref('')
+// Format-adapter keys belong to the lemma.importers pack; the core snapshot
+// importer (lemma.content) is always available regardless of the capability.
+const FORMAT_ADAPTER_KEYS = ['csv.content', 'markdown.content', 'wordpress.content']
 const importerItems = computed(() =>
-  (adapters.value?.importers ?? []).map((a) => ({ label: a.label, value: a.key })),
+  (adapters.value?.importers ?? [])
+    .filter((a) => caps.isEnabled('lemma.importers') || !FORMAT_ADAPTER_KEYS.includes(a.key))
+    .map((a) => ({ label: a.label, value: a.key })),
 )
 watchEffect(() => {
   if (!importAdapter.value && importerItems.value.length) {
@@ -348,15 +353,26 @@ function fmtTime(v?: string | null): string {
             </div>
           </UCard>
 
-          <!-- Import (format adapters — gated by lemma.importers capability) -->
-          <div v-if="caps.isEnabled('lemma.importers')" data-test="format-import">
-            <UCard>
-              <template #header><h2 class="font-semibold text-default">Import</h2></template>
-              <div class="space-y-4">
-                <UFormField label="Adapter">
-                  <USelect v-model="importAdapter" :items="importerItems" class="w-full" />
-                </UFormField>
+          <!-- Import: core snapshot always visible; format adapters gated by lemma.importers -->
+          <UCard>
+            <template #header><h2 class="font-semibold text-default">Import</h2></template>
+            <div class="space-y-4">
+              <UFormField label="Adapter">
+                <USelect
+                  v-model="importAdapter"
+                  :items="importerItems"
+                  data-testid="importer-adapter"
+                  class="w-full"
+                />
+              </UFormField>
 
+              <!--
+                Format-adapter wizard section: content-type selector, body-field routing,
+                field mapping, and publish toggle. Only present when the lemma.importers
+                capability is on (format adapters are also filtered from the dropdown above
+                when the capability is off, so needsWizard will always be false then too).
+              -->
+              <div v-if="caps.isEnabled('lemma.importers')" data-test="format-import" class="space-y-4">
                 <UFormField
                   v-if="needsWizard"
                   label="Content type"
@@ -374,32 +390,6 @@ function fmtTime(v?: string | null): string {
                     placeholder="Choose a content type"
                     class="w-full"
                   />
-                </UFormField>
-
-                <UFormField
-                  label="File"
-                  :hint="
-                    isWordpress
-                      ? 'A WordPress export (.xml / .wxr)'
-                      : isMarkdown
-                        ? 'A .md / .mdx file with optional front matter'
-                        : isCsv
-                          ? 'CSV with a header row'
-                          : 'NDJSON exported from Lemma'
-                  "
-                >
-                  <div class="flex items-center gap-2">
-                    <UButton
-                      icon="i-lucide-paperclip"
-                      color="neutral"
-                      variant="subtle"
-                      label="Choose file…"
-                      @click="fileInput?.click()"
-                    />
-                    <span class="truncate text-sm text-muted">
-                      {{ selectedFile?.name ?? 'No file' }}
-                    </span>
-                  </div>
                 </UFormField>
 
                 <UFormField
@@ -437,22 +427,48 @@ function fmtTime(v?: string | null): string {
                 <UFormField v-if="needsWizard" label="On commit">
                   <USwitch v-model="wizardPublish" label="Publish imported entries" />
                 </UFormField>
-
-                <UFormField label="Mode">
-                  <USelect v-model="importMode" :items="modeItems" class="w-full" />
-                </UFormField>
-
-                <UButton
-                  icon="i-lucide-upload"
-                  :loading="importing || runImport.isLoading.value"
-                  :disabled="!selectedFile || !importAdapter || !wizardReady"
-                  @click="onImport"
-                >
-                  {{ importMode === 'dry_run' ? 'Run dry run' : 'Import' }}
-                </UButton>
               </div>
-            </UCard>
-          </div>
+
+              <UFormField
+                label="File"
+                :hint="
+                  isWordpress
+                    ? 'A WordPress export (.xml / .wxr)'
+                    : isMarkdown
+                      ? 'A .md / .mdx file with optional front matter'
+                      : isCsv
+                        ? 'CSV with a header row'
+                        : 'NDJSON exported from Lemma'
+                "
+              >
+                <div class="flex items-center gap-2">
+                  <UButton
+                    icon="i-lucide-paperclip"
+                    color="neutral"
+                    variant="subtle"
+                    label="Choose file…"
+                    @click="fileInput?.click()"
+                  />
+                  <span class="truncate text-sm text-muted">
+                    {{ selectedFile?.name ?? 'No file' }}
+                  </span>
+                </div>
+              </UFormField>
+
+              <UFormField label="Mode">
+                <USelect v-model="importMode" :items="modeItems" class="w-full" />
+              </UFormField>
+
+              <UButton
+                icon="i-lucide-upload"
+                :loading="importing || runImport.isLoading.value"
+                :disabled="!selectedFile || !importAdapter || !wizardReady"
+                @click="onImport"
+              >
+                {{ importMode === 'dry_run' ? 'Run dry run' : 'Import' }}
+              </UButton>
+            </div>
+          </UCard>
         </div>
 
         <!-- Jobs -->

@@ -431,7 +431,7 @@ public function testMapsDecimalAndTextAndMultiRelation(): void
 
 - [ ] **Step 4: Run** → PASS.
 
-- [ ] **Step 5: Implement `CollectionFieldTypes::register()`** — register one `FieldTypeDefinition` per `collections.*` type with capabilities: scalar types `filterable+sortable+indexable=true`; `json/relation/asset` `filterable=false,sortable=false`; `relation/asset` may be `multi`. Replace the Task-2 stub.
+- [ ] **Step 5: Implement `CollectionFieldTypes::register()`** — register one `FieldTypeDefinition` per `collections.*` type with capabilities: scalar types `filterable+sortable+indexable=true` — **except `longtext`, which is `indexable=true` but `filterable=false,sortable=false`** (it maps to a `TEXT` column, which can't be plainly indexed or sorted; advertising filter/sort on it would invite queries the DB can't serve efficiently); `json/relation/asset` `filterable=false,sortable=false`; `relation/asset` may be `multi`. Replace the Task-2 stub.
 
 - [ ] **Step 6: Test registration** — integration test: registry resolved from container `has('collections.decimal')` and all `collections.*` keys present; no key collides with `content.*`.
 

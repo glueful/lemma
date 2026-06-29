@@ -28,7 +28,7 @@ final class FieldTypeRegistryIntegrationTest extends LemmaTestCase
         self::assertSame('content.text', $registry->get('content.text')->key());
     }
 
-    public function testAllContentDomainKeysArePrefixedWithContent(): void
+    public function testAllRegisteredKeysHaveKnownNamespacePrefix(): void
     {
         $registry = $this->container()->get(FieldTypeRegistry::class);
 

@@ -58,41 +58,44 @@ final class CollectionFieldTypesRegistrationTest extends LemmaTestCase
     public function testNoCollectionsKeyCollidesWithContentKey(): void
     {
         $allKeys = array_keys($this->registry->all());
-        $contentKeys    = array_filter($allKeys, static fn (string $k): bool => str_starts_with($k, 'content.'));
+        $contentKeys     = array_filter($allKeys, static fn (string $k): bool => str_starts_with($k, 'content.'));
         $collectionsKeys = array_filter($allKeys, static fn (string $k): bool => str_starts_with($k, 'collections.'));
 
-        // Strip prefixes and verify the bare names don't overlap across domains.
-        $contentPrefixLen     = strlen('content.');
-        $collectionsPrefixLen = strlen('collections.');
-        $strip = static fn (int $len): \Closure => static fn (string $k): string => substr($k, $len);
-        $contentBare    = array_map($strip($contentPrefixLen), $contentKeys);
-        $collectionsBare = array_map($strip($collectionsPrefixLen), $collectionsKeys);
-
-        $collisions = array_intersect($contentBare, $collectionsBare);
+        // The two domains must be disjoint at the FULL (namespaced) key level. The prefix is exactly
+        // what lets `content.text` and `collections.text` coexist as distinct field types, so bare-name
+        // overlap across domains is expected and fine — what must NOT happen is the same full key
+        // registered under both domains.
+        $collisions = array_intersect($contentKeys, $collectionsKeys);
         self::assertEmpty(
             $collisions,
-            'collections.* and content.* share bare names — keys would be ambiguous if the prefix were dropped: '
-            . implode(', ', $collisions),
+            'A key is registered under both content.* and collections.*: ' . implode(', ', $collisions),
         );
     }
 
-    public function testScalarTypesAreFilterableAndSortable(): void
+    public function testScalarTypesAreFilterableSortableAndIndexable(): void
     {
+        // Filterable/sortable scalars. longtext is deliberately excluded — see the dedicated test
+        // below: a TEXT column can't be plainly indexed or sorted.
         $scalarTypes = ['collections.text', 'collections.integer', 'collections.decimal',
                         'collections.boolean', 'collections.date', 'collections.datetime',
                         'collections.email', 'collections.url', 'collections.enum'];
 
         foreach ($scalarTypes as $key) {
             $caps = $this->registry->get($key)->capabilities();
-            self::assertTrue(
-                $caps['filterable'] ?? false,
-                "'{$key}' should be filterable.",
-            );
-            self::assertTrue(
-                $caps['sortable'] ?? false,
-                "'{$key}' should be sortable.",
-            );
+            self::assertTrue($caps['filterable'] ?? false, "'{$key}' should be filterable.");
+            self::assertTrue($caps['sortable'] ?? false, "'{$key}' should be sortable.");
+            self::assertTrue($caps['indexable'] ?? false, "'{$key}' should be indexable.");
         }
+    }
+
+    public function testLongtextIsIndexableButNotFilterableOrSortable(): void
+    {
+        // Spec carve-out: longtext maps to a TEXT column, which cannot be plainly indexed or
+        // sorted — so it is a scalar that is intentionally NOT filterable/sortable.
+        $caps = $this->registry->get('collections.longtext')->capabilities();
+        self::assertFalse($caps['filterable'] ?? true, 'longtext must not be filterable.');
+        self::assertFalse($caps['sortable'] ?? true, 'longtext must not be sortable.');
+        self::assertTrue($caps['indexable'] ?? false, 'longtext should still be indexable.');
     }
 
     public function testJsonRelationAssetAreNotFilterableOrSortable(): void

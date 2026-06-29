@@ -178,7 +178,11 @@ Every collection table carries Glueful's standard identity/audit shape:
 | `asset` (single) | `varchar` (blob `uuid`) | validate + expand only |
 | `asset` (multiple) | `json` (array of blob `uuid`s) | `multi:true` |
 
-Common per-field metadata: `nullable`, `unique`, `index`, plus the registry capability flags.
+Common per-field metadata: `nullable`, `unique`, `index`, plus the registry capability flags. The
+capability flags follow storage reality: scalar types are `filterable`/`sortable`/`indexable` —
+**except `longtext`** (→ `TEXT`), which is `indexable` but **not `filterable`/`sortable`** (a `TEXT`
+column can't be plainly indexed or sorted); `json`/`relation`/`asset` are neither filterable nor
+sortable.
 
 **`asset` is tightly scoped:** collections validate blob UUIDs and can **expand** blob
 metadata/display URLs on read. Upload/storage stays in the existing media/blob layer. Collections never

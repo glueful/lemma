@@ -10,6 +10,7 @@ use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Data\RowRepository;
 use Glueful\Lemma\Collections\Data\RowValidator;
+use Glueful\Lemma\Collections\Query\QueryCompiler;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\CollectionFieldTypes;
 use Glueful\Lemma\Collections\Schema\ColumnMapper;
@@ -57,6 +58,11 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
             ],
             RowRepository::class => [
                 'class'    => RowRepository::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            QueryCompiler::class => [
+                'class'    => QueryCompiler::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

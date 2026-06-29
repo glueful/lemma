@@ -16,6 +16,8 @@ use Glueful\Lemma\Collections\Http\DTOs\FieldData;
 use Glueful\Lemma\Collections\Http\DTOs\UpdateAccessData;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\AccessPolicy;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -36,11 +38,15 @@ final class CollectionAdminSchemaController
     ) {
     }
 
+    #[ApiOperation(summary: 'List collections', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'All collections with their schema.')]
     public function index(Request $request): Response
     {
         return Response::success(['collections' => $this->collections->all()], 'Collections retrieved.');
     }
 
+    #[ApiOperation(summary: 'Get a collection', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'The collection and its schema.')]
     public function show(Request $request, string $name): Response
     {
         $definition = $this->collections->findByName($name);
@@ -50,6 +56,8 @@ final class CollectionAdminSchemaController
             : Response::success(['collection' => $definition], 'Collection retrieved.');
     }
 
+    #[ApiOperation(summary: 'Create a collection', tags: ['Collections Admin'])]
+    #[ApiResponse(201, description: 'Collection created.')]
     public function store(CreateCollectionData $data, Request $request): Response
     {
         $actor = $this->actors->resolve($request);
@@ -62,6 +70,8 @@ final class CollectionAdminSchemaController
         return Response::created(['collection' => $definition], "Collection '{$definition->name}' created.");
     }
 
+    #[ApiOperation(summary: 'Add a field', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'Field added.')]
     public function addField(FieldData $data, Request $request, string $name): Response
     {
         $actor = $this->actors->resolve($request);
@@ -74,6 +84,8 @@ final class CollectionAdminSchemaController
         return Response::success(['collection' => $definition], 'Field added.');
     }
 
+    #[ApiOperation(summary: 'Drop a field (guarded)', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'Field dropped.')]
     public function dropField(Request $request, string $name, string $field): Response
     {
         $actor = $this->actors->resolve($request);
@@ -92,6 +104,8 @@ final class CollectionAdminSchemaController
         return Response::success(['collection' => $definition], 'Field dropped.');
     }
 
+    #[ApiOperation(summary: 'Add an index', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'Index added.')]
     public function addIndex(AddIndexData $data, Request $request, string $name): Response
     {
         $actor = $this->actors->resolve($request);
@@ -104,6 +118,8 @@ final class CollectionAdminSchemaController
         return Response::success(['collection' => $definition], 'Index added.');
     }
 
+    #[ApiOperation(summary: 'Remove an index', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'Index removed.')]
     public function dropIndex(Request $request, string $name, string $field): Response
     {
         $actor = $this->actors->resolve($request);
@@ -116,6 +132,8 @@ final class CollectionAdminSchemaController
         return Response::success(['collection' => $definition], 'Index removed.');
     }
 
+    #[ApiOperation(summary: 'Replace the access policy', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'Access policy updated.')]
     public function updateAccess(UpdateAccessData $data, Request $request, string $name): Response
     {
         try {
@@ -127,6 +145,8 @@ final class CollectionAdminSchemaController
         return Response::success(['collection' => $definition], 'Access policy updated.');
     }
 
+    #[ApiOperation(summary: 'Drop a collection (guarded)', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'Collection deleted.')]
     public function destroy(Request $request, string $name): Response
     {
         $actor = $this->actors->resolve($request);

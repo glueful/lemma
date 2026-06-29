@@ -17,6 +17,8 @@ use Glueful\Lemma\Collections\Http\ActorResolver;
 use Glueful\Lemma\Collections\Query\QueryCompiler;
 use Glueful\Lemma\Collections\Relations\RelationResolver;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
+use Glueful\Routing\Attributes\ApiOperation;
+use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -59,6 +61,8 @@ final class CollectionDataController
      *
      * @param string $name Collection slug
      */
+    #[ApiOperation(summary: 'List rows in a collection', tags: ['Collections'])]
+    #[ApiResponse(200, description: 'Paginated rows.')]
     public function list(Request $request, string $name): Response
     {
         $def = $this->definitions->findByName($name);
@@ -93,6 +97,8 @@ final class CollectionDataController
      * @param string $name Collection slug
      * @param string $uuid Row UUID
      */
+    #[ApiOperation(summary: 'Get a row by UUID', tags: ['Collections'])]
+    #[ApiResponse(200, description: 'The row.')]
     public function show(Request $request, string $name, string $uuid): Response
     {
         $def = $this->definitions->findByName($name);
@@ -120,6 +126,8 @@ final class CollectionDataController
      *
      * @param string $name Collection slug
      */
+    #[ApiOperation(summary: 'Create a row', tags: ['Collections'])]
+    #[ApiResponse(201, description: 'Row created.')]
     public function create(Request $request, string $name): Response
     {
         $def = $this->definitions->findByName($name);
@@ -150,6 +158,8 @@ final class CollectionDataController
      *
      * @param string $name Collection slug
      */
+    #[ApiOperation(summary: 'Bulk-create rows (all-or-nothing)', tags: ['Collections'])]
+    #[ApiResponse(201, description: 'Rows created.')]
     public function bulkCreate(Request $request, string $name): Response
     {
         $def = $this->definitions->findByName($name);
@@ -211,6 +221,8 @@ final class CollectionDataController
      * @param string $name Collection slug
      * @param string $uuid Row UUID
      */
+    #[ApiOperation(summary: 'Update a row', tags: ['Collections'])]
+    #[ApiResponse(200, description: 'Row updated.')]
     public function update(Request $request, string $name, string $uuid): Response
     {
         $def = $this->definitions->findByName($name);
@@ -238,6 +250,8 @@ final class CollectionDataController
      * @param string $name Collection slug
      * @param string $uuid Row UUID
      */
+    #[ApiOperation(summary: 'Delete a row', tags: ['Collections'])]
+    #[ApiResponse(204, description: 'Row deleted.')]
     public function delete(Request $request, string $name, string $uuid): Response
     {
         $def = $this->definitions->findByName($name);

@@ -121,7 +121,7 @@ final class SchemaMaterializer
         try {
             $this->executeDdl($def, $op);
         } catch (\Throwable $e) {
-            // Phase 4a: mark as failed.
+            // On failure: mark as failed.
             // Inside a pgsql transaction the UPDATE may itself fail (tx already aborted);
             // suppress that — the outer transaction will roll back the pending row anyway.
             try {
@@ -135,7 +135,7 @@ final class SchemaMaterializer
             throw $e;
         }
 
-        // Phase 4b: mark as applied.
+        // On success: mark as applied.
         $this->connection->table('collection_schema_changes')
             ->where('uuid', $auditUuid)
             ->update(['status' => 'applied', 'applied_at' => date('Y-m-d H:i:s')]);

@@ -317,6 +317,26 @@ final class PublicApiTest extends LemmaTestCase
         return 'collection_' . substr(hash('sha256', $name), 0, 12);
     }
 
+    public function testPublicReadAllowsAnonymousAccessWhileWriteStaysScoped(): void
+    {
+        $this->manager()->create([
+            'name'   => self::COL2,
+            'label'  => 'Public Docs',
+            'fields' => [
+                ['name' => 'title', 'type' => 'collections.text', 'settings' => ['nullable' => false]],
+            ],
+            'access' => ['read' => 'public', 'write' => 'scoped', 'delete' => 'scoped'],
+        ], 'admin', 'setup');
+
+        // Anonymous read is allowed: the collection's read policy is public.
+        $read = $this->appRequest('GET', '/v1/collections/' . self::COL2);
+        self::assertSame(200, $read->getStatusCode(), (string) $read->getContent());
+
+        // Anonymous write is still denied: write stays scoped and no credential was presented.
+        $write = $this->appRequest('POST', '/v1/collections/' . self::COL2, body: ['title' => 'Hello']);
+        self::assertSame(403, $write->getStatusCode(), (string) $write->getContent());
+    }
+
     private function cleanupCollections(): void
     {
         $schema = $this->container()->get(SchemaBuilderInterface::class);

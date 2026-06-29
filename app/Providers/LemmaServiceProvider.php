@@ -856,12 +856,18 @@ final class LemmaServiceProvider extends ServiceProvider
             // ("where is this asset used") but carry no cache tags — webhook only.
             AssetAttached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
             AssetDetached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
-            // Collection row CRUD → audit log. The pack emits pure CollectionRow* events; this
-            // App listener bridges each to an AuditableEvent the Audit extension records.
-            CollectionRowCreated::class => [CollectionAuditListener::class],
-            CollectionRowUpdated::class => [CollectionAuditListener::class],
-            CollectionRowDeleted::class => [CollectionAuditListener::class],
         ];
+
+        // Collection row CRUD → audit log. Gated on the pack being INSTALLED (class_exists), not on
+        // the capability being enabled: removing the pack drops this wiring cleanly with no dangling
+        // reference, while a disabled-but-installed pack still audits any programmatic row mutation.
+        // The pack emits pure CollectionRow* events; CollectionAuditListener bridges each to an
+        // AuditableEvent the Audit extension records.
+        if (class_exists(CollectionRowCreated::class)) {
+            $listeners[CollectionRowCreated::class] = [CollectionAuditListener::class];
+            $listeners[CollectionRowUpdated::class] = [CollectionAuditListener::class];
+            $listeners[CollectionRowDeleted::class] = [CollectionAuditListener::class];
+        }
 
         foreach ($listeners as $eventClass => $serviceIds) {
             foreach ($serviceIds as $serviceId) {

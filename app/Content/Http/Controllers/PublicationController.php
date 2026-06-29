@@ -13,6 +13,7 @@ use App\Content\Schema\Migration\SchemaProjector;
 use App\Content\Services\PublishService;
 use App\Content\Validation\ValidationException;
 use App\Http\DTOs\ErrorResponse;
+use App\Support\ActorHelper;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
@@ -189,7 +190,6 @@ final class PublicationController
      */
     private function actor(Request $request): ?string
     {
-        $user = $request->attributes->get('auth.user');
-        return $user instanceof UserIdentity ? $user->id() : null;
+        return ActorHelper::uuidFromRequest($request);
     }
 }

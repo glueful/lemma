@@ -14,7 +14,7 @@ use App\Http\DTOs\Responses\ApiKeyRotatedData;
 use App\Http\DTOs\RotateApiKeyData;
 use Glueful\Auth\ApiKey\ApiKey;
 use Glueful\Auth\ApiKey\ApiKeyService;
-use Glueful\Auth\UserIdentity;
+use App\Support\ActorHelper;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
@@ -318,9 +318,7 @@ final class ApiKeyAdminController
 
     private function currentUserUuid(Request $request): ?string
     {
-        $user = $request->attributes->get('auth.user');
-
-        return $user instanceof UserIdentity ? $user->uuid() : null;
+        return ActorHelper::uuidFromRequest($request);
     }
 
     /**

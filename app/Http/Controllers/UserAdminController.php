@@ -8,7 +8,7 @@ use App\Http\DTOs\CreateUserData;
 use App\Http\DTOs\ErrorResponse;
 use App\Http\DTOs\UpdateUserData;
 use Glueful\Auth\PasswordHasher;
-use Glueful\Auth\UserIdentity;
+use App\Support\ActorHelper;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Aegis\AegisPermissionProvider;
 use Glueful\Extensions\Aegis\Models\Role;
@@ -163,8 +163,8 @@ final class UserAdminController
     )]
     public function destroy(Request $request, string $uuid): Response
     {
-        $actor = $request->attributes->get('auth.user');
-        if ($actor instanceof UserIdentity && $actor->id() === $uuid) {
+        $actorUuid = ActorHelper::uuidFromRequest($request);
+        if ($actorUuid !== null && $actorUuid === $uuid) {
             return Response::error('You cannot delete your own account.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 

@@ -8,7 +8,10 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Importers\CsvContentImporter;
 use Glueful\Lemma\Importers\CsvUserImporter;
+use Glueful\Lemma\Importers\MarkdownContentImporter;
+use Glueful\Lemma\Importers\WordpressContentImporter;
 
 final class LemmaImportersServiceProvider extends ServiceProvider
 {
@@ -18,6 +21,24 @@ final class LemmaImportersServiceProvider extends ServiceProvider
         return [
             CsvUserImporter::class => [
                 'class'    => CsvUserImporter::class,
+                'shared'   => true,
+                'autowire' => true,
+                'tags'     => ['import_export.importer'],
+            ],
+            CsvContentImporter::class => [
+                'class'    => CsvContentImporter::class,
+                'shared'   => true,
+                'autowire' => true,
+                'tags'     => ['import_export.importer'],
+            ],
+            MarkdownContentImporter::class => [
+                'class'    => MarkdownContentImporter::class,
+                'shared'   => true,
+                'autowire' => true,
+                'tags'     => ['import_export.importer'],
+            ],
+            WordpressContentImporter::class => [
+                'class'    => WordpressContentImporter::class,
                 'shared'   => true,
                 'autowire' => true,
                 'tags'     => ['import_export.importer'],

@@ -2,13 +2,8 @@
 
 declare(strict_types=1);
 
-namespace App\Content\ImportExport;
+namespace Glueful\Lemma\Importers;
 
-use App\Content\Repositories\ContentTypeRepository;
-use App\Content\Repositories\EntryRepository;
-use App\Content\Schema\FieldDefinition;
-use App\Content\Services\PublishService;
-use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Extensions\ImportExport\Contracts\ImporterInterface;
@@ -19,6 +14,10 @@ use Glueful\Extensions\ImportExport\Support\ImportContext;
 use Glueful\Extensions\ImportExport\Support\ImportOptions;
 use Glueful\Extensions\ImportExport\Support\ImportPlan;
 use Glueful\Extensions\ImportExport\Support\ImportSource;
+use Glueful\Lemma\Contracts\Authoring\ContentWriter;
+use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
+use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
 
 use function config;
 
@@ -33,9 +32,14 @@ use function config;
  *
  * v1 imports posts/pages only — media/attachments, authors, categories/tags, custom post types,
  * post meta and upsert-by-WP-id are deferred follow-ups.
+ *
+ * Writes via the {@see ContentWriter} contract; schema access via {@see ContentTypeReader}.
+ * No direct dependency on engine repositories, services, or validators.
  */
 final class WordpressContentImporter implements ImporterInterface, RetryableAdapterInterface
 {
+    use RequiresImportersCapability;
+
     /** WXR scalar keys a field can map to. */
     public const KEYS = ['title', 'excerpt', 'slug', 'date', 'status', 'author'];
     private const POST_TYPES = ['post', 'page'];
@@ -43,10 +47,9 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly Connection $db,
-        private readonly ContentTypeRepository $types,
-        private readonly FieldValidator $validator,
-        private readonly EntryRepository $entries,
-        private readonly PublishService $publisher,
+        private readonly ContentWriter $writer,
+        private readonly ContentTypeReader $types,
+        private readonly CapabilityRegistry $capabilities,
     ) {
     }
 
@@ -68,11 +71,13 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
 
     public function plan(ImportSource $source, ImportOptions $options): ImportPlan
     {
+        $this->assertImportersEnabled($this->capabilities);
+
         $slug = $this->stringOption($options->options, 'content_type');
         if ($slug === '') {
             throw new \InvalidArgumentException('A target content_type is required.');
         }
-        if ($this->types->findBySlug($slug) === null) {
+        if ($this->types->findUuidBySlug($slug) === null) {
             throw new \InvalidArgumentException(sprintf('Unknown content type "%s".', $slug));
         }
 
@@ -105,17 +110,17 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
         $locale = $locale !== '' ? $locale : 'en';
         $publish = (bool) ($options['publish'] ?? false);
 
-        $type = $this->types->findBySlug($slug);
-        if ($type === null) {
+        $typeUuid = $this->types->findUuidBySlug($slug);
+        if ($typeUuid === null) {
             throw new \RuntimeException(sprintf('Content type "%s" no longer exists.', $slug));
         }
-        $typeUuid = (string) $type['uuid'];
-        $schemaVersion = (int) ($type['schema_version'] ?? 1);
         $schema = $this->types->schemaFor($typeUuid);
-        /** @var array<string,FieldDefinition> $fieldsByName */
+        if ($schema === null) {
+            throw new \RuntimeException(sprintf('Schema for content type "%s" could not be loaded.', $slug));
+        }
         $fieldsByName = [];
         foreach ($schema->fields() as $field) {
-            $fieldsByName[$field->name] = $field;
+            $fieldsByName[$field->name()] = $field;
         }
 
         $items = array_slice($this->readItemsForJob($context->jobUuid), $batch->offset, $batch->limit);
@@ -131,20 +136,24 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
                     if ($def === null || !array_key_exists($wxrKey, $item)) {
                         continue;
                     }
-                    $payload[$field] = $this->coerce($def->type, (string) $item[$wxrKey]);
+                    $payload[$field] = $this->coerce($def->type(), (string) $item[$wxrKey]);
                 }
                 if ($bodyField !== '' && isset($fieldsByName[$bodyField])) {
-                    $payload[$bodyField] = $fieldsByName[$bodyField]->format === 'plain'
+                    $payload[$bodyField] = $fieldsByName[$bodyField]->format() === 'plain'
                         ? trim(strip_tags($item['content']))
                         : $item['content'];
                 }
 
-                $clean = $this->validator->validate($schema, $payload);
+                $clean = $this->writer->validate($typeUuid, $locale, $payload);
                 if ($context->mode === 'commit') {
-                    $entryUuid = $this->entries->createEntry($typeUuid, $locale, $schemaVersion, $context->actorUuid);
-                    $this->entries->saveDraft($entryUuid, $locale, $clean, $schemaVersion, 0, $context->actorUuid);
+                    $entryUuid = $this->writer->createDraft(
+                        $typeUuid,
+                        $locale,
+                        $clean,
+                        $context->actorUuid,
+                    );
                     if ($publish && $item['status'] === 'publish') {
-                        $this->publisher->publish($entryUuid, $locale, $context->actorUuid);
+                        $this->writer->publish($entryUuid, $locale, $context->actorUuid);
                     }
                 }
                 $processed++;

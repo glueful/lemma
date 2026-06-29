@@ -44,10 +44,7 @@ use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
 use App\Content\ImportExport\LemmaContentExporter;
-use App\Content\ImportExport\CsvContentImporter;
 use App\Content\ImportExport\LemmaContentImporter;
-use App\Content\ImportExport\MarkdownContentImporter;
-use App\Content\ImportExport\WordpressContentImporter;
 use App\Content\Http\DeliveryEtag;
 use App\Content\Events\EntryCreated;
 use App\Content\Events\EntryDeleted;
@@ -452,24 +449,6 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             LemmaContentImporter::class => [
                 'class' => LemmaContentImporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.importer'],
-            ],
-            CsvContentImporter::class => [
-                'class' => CsvContentImporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.importer'],
-            ],
-            MarkdownContentImporter::class => [
-                'class' => MarkdownContentImporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.importer'],
-            ],
-            WordpressContentImporter::class => [
-                'class' => WordpressContentImporter::class,
                 'shared' => true,
                 'autowire' => true,
                 'tags' => ['import_export.importer'],

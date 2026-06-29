@@ -205,10 +205,15 @@ emits the allowed operations.
 - **Drop collection** — destructive flow (below); drops the table + the definition row.
 
 ### Blocked in v1 (return a clear, typed error)
-- **Rename field**, **retype field**.
-- Tightening **nullable** `true → false` when existing NULLs exist.
-- Adding/altering **unique/index** when existing data violates it (pre-flight validation rejects with a
-  clear message — e.g. unique index on duplicate data).
+- **Rename field** (no rename op — a name change is a `drop` + `add`).
+- **Any in-place change to an existing field's column definition** — `type` (retype), `nullable`,
+  `length`, `precision`, `scale`, `bigint`, the relation/asset `target`, and a single↔multiple flip —
+  throws `BlockedSchemaChangeException`. v1 has **no "alter column" op**: to remodel a field's physical
+  definition, **explicitly drop + re-add it** (through the destructive drop flow). Algorithm: compare
+  the field's **storage signature excluding `index`/`unique`**; if it changed for an existing field
+  name, block — then diff `index`/`unique` *separately* into `add_index`/`drop_index`.
+- A **`unique` index** added on existing data that violates it is rejected by the materializer's
+  pre-flight (Task 6) — a clear "duplicate data" error.
 
 ### Destructive flow (drop field / drop collection)
 1. Mark the change destructive; require the client to **type the field/collection name** to confirm +

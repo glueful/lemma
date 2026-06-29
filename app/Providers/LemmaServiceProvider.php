@@ -59,6 +59,7 @@ use App\Content\Http\RequireLemmaPermission;
 use App\Content\Localization\ContentLocaleService;
 use App\Content\Events\AssetAttached;
 use App\Content\Events\AssetDetached;
+use App\Collections\Audit\CollectionAuditListener;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
 use App\Content\Pipeline\Listeners\PurgeCdnListener;
@@ -99,6 +100,9 @@ use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
 use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Events\EventService;
+use Glueful\Lemma\Collections\Events\CollectionRowCreated;
+use Glueful\Lemma\Collections\Events\CollectionRowDeleted;
+use Glueful\Lemma\Collections\Events\CollectionRowUpdated;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Support\FieldSelection\Projector;
 use Psr\Container\ContainerInterface;
@@ -410,6 +414,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             ReindexSearchListener::class => [
                 'class' => ReindexSearchListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CollectionAuditListener::class => [
+                'class' => CollectionAuditListener::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -847,6 +856,11 @@ final class LemmaServiceProvider extends ServiceProvider
             // ("where is this asset used") but carry no cache tags — webhook only.
             AssetAttached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
             AssetDetached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
+            // Collection row CRUD → audit log. The pack emits pure CollectionRow* events; this
+            // App listener bridges each to an AuditableEvent the Audit extension records.
+            CollectionRowCreated::class => [CollectionAuditListener::class],
+            CollectionRowUpdated::class => [CollectionAuditListener::class],
+            CollectionRowDeleted::class => [CollectionAuditListener::class],
         ];
 
         foreach ($listeners as $eventClass => $serviceIds) {

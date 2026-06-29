@@ -2,12 +2,15 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { UserRow } from '@/queries/users'
+import { useCapabilitiesStore } from '@/stores/capabilities'
 import UsersListPane from './components/UsersListPane.vue'
 import UserDetailPane from './components/UserDetailPane.vue'
 import UserCreateModal from './components/UserCreateModal.vue'
 import UserBulkImportModal from './components/UserBulkImportModal.vue'
 
 definePage({ meta: { requiresAuth: true } })
+
+const caps = useCapabilitiesStore()
 
 const route = useRoute()
 const router = useRouter()
@@ -75,7 +78,7 @@ function onCreated(uuid: string) {
       </div>
 
       <UserCreateModal v-model:open="showCreate" @created="onCreated" />
-      <UserBulkImportModal v-model:open="showImport" />
+      <UserBulkImportModal v-if="caps.isEnabled('lemma.importers')" v-model:open="showImport" />
     </template>
   </UDashboardPanel>
 </template>

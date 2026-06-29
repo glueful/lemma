@@ -91,16 +91,20 @@ final class RemovabilityTest extends LemmaTestCase
         // Boot the disabled app. ConfigurationLoader picks up the testing/lemma.php
         // override; DefaultCapabilityRegistry is constructed with lemma.collections=>false;
         // LemmaCollectionsServiceProvider::boot() skips loadRoutesFrom().
-        self::$disabledApp = Framework::create($root)
-            ->withConfigDir($root . '/config')
-            ->withEnvironment('testing')
-            ->boot()
-            ->getContext();
-
-        // Remove the override so subsequent (enabled) boots are unaffected.
-        @unlink($overrideFile);
-        if (is_dir($overrideDir) && count((array) scandir($overrideDir)) === 2) {
-            @rmdir($overrideDir);
+        try {
+            self::$disabledApp = Framework::create($root)
+                ->withConfigDir($root . '/config')
+                ->withEnvironment('testing')
+                ->boot()
+                ->getContext();
+        } finally {
+            // Always remove the override — even if the boot throws — otherwise the next test
+            // class's shared enabled boot would pick up lemma.collections=false and collapse
+            // the whole suite with mysterious route/service failures.
+            @unlink($overrideFile);
+            if (is_dir($overrideDir) && count((array) scandir($overrideDir)) === 2) {
+                @rmdir($overrideDir);
+            }
         }
 
         // Reset the manifest again: subsequent test classes whose setUpBeforeClass calls

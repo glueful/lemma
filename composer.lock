@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "51e7c887112abc39d1c35d658cafe165",
+    "content-hash": "d4a00cb4e295511c4044347505ab477c",
     "packages": [
         {
             "name": "composer/semver",
@@ -910,6 +910,38 @@
                 "source": "https://github.com/glueful/import-export/tree/v1.1.1"
             },
             "time": "2026-06-16T07:05:28+00:00"
+        },
+        {
+            "name": "glueful/lemma-collections",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-collections",
+                "reference": "21c99165d4f5ebfabea2648c83f5ad12d8644bb4"
+            },
+            "require": {
+                "glueful/framework": "^1.64.0",
+                "glueful/lemma-contracts": "*",
+                "php": "^8.3"
+            },
+            "type": "glueful-extension",
+            "extra": {
+                "glueful": {
+                    "provider": "Glueful\\Lemma\\Collections\\LemmaCollectionsServiceProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Collections\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Developer-defined data collections with a public CRUD/query API, as a removable Lemma capability pack.",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "glueful/lemma-contracts",

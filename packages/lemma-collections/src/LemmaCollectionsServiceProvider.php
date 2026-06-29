@@ -1,0 +1,51 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Glueful\Lemma\Collections;
+
+use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Database\Migrations\MigrationPriority;
+use Glueful\Extensions\ServiceProvider;
+use Glueful\Lemma\Collections\Schema\CollectionFieldTypes;
+use Glueful\Lemma\Contracts\Capability\Capability;
+use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
+
+final class LemmaCollectionsServiceProvider extends ServiceProvider
+{
+    /** @return array<string, array<string, mixed>> */
+    public static function services(): array
+    {
+        return [
+            // filled in by later tasks (manager, repositories, controllers, middleware)
+        ];
+    }
+
+    public function register(ApplicationContext $context): void
+    {
+        $this->loadMigrationsFrom(
+            __DIR__ . '/../database/migrations',
+            MigrationPriority::DEPENDENT,
+            'lemma-collections',
+        );
+    }
+
+    public function boot(ApplicationContext $context): void
+    {
+        app($context, CapabilityRegistry::class)->register(new Capability(
+            'lemma.collections',
+            label: 'Data collections',
+            description: 'Developer-defined data collections with a public CRUD/query API.',
+        ));
+
+        CollectionFieldTypes::register(app($context, FieldTypeRegistry::class));
+
+        // Routes are gated by ENABLED state (spec §5): register the public API only when the
+        // capability is on. Disabling lemma.collections leaves migrations/tables intact but removes
+        // the public surface entirely — requests 404 rather than reaching a disabled handler.
+        if (app($context, CapabilityRegistry::class)->isEnabled('lemma.collections')) {
+            $this->loadRoutesFrom(__DIR__ . '/Http/routes.php'); // file added in Task 11
+        }
+    }
+}

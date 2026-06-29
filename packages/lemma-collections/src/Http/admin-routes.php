@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Glueful\Lemma\Collections\Http\Controllers\CollectionAdminSchemaController;
+use Glueful\Lemma\Collections\Http\Controllers\CollectionDataController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -39,5 +40,19 @@ $router->group(
             ->middleware('lemma_permission:collections.schema.manage');
         $router->delete('/collections/{name}', [CollectionAdminSchemaController::class, 'destroy'])
             ->middleware('lemma_permission:collections.schema.manage');
+
+        // Data browser (rows) — reuses the public CollectionDataController. The admin permission
+        // gates it (god-mode over every collection, bypassing the per-collection scope/policy), and
+        // the resolved actor is the admin session, so rows stamp created_by_type='admin'.
+        $router->get('/collections/{name}/rows', [CollectionDataController::class, 'list'])
+            ->middleware('lemma_permission:collections.data.manage');
+        $router->get('/collections/{name}/rows/{uuid}', [CollectionDataController::class, 'show'])
+            ->middleware('lemma_permission:collections.data.manage');
+        $router->post('/collections/{name}/rows', [CollectionDataController::class, 'create'])
+            ->middleware('lemma_permission:collections.data.manage');
+        $router->patch('/collections/{name}/rows/{uuid}', [CollectionDataController::class, 'update'])
+            ->middleware('lemma_permission:collections.data.manage');
+        $router->delete('/collections/{name}/rows/{uuid}', [CollectionDataController::class, 'delete'])
+            ->middleware('lemma_permission:collections.data.manage');
     },
 );

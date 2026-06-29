@@ -25,7 +25,7 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
     public function register(ApplicationContext $context): void
     {
         $this->loadMigrationsFrom(
-            __DIR__ . '/../database/migrations',
+            __DIR__ . '/../migrations',
             MigrationPriority::DEPENDENT,
             'lemma-collections',
         );

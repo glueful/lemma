@@ -35,7 +35,7 @@
 
 **`packages/lemma-collections/`** (new pack)
 - `composer.json`, `src/LemmaCollectionsServiceProvider.php`
-- `database/migrations/001_CreateCollectionDefinitionsTable.php`, `002_CreateCollectionSchemaChangesTable.php`
+- `migrations/001_CreateCollectionDefinitionsTable.php`, `002_CreateCollectionSchemaChangesTable.php` (flat `migrations/` at the pack root — the Glueful extension convention: cf. `glueful/aegis`, `glueful/users`, `glueful/import-export`; **not** a nested `database/`)
 - `src/Schema/CollectionDefinition.php` (VO), `src/Schema/CollectionField.php` (VO), `src/Schema/ColumnMapper.php`, `src/Schema/CollectionFieldTypes.php` (registers `collections.*`)
 - `src/Schema/DdlPlanner.php`, `src/Schema/SchemaMaterializer.php`, `src/Schema/SchemaChange.php` (op VO)
 - `src/CollectionManager.php`, `src/Repositories/CollectionDefinitionRepository.php`
@@ -302,7 +302,7 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
 
     public function register(ApplicationContext $context): void
     {
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations', MigrationPriority::DEPENDENT, 'lemma-collections');
+        $this->loadMigrationsFrom(__DIR__ . '/../migrations', MigrationPriority::DEPENDENT, 'lemma-collections');
     }
 
     public function boot(ApplicationContext $context): void
@@ -338,8 +338,8 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
 ### Task 3: Metadata migrations (`collection_definitions`, `collection_schema_changes`)
 
 **Files:**
-- Create: `packages/lemma-collections/database/migrations/001_CreateCollectionDefinitionsTable.php`
-- Create: `packages/lemma-collections/database/migrations/002_CreateCollectionSchemaChangesTable.php`
+- Create: `packages/lemma-collections/migrations/001_CreateCollectionDefinitionsTable.php`
+- Create: `packages/lemma-collections/migrations/002_CreateCollectionSchemaChangesTable.php`
 - Test: `tests/Integration/Collections/MetadataMigrationsTest.php`
 
 **Interfaces:**

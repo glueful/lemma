@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\ImportExport\Repositories\ImportExportFileRepository;
 use Glueful\Extensions\ImportExport\Repositories\ImportExportJobRepository;
+use Glueful\Helpers\Utils;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
@@ -126,7 +127,7 @@ final class ImportExportController
             return Response::validation(['file' => 'The file exceeds the maximum allowed size.']);
         }
 
-        $path = self::UPLOAD_DIR . '/' . bin2hex(random_bytes(8)) . '.ndjson';
+        $path = self::UPLOAD_DIR . '/' . Utils::generateNanoID(16) . '.ndjson';
         $stream = fopen($file->getPathname(), 'rb');
         if ($stream === false) {
             return Response::error('Could not read the uploaded file.', Response::HTTP_BAD_REQUEST);

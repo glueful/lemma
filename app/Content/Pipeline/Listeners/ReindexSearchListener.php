@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Pipeline\Listeners;
 
 use App\Content\Events\BaseEntryEvent;
-use App\Content\Search\ContentReindexerInterface;
+use Glueful\Lemma\Contracts\Search\ContentReindexer;
 use Psr\Container\ContainerInterface;
 
 /**
@@ -16,7 +16,7 @@ use Psr\Container\ContainerInterface;
  * a CLEAN skip — no error, no exception.
  *
  * The gate is the presence of Lemma's provider-neutral reindex seam in the container:
- * {@see ContentReindexerInterface}. Any search extension can bind this contract and decide
+ * {@see ContentReindexer}. Any search extension can bind this contract and decide
  * whether to perform the work synchronously, enqueue its own job, or fan out to an external
  * engine. Lemma never imports provider-specific classes.
  *
@@ -53,12 +53,12 @@ final class ReindexSearchListener
         }
 
         // Gate: only act when a search provider has bound Lemma's reindex seam.
-        if (!$this->container->has(ContentReindexerInterface::class)) {
+        if (!$this->container->has(ContentReindexer::class)) {
             return;
         }
 
-        /** @var ContentReindexerInterface $reindexer */
-        $reindexer = $this->container->get(ContentReindexerInterface::class);
+        /** @var ContentReindexer $reindexer */
+        $reindexer = $this->container->get(ContentReindexer::class);
         $reindexer->reindexEntry($event->entry, $event->locale);
     }
 }

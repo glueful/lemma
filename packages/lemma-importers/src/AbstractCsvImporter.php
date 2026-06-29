@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\ImportExport;
+namespace Glueful\Lemma\Importers;
 
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;

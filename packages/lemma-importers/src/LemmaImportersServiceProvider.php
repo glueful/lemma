@@ -8,14 +8,21 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Importers\CsvUserImporter;
 
 final class LemmaImportersServiceProvider extends ServiceProvider
 {
     /** @return array<string,mixed> */
     public static function services(): array
     {
-        // Adapter services (tagged import_export.importer) are added in Tasks 4-5.
-        return [];
+        return [
+            CsvUserImporter::class => [
+                'class'    => CsvUserImporter::class,
+                'shared'   => true,
+                'autowire' => true,
+                'tags'     => ['import_export.importer'],
+            ],
+        ];
     }
 
     public function register(ApplicationContext $context): void

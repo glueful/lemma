@@ -9,6 +9,7 @@ const props = defineProps<{ selectedUuid?: string }>()
 const emit = defineEmits<{ select: [user: UserRow]; create: []; bulkImport: [] }>()
 
 const caps = useCapabilitiesStore()
+caps.ensureLoaded()
 
 const page = ref(1)
 const perPage = ref(25)

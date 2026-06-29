@@ -11,6 +11,7 @@ import UserBulkImportModal from './components/UserBulkImportModal.vue'
 definePage({ meta: { requiresAuth: true } })
 
 const caps = useCapabilitiesStore()
+caps.ensureLoaded()
 
 const route = useRoute()
 const router = useRouter()

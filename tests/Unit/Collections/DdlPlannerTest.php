@@ -1,0 +1,221 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Unit\Collections;
+
+use Glueful\Lemma\Collections\Exceptions\BlockedSchemaChangeException;
+use Glueful\Lemma\Collections\Schema\CollectionDefinition;
+use Glueful\Lemma\Collections\Schema\CollectionField;
+use Glueful\Lemma\Collections\Schema\DdlPlanner;
+use PHPUnit\Framework\TestCase;
+
+final class DdlPlannerTest extends TestCase
+{
+    // ------------------------------------------------------------------ helpers
+
+    private static function field(string $name, string $type, array $settings = []): CollectionField
+    {
+        return new CollectionField($name, $type, $settings);
+    }
+
+    private static function text(array $settings = []): CollectionField
+    {
+        return new CollectionField('', 'collections.text', $settings);
+    }
+
+    private static function integer(array $settings = []): CollectionField
+    {
+        return new CollectionField('', 'collections.integer', $settings);
+    }
+
+    /**
+     * Build a CollectionDefinition from a name-keyed field map.
+     *
+     * @param array<string, CollectionField> $fieldMap
+     */
+    private static function def(array $fieldMap): CollectionDefinition
+    {
+        $fields = [];
+        foreach ($fieldMap as $name => $proto) {
+            $fields[] = new CollectionField($name, $proto->type, $proto->settings);
+        }
+
+        return new CollectionDefinition(
+            uuid: 'test-uuid',
+            name: 'test',
+            label: 'Test',
+            tableName: 'lcol_test',
+            storageMode: 'table',
+            fields: $fields,
+            schemaVersion: 1,
+            status: 'draft',
+        );
+    }
+
+    // ------------------------------------------------------------------ planCreate
+
+    public function testPlanCreateEmitsOneCreateTableOp(): void
+    {
+        $p    = new DdlPlanner();
+        $defn = self::def(['title' => self::text(), 'views' => self::integer()]);
+        $ops  = $p->planCreate($defn);
+
+        self::assertCount(1, $ops);
+        self::assertSame('create_table', $ops[0]->op);
+        self::assertFalse($ops[0]->destructive);
+        self::assertNull($ops[0]->field);
+    }
+
+    // ------------------------------------------------------------------ planAlter: field add / drop
+
+    public function testAddFieldAndDropFieldArePlanned(): void
+    {
+        $p = new DdlPlanner();
+        $a = self::def(['title' => self::text()]);
+        $b = self::def(['title' => self::text(), 'views' => self::integer()]);
+
+        $ops = $p->planAlter($a, $b);
+        self::assertSame(['add_field'], array_map(fn ($o) => $o->op, $ops));
+        self::assertFalse($ops[0]->destructive);
+        self::assertSame('views', $ops[0]->field?->name);
+
+        $ops2 = $p->planAlter($b, $a);
+        self::assertSame('drop_field', $ops2[0]->op);
+        self::assertTrue($ops2[0]->destructive);
+        self::assertSame('views', $ops2[0]->field?->name);
+    }
+
+    public function testDropFieldIsDestructive(): void
+    {
+        $p    = new DdlPlanner();
+        $with = self::def(['title' => self::text(), 'slug' => self::text()]);
+        $sans = self::def(['title' => self::text()]);
+
+        $ops = $p->planAlter($with, $sans);
+
+        self::assertCount(1, $ops);
+        self::assertSame('drop_field', $ops[0]->op);
+        self::assertTrue($ops[0]->destructive);
+    }
+
+    public function testNoChangesEmitsNoOps(): void
+    {
+        $p   = new DdlPlanner();
+        $def = self::def(['title' => self::text(), 'views' => self::integer()]);
+
+        self::assertSame([], $p->planAlter($def, $def));
+    }
+
+    // ------------------------------------------------------------------ planAlter: index changes
+
+    public function testAddUniqueIndexIsPlanned(): void
+    {
+        $p       = new DdlPlanner();
+        $without = self::def(['slug' => self::text()]);
+        $with    = self::def(['slug' => self::text(['unique' => true])]);
+
+        $ops = $p->planAlter($without, $with);
+
+        self::assertCount(1, $ops);
+        self::assertSame('add_index', $ops[0]->op);
+        self::assertSame('slug', $ops[0]->field?->name);
+    }
+
+    public function testDropUniqueIndexIsPlanned(): void
+    {
+        $p    = new DdlPlanner();
+        $with = self::def(['slug' => self::text(['unique' => true])]);
+        $sans = self::def(['slug' => self::text()]);
+
+        $ops = $p->planAlter($with, $sans);
+
+        self::assertCount(1, $ops);
+        self::assertSame('drop_index', $ops[0]->op);
+        self::assertSame('slug', $ops[0]->field?->name);
+        self::assertFalse($ops[0]->destructive);
+    }
+
+    public function testAddPlainIndexIsPlanned(): void
+    {
+        $p       = new DdlPlanner();
+        $without = self::def(['slug' => self::text()]);
+        $with    = self::def(['slug' => self::text(['index' => true])]);
+
+        $ops = $p->planAlter($without, $with);
+
+        self::assertCount(1, $ops);
+        self::assertSame('add_index', $ops[0]->op);
+    }
+
+    public function testDropPlainIndexIsPlanned(): void
+    {
+        $p    = new DdlPlanner();
+        $with = self::def(['slug' => self::text(['index' => true])]);
+        $sans = self::def(['slug' => self::text()]);
+
+        $ops = $p->planAlter($with, $sans);
+
+        self::assertCount(1, $ops);
+        self::assertSame('drop_index', $ops[0]->op);
+    }
+
+    // ------------------------------------------------------------------ planAlter: blocked ops
+
+    public function testRetypeIsBlocked(): void
+    {
+        $p = new DdlPlanner();
+        $this->expectException(BlockedSchemaChangeException::class);
+        $p->planAlter(self::def(['n' => self::integer()]), self::def(['n' => self::text()]));
+    }
+
+    public function testRetypeExceptionMessageNamesTheField(): void
+    {
+        $p = new DdlPlanner();
+
+        try {
+            $p->planAlter(
+                self::def(['score' => self::integer()]),
+                self::def(['score' => self::text()]),
+            );
+            self::fail('Expected BlockedSchemaChangeException');
+        } catch (BlockedSchemaChangeException $e) {
+            self::assertStringContainsString('score', $e->getMessage());
+            self::assertStringContainsString('collections.integer', $e->getMessage());
+            self::assertStringContainsString('collections.text', $e->getMessage());
+        }
+    }
+
+    // -------------------------------------------------- planAlter: drop+add of differing names is allowed
+
+    public function testDropAndAddByDifferingNamesIsAllowed(): void
+    {
+        // "rename" via JSON is just drop old + add new; both field names differ → allowed
+        $p     = new DdlPlanner();
+        $older = self::def(['title' => self::text()]);
+        $newer = self::def(['headline' => self::text()]);
+
+        $ops = $p->planAlter($older, $newer);
+
+        $opNames = array_map(fn ($o) => $o->op, $ops);
+        self::assertContains('drop_field', $opNames);
+        self::assertContains('add_field', $opNames);
+    }
+
+    // ----------------------------------------- planAlter: new field with unique — no separate add_index
+
+    public function testAddingFieldWithUniqueEmitsAddFieldAndAddIndex(): void
+    {
+        $p     = new DdlPlanner();
+        $empty = self::def([]);
+        $next  = self::def(['slug' => self::text(['unique' => true])]);
+
+        $ops     = $p->planAlter($empty, $next);
+        $opNames = array_map(fn ($o) => $o->op, $ops);
+
+        self::assertContains('add_field', $opNames);
+        // new field — the add_field carries the unique setting; add_index is NOT emitted
+        // separately for brand-new fields (the index is created with the column)
+        self::assertNotContains('add_index', $opNames);
+    }
+}

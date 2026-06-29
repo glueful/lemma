@@ -372,6 +372,7 @@ public function up(SchemaBuilderInterface $schema): void
         $table->string('name', 64);
         $table->string('label', 160);
         $table->string('table_name', 80);
+        $table->string('storage_mode', 16)->default('table'); // reserved; v1 accepts only 'table'
         $table->text('fields');            // JSON
         $table->integer('schema_version')->default(1);
         $table->string('status', 16)->default('active');
@@ -400,7 +401,7 @@ public function down(SchemaBuilderInterface $schema): void { $schema->dropTableI
 - Test: `tests/Unit/Collections/ColumnMapperTest.php`
 
 **Interfaces:**
-- Produces: `CollectionField` (readonly VO: `name:string`, `type:string` (e.g. `collections.decimal`), `settings:array` — `length/precision/scale/nullable/unique/index/bigint/values/target/multi`), with `fromArray(array):self` / `toArray():array`. `CollectionDefinition` (readonly VO: `uuid,name,label,tableName,fields:list<CollectionField>,schemaVersion,status`; `fromRow(array):self`; `field(string $name):?CollectionField`). `ColumnMapper::column(CollectionField): ColumnSpec` returning the physical column directive `{name, type, params, nullable, unique}` consumed by the materializer; `ColumnMapper::supportedTypes(): list<string>`.
+- Produces: `CollectionField` (readonly VO: `name:string`, `type:string` (e.g. `collections.decimal`), `settings:array` — `length/precision/scale/nullable/unique/index/bigint/values/target/multi`), with `fromArray(array):self` / `toArray():array`. `CollectionDefinition` (readonly VO: `uuid,name,label,tableName,storageMode,fields:list<CollectionField>,schemaVersion,status` — `storageMode` is a `string` that is always `'table'` in v1; `fromRow(array):self` (defaults a missing `storage_mode` to `'table'`); `field(string $name):?CollectionField`). `ColumnMapper::column(CollectionField): ColumnSpec` returning the physical column directive `{name, type, params, nullable, unique}` consumed by the materializer; `ColumnMapper::supportedTypes(): list<string>`.
 
 - [ ] **Step 1: Failing test** — `ColumnMapper` maps each v1 type to the right column directive.
 
@@ -488,7 +489,7 @@ public function testRetypeIsBlocked(): void
 public function testCreateTableMaterializesRealTableWithSystemColumns(): void
 {
     [$mat, $schema] = [$this->container()->get(SchemaMaterializer::class), $this->schema()];
-    $def = new CollectionDefinition('clx_1', 'products', 'Products', 'collection_clx1', [
+    $def = new CollectionDefinition('clx_1', 'products', 'Products', 'collection_clx1', 'table', [
         CollectionField::fromArray(['name' => 'title', 'type' => 'collections.text', 'settings' => ['length' => 120]]),
     ], 1, 'active');
     $mat->apply($def, (new DdlPlanner())->planCreate($def), 'admin', 'u1');
@@ -515,9 +516,9 @@ public function testCreateTableMaterializesRealTableWithSystemColumns(): void
 - Test: `tests/Integration/Collections/CollectionManagerTest.php`
 
 **Interfaces:**
-- Produces: `CollectionManager::create(array $payload, string $actorType, ?string $actorId): CollectionDefinition` (validates name/fields, generates `uuid` + `table_name = 'collection_' . substr(hash, …)`, persists definition, materializes table). `addField(string $name, array $field, …)`, `addIndex(...)`, `removeIndex(...)`. `dropField(string $name, string $field, array $opts, …)` and `dropCollection(string $name, array $opts, …)` — require `$opts['confirm'] === $field/$name` **unless the data table is empty** (light path); otherwise throw `DestructiveConfirmationRequiredException`. Bumps `schema_version` on each accepted change. **Never** called on disable/remove.
+- Produces: `CollectionManager::create(array $payload, string $actorType, ?string $actorId): CollectionDefinition` (validates name/fields; **rejects `storage_mode` other than `'table'`** with a validation error `['storage_mode' => 'Only table storage is supported in v1.']` — a missing `storage_mode` defaults to `'table'`; generates `uuid` + `table_name = 'collection_' . substr(hash, …)`, persists definition with `storage_mode='table'`, materializes table). `addField(string $name, array $field, …)`, `addIndex(...)`, `removeIndex(...)`. `dropField(string $name, string $field, array $opts, …)` and `dropCollection(string $name, array $opts, …)` — require `$opts['confirm'] === $field/$name` **unless the data table is empty** (light path); otherwise throw `DestructiveConfirmationRequiredException`. Bumps `schema_version` on each accepted change. **Never** called on disable/remove.
 
-- [ ] **Step 1: Failing tests** — create materializes; add-field alters; `dropField` without confirm on a populated table throws; `dropField` on an empty table succeeds without confirm; `dropCollection` with the right `confirm` drops table + definition row.
+- [ ] **Step 1: Failing tests** — create materializes; **`create` with `storage_mode: 'document'` is rejected (only `'table'` allowed in v1); a missing `storage_mode` defaults to `'table'` and succeeds**; add-field alters; `dropField` without confirm on a populated table throws; `dropField` on an empty table succeeds without confirm; `dropCollection` with the right `confirm` drops table + definition row.
 - [ ] **Step 2: Run** → FAIL. **Step 3:** Implement (reserved-name guard against system columns + SQL keywords; name format `^[a-z][a-z0-9_]*$`). **Step 4: Run** → PASS.
 - [ ] **Step 5: phpcbf/phpcs + Commit** — `git commit -m "Add CollectionManager with guarded drop + empty-table light path"`
 

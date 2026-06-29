@@ -131,6 +131,7 @@ The system of record for **structure** (the materialized table is the system of 
 | `name` | unique handle used in the API path (`/v1/collections/{name}`) |
 | `label` | display name |
 | `table_name` | the physical table, `collection_<uuid-or-hash>` (decoupled from `name`) |
+| `storage_mode` | `varchar(16)` not-null default `'table'`; v1 accepts only `'table'` (reserved for future storage engines) |
 | `fields` | JSON — the ordered field list (mirrors `content_types.schema`) |
 | `schema_version` | bumped on each accepted schema change (definition is versionable) |
 | `status` | `active` (room for future states) |
@@ -138,6 +139,10 @@ The system of record for **structure** (the materialized table is the system of 
 
 Physical tables are named `collection_<uuid/hash>`, **never the raw `name`** — avoids collisions and
 makes a future display-name/slug change a metadata-only edit (no physical rename).
+
+`storage_mode` is **reserved for future storage engines**. V1 supports only `table` (per-collection real
+tables, the system of record); document/JSONB-backed collections are explicitly **rejected until v2**.
+Carrying the column from v1 means a future engine is additive — no definition row needs migrating.
 
 ### 4.2 Materialized data table — `collection_<uuid/hash>`
 

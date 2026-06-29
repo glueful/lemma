@@ -2,10 +2,12 @@
 import { computed } from 'vue'
 import { open, useVisibleNav } from '../navigation/sidebar'
 import { registerCoreModule } from '@/registry/coreModule'
+import { registerCollectionsModule } from '@/registry/collectionsModule'
 import { useCapabilitiesStore } from '@/stores/capabilities'
 import { useContentTypes } from '@/queries/contentTypes'
 
 registerCoreModule()
+registerCollectionsModule()
 useCapabilitiesStore().ensureLoaded() // post-auth: this layout only renders for authenticated users
 
 const nav = useVisibleNav()

@@ -98,6 +98,9 @@ final class MarkdownContentImporter implements ImporterInterface, RetryableAdapt
 
     public function process(ImportBatch $batch, ImportContext $context): ImportBatchResult
     {
+        // Re-gate on the processing path so a retry after the capability was disabled fails closed.
+        $this->assertImportersEnabled($this->capabilities);
+
         if ($batch->offset > 0) {
             return new ImportBatchResult(0, 0, [], ['mode' => $context->mode]);
         }

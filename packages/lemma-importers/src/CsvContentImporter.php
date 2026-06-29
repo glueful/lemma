@@ -48,9 +48,14 @@ final class CsvContentImporter extends AbstractCsvImporter
         return 'CSV';
     }
 
-    protected function validatePlan(array $header, ImportOptions $options): void
+    protected function assertEnabled(): void
     {
         $this->assertImportersEnabled($this->capabilities);
+    }
+
+    protected function validatePlan(array $header, ImportOptions $options): void
+    {
+        $this->assertEnabled();
 
         $slug = $this->stringOption($options->options, 'content_type');
         $mapping = $this->mappingOption($options->options);

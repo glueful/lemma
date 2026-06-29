@@ -102,6 +102,9 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
 
     public function process(ImportBatch $batch, ImportContext $context): ImportBatchResult
     {
+        // Re-gate on the processing path so a retry after the capability was disabled fails closed.
+        $this->assertImportersEnabled($this->capabilities);
+
         $options = $context->options;
         $slug = $this->stringOption($options, 'content_type');
         $mapping = $this->mappingOption($options);

@@ -71,6 +71,10 @@ abstract class AbstractCsvImporter implements ImporterInterface, RetryableAdapte
 
     public function process(ImportBatch $batch, ImportContext $context): ImportBatchResult
     {
+        // Re-gate on the processing path: a job retried after the capability was
+        // disabled must still fail closed, not finish its remaining batches ungated.
+        $this->assertEnabled();
+
         $rows = array_slice($this->recordsForJob($context->jobUuid), $batch->offset, $batch->limit);
         $prepared = $this->prepare($context);
         $errors = [];
@@ -100,6 +104,12 @@ abstract class AbstractCsvImporter implements ImporterInterface, RetryableAdapte
     }
 
     // ── Template methods ───────────────────────────────────────────────────────
+
+    /**
+     * Assert the owning capability is enabled; throw to fail closed. Called on both the
+     * planning and the processing path so a retry can't run an ungated batch.
+     */
+    abstract protected function assertEnabled(): void;
 
     /**
      * Validate the options/header before batches are queued; throw to reject the import.

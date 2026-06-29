@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Importers;
 
 use App\Capabilities\DefaultCapabilityRegistry;
+use Glueful\Http\Exceptions\Client\ForbiddenException;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
@@ -29,7 +30,7 @@ final class RequiresImportersCapabilityTest extends TestCase
     {
         $reg = new DefaultCapabilityRegistry(['lemma.importers' => false]);
         $reg->register(new Capability('lemma.importers'));
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(ForbiddenException::class);
         $this->gate()->run($reg);
     }
 

@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\ImportExport;
 
+use App\Capabilities\DefaultCapabilityRegistry;
 use Glueful\Lemma\Importers\CsvContentImporter;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Extensions\ImportExport\Support\ImportBatch;
 use Glueful\Extensions\ImportExport\Support\ImportContext;
 use Glueful\Extensions\ImportExport\Support\ImportOptions;
 use Glueful\Extensions\ImportExport\Support\ImportSource;
+use Glueful\Http\Exceptions\Client\ForbiddenException;
+use Glueful\Lemma\Contracts\Authoring\ContentWriter;
+use Glueful\Lemma\Contracts\Capability\Capability;
+use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
 
 final class CsvContentImporterTest extends LemmaTestCase
 {
@@ -96,6 +101,27 @@ final class CsvContentImporterTest extends LemmaTestCase
         self::assertSame(1, $result->failedRecords);
         self::assertSame(2, $result->errors[0]['record_number']);
         self::assertSame(1, $this->connection()->table('entries')->count());
+    }
+
+    public function testProcessFailsClosedWhenTheCapabilityIsDisabled(): void
+    {
+        // A job retried after lemma.importers was disabled must not run its remaining batches.
+        $disabled = new DefaultCapabilityRegistry(['lemma.importers' => false]);
+        $disabled->register(new Capability('lemma.importers'));
+
+        $importer = new CsvContentImporter(
+            $this->appContext(),
+            $this->connection(),
+            $this->container()->get(ContentWriter::class),
+            $this->container()->get(ContentTypeReader::class),
+            $disabled,
+        );
+
+        $this->expectException(ForbiddenException::class);
+        $importer->process(
+            new ImportBatch('batchcsv0001', 'jobcsv000001', 1, 0, 20),
+            new ImportContext($this->appContext(), 'jobcsv000001', 'commit', null, self::OPTIONS),
+        );
     }
 
     private function importer(): CsvContentImporter

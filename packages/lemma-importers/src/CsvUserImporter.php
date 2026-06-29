@@ -52,9 +52,14 @@ final class CsvUserImporter extends AbstractCsvImporter
         return 'Users (CSV)';
     }
 
-    protected function validatePlan(array $header, ImportOptions $options): void
+    protected function assertEnabled(): void
     {
         $this->assertImportersEnabled($this->capabilities);
+    }
+
+    protected function validatePlan(array $header, ImportOptions $options): void
+    {
+        $this->assertEnabled();
         $mapping = $this->mappingOption($options->options);
         if ($mapping === []) {
             throw new \InvalidArgumentException('A column mapping is required.');

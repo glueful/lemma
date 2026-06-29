@@ -8,6 +8,8 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Collections\CollectionManager;
+use Glueful\Lemma\Collections\Data\RowRepository;
+use Glueful\Lemma\Collections\Data\RowValidator;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\CollectionFieldTypes;
 use Glueful\Lemma\Collections\Schema\ColumnMapper;
@@ -45,6 +47,16 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
             ],
             CollectionManager::class => [
                 'class'    => CollectionManager::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            RowValidator::class => [
+                'class'    => RowValidator::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            RowRepository::class => [
+                'class'    => RowRepository::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

@@ -330,6 +330,30 @@ final class CollectionManager
         $this->repo->delete($current->uuid);
     }
 
+    /**
+     * Replace a collection's access policy. Metadata only — no table DDL, no schema-version bump.
+     *
+     * @throws \DomainException when no collection with $name exists.
+     */
+    public function setAccessPolicy(string $name, AccessPolicy $policy): CollectionDefinition
+    {
+        $current = $this->loadOrFail($name);
+        $next    = new CollectionDefinition(
+            uuid: $current->uuid,
+            name: $current->name,
+            label: $current->label,
+            tableName: $current->tableName,
+            storageMode: $current->storageMode,
+            fields: $current->fields,
+            schemaVersion: $current->schemaVersion,
+            status: $current->status,
+            accessPolicy: $policy,
+        );
+        $this->repo->update($next);
+
+        return $next;
+    }
+
     // ----------------------------------------------------------------- private
 
     /**

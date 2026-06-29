@@ -12,6 +12,7 @@ use Glueful\Lemma\Collections\Data\RowRepository;
 use Glueful\Lemma\Collections\Data\RowValidator;
 use Glueful\Lemma\Collections\Http\ActorResolver;
 use Glueful\Lemma\Collections\Http\CollectionScopeMiddleware;
+use Glueful\Lemma\Collections\Http\Controllers\CollectionAdminSchemaController;
 use Glueful\Lemma\Collections\Http\Controllers\CollectionDataController;
 use Glueful\Lemma\Collections\Query\QueryCompiler;
 use Glueful\Lemma\Collections\Relations\RelationResolver;
@@ -88,6 +89,11 @@ final class LemmaCollectionsServiceProvider extends ServiceProvider
             ],
             CollectionDataController::class => [
                 'class'    => CollectionDataController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            CollectionAdminSchemaController::class => [
+                'class'    => CollectionAdminSchemaController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

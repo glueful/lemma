@@ -27,18 +27,28 @@ final class EngineContentWriter implements ContentWriter
     ) {
     }
 
-    public function createDraft(string $contentTypeUuid, string $locale, array $fields, ?string $actor = null): string
+    public function validate(string $contentTypeUuid, string $locale, array $fields): array
     {
         $type = $this->types->findByUuid($contentTypeUuid);
         if ($type === null) {
             throw new \RuntimeException("content type {$contentTypeUuid} not found");
         }
         $schema = ContentTypeSchema::fromArray($type['schema']);
+
+        return $this->validator->validate($schema, $fields);
+    }
+
+    public function createDraft(string $contentTypeUuid, string $locale, array $fields, ?string $actor = null): string
+    {
+        $type = $this->types->findByUuid($contentTypeUuid);
+        if ($type === null) {
+            throw new \RuntimeException("content type {$contentTypeUuid} not found");
+        }
         $schemaVersion = (int) $type['schema_version'];
 
         // Enforce core validation up front — saveDraft() requires an already-cleaned
         // payload. Throws ValidationException on bad input (same contract as the HTTP path).
-        $clean = $this->validator->validate($schema, $fields);
+        $clean = $this->validate($contentTypeUuid, $locale, $fields);
 
         // createEntry() also seeds an empty draft at lock_version 0, so saveDraft() with
         // expectedLockVersion 0 CAS-matches and writes the validated fields.

@@ -19,6 +19,17 @@ interface ContentWriter
     public function createDraft(string $contentTypeUuid, string $locale, array $fields, ?string $actor = null): string;
 
     /**
+     * Validate (and clean) a content payload against the content type's schema WITHOUT
+     * persisting — for dry-run / preview flows. Returns the cleaned payload; throws a
+     * {@see ValidationFailed} on invalid input.
+     *
+     * @param array<string,mixed> $fields
+     * @return array<string,mixed>
+     * @throws ValidationFailed
+     */
+    public function validate(string $contentTypeUuid, string $locale, array $fields): array;
+
+    /**
      * Publish the current draft for $entryUuid/$locale.
      *
      * @return string The publication (version) uuid.

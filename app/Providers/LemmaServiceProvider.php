@@ -110,14 +110,12 @@ use Psr\Container\ContainerInterface;
  * lifecycle is run by the ExtensionManager (it extends ServiceProvider, the gate
  * ExtensionManager::addProvider() requires).
  *
- * services() registers, with autowiring:
- *   - the four repositories (each resolves Connection),
- *   - FieldValidator,
- *   - PublishService (resolves ApplicationContext + repos + validator — all container-known),
- *   - the three admin controllers (EntryController also resolves ApplicationContext),
- *   - RequireLemmaPermission under the `lemma_permission` container alias, which is how
- *     `->middleware('lemma_permission:...')` resolves (Router::resolveMiddleware() does
- *     container->get('lemma_permission')).
+ * services() composes per-domain binding groups (repositories, the content engine +
+ * contract implementations, SEO/routing, the delivery read path, pipeline listeners,
+ * preview, import/export, maintenance, the HTTP controllers, and console commands). Each
+ * group is a small private static method returning a partial binding array; services()
+ * array_merges them so the registration reads as a table of contents. All bindings
+ * autowire unless they need a factory (config-derived construction) or explicit arguments.
  *
  * Routes: routes/lemma_admin.php is NOT loaded here. The framework's RouteManifest
  * auto-discovers every routes/*.php file (underscore-prefixed partials excepted) during
@@ -143,12 +141,30 @@ final class LemmaServiceProvider extends ServiceProvider
     /** @return array<string, array<string, mixed>> */
     public static function services(): array
     {
+        return array_merge(
+            self::repositoryServices(),
+            self::contentEngineServices(),
+            self::seoServices(),
+            self::deliveryServices(),
+            self::pipelineListenerServices(),
+            self::previewServices(),
+            self::importExportServices(),
+            self::maintenanceServices(),
+            self::contentControllerServices(),
+            self::platformControllerServices(),
+            self::consoleCommandServices(),
+        );
+    }
+
+    /**
+     * Content storage repositories — each resolves Connection (RouteRepository also takes
+     * the SEO RedirectRepository so route changes can retire stale redirects).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function repositoryServices(): array
+    {
         return [
-            SetupService::class => [
-                'class'    => SetupService::class,
-                'shared'   => true,
-                'autowire' => true,
-            ],
             ContentTypeRepository::class => [
                 'class' => ContentTypeRepository::class,
                 'shared' => true,
@@ -174,23 +190,6 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
-            CapabilityRegistry::class => [
-                'factory' => [self::class, 'makeCapabilityRegistry'],
-                'shared' => true,
-            ],
-            PathRenderer::class => [
-                'factory' => [self::class, 'makePathRenderer'],
-                'shared' => true,
-            ],
-            RouteResolver::class => [
-                'class' => RouteResolver::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            CanonicalProjector::class => [
-                'factory' => [self::class, 'makeCanonicalProjector'],
-                'shared' => true,
-            ],
             ReferenceProjectionRepository::class => [
                 'class' => ReferenceProjectionRepository::class,
                 'shared' => true,
@@ -206,6 +205,28 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+        ];
+    }
+
+    /**
+     * The content engine core and the contract implementations packs bind against
+     * (ContentWriter, ContentDeliveryReader, LemmaContext, ContentTypeReader), plus
+     * schema/validation, publishing, locale, the capability registry, and setup.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function contentEngineServices(): array
+    {
+        return [
+            SetupService::class => [
+                'class'    => SetupService::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            CapabilityRegistry::class => [
+                'factory' => [self::class, 'makeCapabilityRegistry'],
+                'shared' => true,
+            ],
             SchemaProjector::class => [
                 'class' => SchemaProjector::class,
                 'shared' => false,
@@ -218,36 +239,6 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             ContentLocaleService::class => [
                 'class' => ContentLocaleService::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            PublishEventEmitter::class => [
-                'class' => PublishEventEmitter::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            InvalidateCacheTagsListener::class => [
-                'class' => InvalidateCacheTagsListener::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            DispatchWebhookListener::class => [
-                'class' => DispatchWebhookListener::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            PurgeCdnListener::class => [
-                'class' => PurgeCdnListener::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            ReindexSearchListener::class => [
-                'class' => ReindexSearchListener::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            MediaUsageProjector::class => [
-                'class' => MediaUsageProjector::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -281,109 +272,45 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
-            ContentTypeController::class => [
-                'class' => ContentTypeController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            MigrationController::class => [
-                'class' => MigrationController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            AdminConfigController::class => [
-                'class' => AdminConfigController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            UserAdminController::class => [
-                'class' => UserAdminController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            ExtensionAdminController::class => [
-                'class' => ExtensionAdminController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            MediaAdminController::class => [
-                'class' => MediaAdminController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            ApiKeyAdminController::class => [
-                'class' => ApiKeyAdminController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            GeneralSettingsController::class => [
-                'class' => GeneralSettingsController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            SettingsStore::class => [
-                'class' => SettingsStore::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            GeneralSettings::class => [
-                'class' => GeneralSettings::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            CacheAdminController::class => [
-                'class' => CacheAdminController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            HealthAdminController::class => [
-                'class' => HealthAdminController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            CapabilityAdminController::class => [
-                'class' => CapabilityAdminController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            ImportExportController::class => [
-                'class' => ImportExportController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            ScheduledTasksController::class => [
-                'class' => ScheduledTasksController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            SetupController::class => [
-                'class' => SetupController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            EntryController::class => [
-                'class' => EntryController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            PublicationController::class => [
-                'class' => PublicationController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            RedirectController::class => [
-                'class' => RedirectController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
-            RequireLemmaPermission::class => [
-                'class' => RequireLemmaPermission::class,
-                'shared' => true,
-                'autowire' => true,
-                'alias' => ['lemma_permission'],
-            ],
+        ];
+    }
 
-            // Delivery API (published-only read path).
+    /**
+     * Headless SEO/routing: path rendering, route resolution, and canonical-URL
+     * projection (the factory-built services derive their config from lemma.seo.*).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function seoServices(): array
+    {
+        return [
+            PathRenderer::class => [
+                'factory' => [self::class, 'makePathRenderer'],
+                'shared' => true,
+            ],
+            RouteResolver::class => [
+                'class' => RouteResolver::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CanonicalProjector::class => [
+                'factory' => [self::class, 'makeCanonicalProjector'],
+                'shared' => true,
+            ],
+        ];
+    }
+
+    /**
+     * Delivery API (published-only read path): the repository, filter/sort compilers,
+     * reference resolution (the ReferenceTargetResolver contract binds to the engine's
+     * ReferenceFilterResolver), field projection, ETag, the controller, and the
+     * delivery-scoped middleware aliases.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function deliveryServices(): array
+    {
+        return [
             DeliveryRepository::class => [
                 'class' => DeliveryRepository::class,
                 'shared' => true,
@@ -441,28 +368,67 @@ final class LemmaServiceProvider extends ServiceProvider
                 'autowire' => true,
                 'alias' => ['lemma_delivery_access'],
             ],
-            LemmaContentExporter::class => [
-                'class' => LemmaContentExporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.exporter'],
-            ],
-            LemmaContentImporter::class => [
-                'class' => LemmaContentImporter::class,
-                'shared' => true,
-                'autowire' => true,
-                'tags' => ['import_export.importer'],
-            ],
-
             OptionalApiKeyAuthMiddleware::class => [
                 'class' => OptionalApiKeyAuthMiddleware::class,
                 'shared' => true,
                 'autowire' => true,
                 'alias' => ['optional_api_key'],
             ],
+        ];
+    }
 
-            // Preview (the narrow draft door). Minter + reader derive the same APP_KEY
-            // signing key; the controller wires the admin mint + public token read.
+    /**
+     * Publish-pipeline listeners wired onto the event bus in registerEventListeners().
+     * PurgeCdnListener and ReindexSearchListener are capability-gated no-ops in a lean
+     * install (no glueful/cdn / content reindexer) — they self-skip at invocation.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function pipelineListenerServices(): array
+    {
+        return [
+            PublishEventEmitter::class => [
+                'class' => PublishEventEmitter::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            InvalidateCacheTagsListener::class => [
+                'class' => InvalidateCacheTagsListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            DispatchWebhookListener::class => [
+                'class' => DispatchWebhookListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            PurgeCdnListener::class => [
+                'class' => PurgeCdnListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ReindexSearchListener::class => [
+                'class' => ReindexSearchListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            MediaUsageProjector::class => [
+                'class' => MediaUsageProjector::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+        ];
+    }
+
+    /**
+     * Preview (the narrow draft door). Minter + reader derive the same APP_KEY signing
+     * key; the controller wires the admin mint + public token read.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function previewServices(): array
+    {
+        return [
             PreviewMinter::class => [
                 'class' => PreviewMinter::class,
                 'shared' => true,
@@ -478,16 +444,47 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
-            ScheduleController::class => [
-                'class' => ScheduleController::class,
+        ];
+    }
+
+    /**
+     * Full-graph snapshot export/import (the core `lemma.content` engine, tagged for the
+     * import-export adapter registry) plus the admin import/export controller.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function importExportServices(): array
+    {
+        return [
+            LemmaContentExporter::class => [
+                'class' => LemmaContentExporter::class,
+                'shared' => true,
+                'autowire' => true,
+                'tags' => ['import_export.exporter'],
+            ],
+            LemmaContentImporter::class => [
+                'class' => LemmaContentImporter::class,
+                'shared' => true,
+                'autowire' => true,
+                'tags' => ['import_export.importer'],
+            ],
+            ImportExportController::class => [
+                'class' => ImportExportController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
-            LocaleAdminController::class => [
-                'class' => LocaleAdminController::class,
-                'shared' => true,
-                'autowire' => true,
-            ],
+        ];
+    }
+
+    /**
+     * Background maintenance services: version retention pruning, destructive-schema
+     * backfill, and the scheduled publish/unpublish runner.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function maintenanceServices(): array
+    {
+        return [
             VersionPruner::class => [
                 'class' => VersionPruner::class,
                 'shared' => true,
@@ -503,9 +500,150 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+        ];
+    }
 
-            // Console command (resolved by commands() in boot()). Autowire fills its
-            // BaseCommand (ContainerInterface, ApplicationContext) constructor.
+    /**
+     * Content-domain HTTP controllers, plus RequireLemmaPermission under the
+     * `lemma_permission` container alias — how `->middleware('lemma_permission:...')`
+     * resolves (Router::resolveMiddleware() does container->get('lemma_permission')).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function contentControllerServices(): array
+    {
+        return [
+            ContentTypeController::class => [
+                'class' => ContentTypeController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            MigrationController::class => [
+                'class' => MigrationController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            EntryController::class => [
+                'class' => EntryController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            PublicationController::class => [
+                'class' => PublicationController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RedirectController::class => [
+                'class' => RedirectController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ScheduleController::class => [
+                'class' => ScheduleController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            LocaleAdminController::class => [
+                'class' => LocaleAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            RequireLemmaPermission::class => [
+                'class' => RequireLemmaPermission::class,
+                'shared' => true,
+                'autowire' => true,
+                'alias' => ['lemma_permission'],
+            ],
+        ];
+    }
+
+    /**
+     * Platform/admin HTTP controllers (config, users, extensions, media, API keys,
+     * settings, cache, health, capabilities, scheduled tasks, setup) and the settings
+     * stores they read.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function platformControllerServices(): array
+    {
+        return [
+            AdminConfigController::class => [
+                'class' => AdminConfigController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            UserAdminController::class => [
+                'class' => UserAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ExtensionAdminController::class => [
+                'class' => ExtensionAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            MediaAdminController::class => [
+                'class' => MediaAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ApiKeyAdminController::class => [
+                'class' => ApiKeyAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            GeneralSettingsController::class => [
+                'class' => GeneralSettingsController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            SettingsStore::class => [
+                'class' => SettingsStore::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            GeneralSettings::class => [
+                'class' => GeneralSettings::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CacheAdminController::class => [
+                'class' => CacheAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            HealthAdminController::class => [
+                'class' => HealthAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            CapabilityAdminController::class => [
+                'class' => CapabilityAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ScheduledTasksController::class => [
+                'class' => ScheduledTasksController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            SetupController::class => [
+                'class' => SetupController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+        ];
+    }
+
+    /**
+     * Console commands (also registered via commands() in boot()). Autowire fills each
+     * command's BaseCommand (ContainerInterface, ApplicationContext) constructor.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function consoleCommandServices(): array
+    {
+        return [
             ResyncCommand::class => [
                 'class' => ResyncCommand::class,
                 'shared' => true,

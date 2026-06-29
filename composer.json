@@ -12,7 +12,8 @@
     }
   ],
   "repositories": [
-    { "type": "path", "url": "packages/lemma-contracts" }
+    { "type": "path", "url": "packages/lemma-contracts" },
+    { "type": "path", "url": "packages/lemma-importers" }
   ],
   "require": {
     "php": "^8.3",
@@ -23,6 +24,7 @@
     "glueful/i18n": "^1.1.1",
     "glueful/import-export": "^1.1.1",
     "glueful/lemma-contracts": "*",
+    "glueful/lemma-importers": "*",
     "glueful/media": "^1.1.0",
     "glueful/users": "^2.3.0",
     "league/commonmark": "^2.8",

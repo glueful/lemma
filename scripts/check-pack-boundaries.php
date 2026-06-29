@@ -21,6 +21,28 @@ foreach (glob($root . '/packages/*/composer.json') ?: [] as $manifest) {
         $violations[] = "{$name} depends on glueful/lemma (forbidden — use glueful/lemma-contracts)";
     }
 }
+// Source-level boundary: no first-party pack (except the contracts package) may reference App\*.
+foreach (glob($root . '/packages/*', GLOB_ONLYDIR) ?: [] as $pkgDir) {
+    if (basename($pkgDir) === 'lemma-contracts') {
+        continue;
+    }
+    $srcIterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($pkgDir . '/src', FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY,
+    );
+    foreach ($srcIterator as $file) {
+        /** @var SplFileInfo $file */
+        if ($file->getExtension() !== 'php') {
+            continue;
+        }
+        $src = (string) file_get_contents($file->getPathname());
+        // Matches `use App\...`, `\App\...`, or a bare `App\` namespace reference.
+        if (preg_match('/(^|[^\\\\\\w])App\\\\/m', $src) === 1) {
+            $violations[] = basename($pkgDir) . '/src/' . $file->getFilename()
+                . ' references App\\ (packs must use contracts, not the app)';
+        }
+    }
+}
 if ($violations !== []) {
     fwrite(STDERR, "Pack boundary violations:\n - " . implode("\n - ", $violations) . "\n");
     exit(1);

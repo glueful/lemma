@@ -108,7 +108,8 @@ final class CollectionDataController
 
         $expand = $this->expandParam($request);
         if ($expand !== []) {
-            [$row] = $this->relations->expand($def, [$row], $expand);
+            $expanded = $this->relations->expand($def, [$row], $expand);
+            $row      = $expanded[0] ?? $row;
         }
 
         return Response::success($row, 'Row retrieved.');
@@ -195,6 +196,10 @@ final class CollectionDataController
         } catch (RowValidationException $e) {
             // Relation-target check can throw RowValidationException inside the transaction.
             return Response::validation($e->errors());
+        } catch (RowNotFoundException $e) {
+            // A relation target can vanish between Phase 1 validation and Phase 2 insert under a
+            // concurrent delete; the transaction rolls back — surface it as 404, not an unhandled 500.
+            return Response::notFound($e->getMessage());
         }
 
         return Response::created($created, 'Rows created.');

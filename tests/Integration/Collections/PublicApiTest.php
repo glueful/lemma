@@ -354,8 +354,9 @@ final class PublicApiTest extends LemmaTestCase
         ];
 
         if ($key !== null) {
-            $server['HTTP_X_API_KEY']     = $key;
-            $server['HTTP_AUTHORIZATION'] = 'Bearer ' . $key;
+            // X-API-Key alone exercises OptionalApiKeyAuthMiddleware; a second Bearer header would
+            // be a latent dependency on middleware ordering (a JWT guard could eagerly reject it).
+            $server['HTTP_X_API_KEY'] = $key;
         }
 
         $request = Request::create(

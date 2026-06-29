@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Glueful\Lemma\Collections\Http;
 
+use Glueful\Auth\UserIdentity;
 use Glueful\Lemma\Collections\Data\Actor;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -45,9 +46,18 @@ final class ActorResolver
         }
 
         // Session-based auth (JWT or similar): derive type from the user's roles.
-        $userUuid = (string) ($request->attributes->get('user_id') ?? '');
-        $userData = (array) ($request->attributes->get('user_data') ?? []);
-        $roles    = (array) ($userData['roles'] ?? []);
+        // Prefer the UserIdentity set by AuthMiddleware on 'auth.user'; fall back to
+        // the plain 'user' array which AuthMiddleware also sets.
+        $identity = $request->attributes->get('auth.user');
+
+        if ($identity instanceof UserIdentity) {
+            $userUuid = $identity->uuid();
+            $roles    = $identity->roles();
+        } else {
+            $userData = (array) ($request->attributes->get('user') ?? []);
+            $userUuid = (string) ($userData['uuid'] ?? '');
+            $roles    = (array) ($userData['roles'] ?? []);
+        }
 
         $isAdmin = in_array(self::ADMIN_ROLE, $roles, true);
 

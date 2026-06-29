@@ -15,4 +15,6 @@ interface FieldDescriptor
     public function isMultiple(): bool;
     public function referenceType(): ?string;
     public function referenceSlugField(): ?string;
+    /** Text-field presentation format ('plain' | 'rich'); null for non-text fields. */
+    public function format(): ?string;
 }

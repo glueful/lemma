@@ -60,6 +60,11 @@ final class FieldDefinition implements FieldDescriptor
         return $this->referenceSlugField;
     }
 
+    public function format(): ?string
+    {
+        return $this->format;
+    }
+
     /** @param array<string,mixed> $raw */
     public static function fromArray(array $raw): self
     {

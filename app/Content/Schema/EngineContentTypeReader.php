@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Content\Schema;
+
+use App\Content\Repositories\ContentTypeRepository;
+use Glueful\Lemma\Contracts\Schema\ContentSchemaReader;
+use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
+
+final class EngineContentTypeReader implements ContentTypeReader
+{
+    public function __construct(private readonly ContentTypeRepository $types)
+    {
+    }
+
+    public function findUuidBySlug(string $slug): ?string
+    {
+        $row = $this->types->findBySlug($slug);
+        return $row === null ? null : (string) $row['uuid'];
+    }
+
+    public function schemaFor(string $uuid): ?ContentSchemaReader
+    {
+        $row = $this->types->findByUuid($uuid);
+        return $row === null ? null : ContentTypeSchema::fromArray($row['schema']);
+    }
+}

@@ -275,6 +275,11 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared'   => true,
                 'autowire' => true,
             ],
+            \Glueful\Lemma\Contracts\Schema\ContentTypeReader::class => [
+                'class'    => \App\Content\Schema\EngineContentTypeReader::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             MigrationService::class => [
                 'class' => MigrationService::class,
                 'shared' => true,

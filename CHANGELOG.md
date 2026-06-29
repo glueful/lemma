@@ -18,6 +18,27 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 
 ### Added
 
+#### Data Collections (`/v1/collections`) — `glueful/lemma-collections`
+- Developer-defined **data collections**: a JSON collection definition drives runtime DDL to
+  materialize a real per-collection table (`collection_<hash>`), PocketBase-style — not a shared
+  key/value store. Field types, validation, and filter/sort capabilities come from a shared
+  `FieldTypeRegistry` (the `collections.*` type set).
+- Public CRUD + query API at `/v1/collections/{name}`: list (filter/sort/offset pagination,
+  field selection, one-level relation `expand`), get, create, patch, delete, and strict
+  all-or-nothing bulk create — behind API-key scopes `collections.{name}.{read|write|delete}`,
+  **default-deny** (no key, or a wrong/cross-collection scope → 403).
+- Soft collection↔collection relations (validate-on-write target existence, bounded one-level
+  expand, restrict-delete while a row is still referenced) and
+  `CollectionRow{Created,Updated,Deleted}` change events.
+- Auditable, recoverable schema lifecycle: every DDL op is bracketed by a
+  `collection_schema_changes` row (pending → applied/failed), a unique pre-flight runs before any
+  write, and destructive drops require an empty table or an explicit confirmation token.
+- Removable capability (`lemma.collections`): disabling it removes the public routes but preserves
+  every table; the pack depends only on the framework + `glueful/lemma-contracts`.
+- **v1 limits:** `storage_mode` is `table` only; in-place field-definition changes are blocked
+  (remodel via drop + add); `json`/multi-value columns are stored as `TEXT` for cross-driver
+  portability; no rename/retype/bulk-patch, realtime, or row-level rules yet.
+
 #### Delivery API (`/v1/content`)
 - Public, read-only delivery of **published content only**. `DeliveryRepository` reads
   exclusively through `entry_publications ⋈ entry_versions ⋈ entries[status=active]` — there is

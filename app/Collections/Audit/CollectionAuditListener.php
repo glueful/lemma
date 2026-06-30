@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace App\Collections\Audit;
 
 use Glueful\Events\EventService;
+use Glueful\Lemma\Collections\Events\CollectionCreated;
+use Glueful\Lemma\Collections\Events\CollectionDropped;
 use Glueful\Lemma\Collections\Events\CollectionRowCreated;
 use Glueful\Lemma\Collections\Events\CollectionRowDeleted;
 use Glueful\Lemma\Collections\Events\CollectionRowUpdated;
+use Glueful\Lemma\Collections\Events\CollectionUpdated;
 
 /**
- * Bridges the pack's pure `CollectionRow*` events to the audit log.
+ * Bridges the pack's pure `CollectionRow*` (data) and `Collection*` (schema) events to the audit log.
  *
  * The `lemma-collections` pack depends only on framework + contracts (never `glueful/audit`), so its
- * events stay pure. This App-side listener maps each to a {@see CollectionRowAuditEvent} — an
- * {@see \Glueful\Extensions\Audit\Contracts\AuditableEvent} the Audit extension records automatically
- * (resolving the actor's email label + request context), so audit recording is not re-implemented here.
+ * events stay pure. This App-side listener maps each to a {@see CollectionRowAuditEvent} or
+ * {@see CollectionSchemaAuditEvent} — an {@see \Glueful\Extensions\Audit\Contracts\AuditableEvent} the
+ * Audit extension records automatically (resolving the actor's email label + request context), so
+ * audit recording is not re-implemented here.
  */
 final class CollectionAuditListener
 {
@@ -32,6 +36,15 @@ final class CollectionAuditListener
                 new CollectionRowAuditEvent('updated', $event->collectionName, $event->rowUuid, $event->actor->id),
             $event instanceof CollectionRowDeleted =>
                 new CollectionRowAuditEvent('deleted', $event->collectionName, $event->rowUuid, $event->actor->id),
+            $event instanceof CollectionCreated =>
+                new CollectionSchemaAuditEvent('created', $event->collectionName, $event->actorId),
+            $event instanceof CollectionUpdated =>
+                new CollectionSchemaAuditEvent('updated', $event->collectionName, $event->actorId, [
+                    'change' => $event->change,
+                    'detail' => $event->detail,
+                ]),
+            $event instanceof CollectionDropped =>
+                new CollectionSchemaAuditEvent('deleted', $event->collectionName, $event->actorId),
             default => null,
         };
 

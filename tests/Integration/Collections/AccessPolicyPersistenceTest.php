@@ -24,7 +24,7 @@ final class AccessPolicyPersistenceTest extends LemmaTestCase
         // Collection creation materializes real tables (DDL is not rolled back with the test
         // transaction), so drop any leftovers from a prior run before recreating.
         foreach (self::NAMES as $name) {
-            $table = 'collection_' . substr(hash('sha256', $name), 0, 12);
+            $table = CollectionManager::tableNameFor($name);
             if ($this->schema()->hasTable($table)) {
                 $this->schema()->dropTableIfExists($table);
             }

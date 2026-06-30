@@ -62,7 +62,7 @@ final class RowTruncateTest extends LemmaTestCase
     private function cleanup(): void
     {
         $schema = $this->container()->get(SchemaBuilderInterface::class);
-        $table = 'collection_' . substr(hash('sha256', self::COL), 0, 12);
+        $table = CollectionManager::tableNameFor(self::COL);
         if ($schema->hasTable($table)) {
             $schema->dropTableIfExists($table);
         }

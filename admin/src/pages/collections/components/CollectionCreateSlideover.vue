@@ -118,7 +118,9 @@ watch(
 )
 
 function addField(type: CollectionFieldType) {
-  fields.value.push(blankField(type))
+  // Land new fields above the timestamps (id, uuid, …custom…, created_at, updated_at).
+  const at = fields.value.findIndex((f) => f.name === 'created_at')
+  fields.value.splice(at === -1 ? fields.value.length : at, 0, blankField(type))
 }
 function removeField(id: number) {
   fields.value = fields.value.filter((f) => f.id !== id)

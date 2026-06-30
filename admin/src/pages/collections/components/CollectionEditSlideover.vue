@@ -108,7 +108,15 @@ const addItems = COLLECTION_FIELD_TYPES.map((t) => ({
   onSelect: () => addNewField(t),
 }))
 function addNewField(type: CollectionFieldType) {
-  fields.value.push({ id: seq++, name: '', type, settings: {}, open: true })
+  // Land new fields above the timestamps (…custom…, created_at, updated_at).
+  const at = fields.value.findIndex((f) => f.name === 'created_at')
+  fields.value.splice(at === -1 ? fields.value.length : at, 0, {
+    id: seq++,
+    name: '',
+    type,
+    settings: {},
+    open: true,
+  })
 }
 
 // Removing a new (unsaved) card is local; removing an existing field needs a typed confirmation.

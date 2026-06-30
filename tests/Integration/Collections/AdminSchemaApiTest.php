@@ -85,7 +85,11 @@ final class AdminSchemaApiTest extends LemmaTestCase
     {
         $this->seed(); // defaults to all-scoped
 
-        $response = $this->controller()->updateAccess(new UpdateAccessData(read: 'public'), $this->request(), self::NAME);
+        $response = $this->controller()->updateAccess(
+            new UpdateAccessData(read: 'public'),
+            $this->request(),
+            self::NAME,
+        );
         self::assertSame(200, $response->getStatusCode(), (string) $response->getContent());
 
         $definition = $this->defRepo()->findByName(self::NAME);
@@ -120,7 +124,11 @@ final class AdminSchemaApiTest extends LemmaTestCase
     private function seed(): void
     {
         $this->controller()->store(
-            new CreateCollectionData(self::NAME, 'Gadgets', [new FieldData('title', 'collections.string', ['nullable' => false])]),
+            new CreateCollectionData(
+                self::NAME,
+                'Gadgets',
+                [new FieldData('title', 'collections.string', ['nullable' => false])],
+            ),
             $this->request(),
         );
     }

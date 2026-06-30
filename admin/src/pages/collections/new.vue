@@ -20,7 +20,10 @@ const schema = z.object({
   name: z
     .string()
     .min(1, 'Name is required.')
-    .regex(/^[a-z][a-z0-9_]*$/, 'Start with a lowercase letter; letters, numbers and underscores only.'),
+    .regex(
+      /^[a-z][a-z0-9_]*$/,
+      'Start with a lowercase letter; letters, numbers and underscores only.',
+    ),
   label: z.string().optional(),
 })
 type Schema = z.output<typeof schema>
@@ -69,7 +72,10 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     await router.push('/collections')
   } catch (e) {
     const err = toApiError(e)
-    const fieldErrors = Object.entries(err.fieldErrors).map(([name, message]) => ({ name, message }))
+    const fieldErrors = Object.entries(err.fieldErrors).map(([name, message]) => ({
+      name,
+      message,
+    }))
     if (fieldErrors.length > 0) createForm.value?.setErrors(fieldErrors)
     notifyError(err, 'Couldn’t create collection')
   }
@@ -107,7 +113,12 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
         class="space-y-6 max-w-2xl"
         @submit="onSubmit"
       >
-        <UFormField label="Name" name="name" required help="The collection identifier (table-safe).">
+        <UFormField
+          label="Name"
+          name="name"
+          required
+          help="The collection identifier (table-safe)."
+        >
           <UInput v-model="state.name" placeholder="posts" />
         </UFormField>
 
@@ -118,7 +129,9 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-medium text-default">Fields</h3>
-            <UButton size="xs" variant="soft" icon="i-lucide-plus" @click="addField">Add field</UButton>
+            <UButton size="xs" variant="soft" icon="i-lucide-plus" @click="addField"
+              >Add field</UButton
+            >
           </div>
           <div
             v-for="(field, i) in fields"
@@ -146,9 +159,15 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
             <code>{collection}.{action}</code> capability (api-key scope or session permission).
           </p>
           <div class="grid grid-cols-3 gap-3">
-            <UFormField label="Read"><USelect v-model="access.read" :items="ACCESS_LEVELS" /></UFormField>
-            <UFormField label="Write"><USelect v-model="access.write" :items="ACCESS_LEVELS" /></UFormField>
-            <UFormField label="Delete"><USelect v-model="access.delete" :items="ACCESS_LEVELS" /></UFormField>
+            <UFormField label="Read"
+              ><USelect v-model="access.read" :items="ACCESS_LEVELS"
+            /></UFormField>
+            <UFormField label="Write"
+              ><USelect v-model="access.write" :items="ACCESS_LEVELS"
+            /></UFormField>
+            <UFormField label="Delete"
+              ><USelect v-model="access.delete" :items="ACCESS_LEVELS"
+            /></UFormField>
           </div>
         </div>
       </UForm>

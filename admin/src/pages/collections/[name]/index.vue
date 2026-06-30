@@ -24,7 +24,11 @@ function isIndexed(field: CollectionField): boolean {
   return field.settings?.index === true || field.settings?.unique === true
 }
 
-async function onAddField(field: { name: string; type: string; settings: Record<string, unknown> }) {
+async function onAddField(field: {
+  name: string
+  type: string
+  settings: Record<string, unknown>
+}) {
   try {
     await addField.mutateAsync({ name: name.value, field })
     success('Field added', `“${field.name}” was added.`)
@@ -145,7 +149,9 @@ async function onSaveAccess() {
             >
               <span class="font-medium text-default flex-1">{{ field.name }}</span>
               <code class="text-xs text-muted">{{ field.type.replace('collections.', '') }}</code>
-              <UBadge v-if="isIndexed(field)" color="info" variant="subtle" size="xs">indexed</UBadge>
+              <UBadge v-if="isIndexed(field)" color="info" variant="subtle" size="xs"
+                >indexed</UBadge
+              >
               <UButton
                 size="xs"
                 color="neutral"
@@ -162,7 +168,9 @@ async function onSaveAccess() {
                 @click="pendingFieldDrop = field"
               />
             </div>
-            <p v-if="data.fields.length === 0" class="px-3 py-2 text-sm text-muted">No fields yet.</p>
+            <p v-if="data.fields.length === 0" class="px-3 py-2 text-sm text-muted">
+              No fields yet.
+            </p>
           </div>
 
           <FieldEditor @add="onAddField" />
@@ -171,9 +179,15 @@ async function onSaveAccess() {
         <section class="space-y-2 mt-6">
           <h3 class="text-sm font-medium text-default">Access policy</h3>
           <div class="grid grid-cols-3 gap-3">
-            <UFormField label="Read"><USelect v-model="access.read" :items="ACCESS_LEVELS" /></UFormField>
-            <UFormField label="Write"><USelect v-model="access.write" :items="ACCESS_LEVELS" /></UFormField>
-            <UFormField label="Delete"><USelect v-model="access.delete" :items="ACCESS_LEVELS" /></UFormField>
+            <UFormField label="Read"
+              ><USelect v-model="access.read" :items="ACCESS_LEVELS"
+            /></UFormField>
+            <UFormField label="Write"
+              ><USelect v-model="access.write" :items="ACCESS_LEVELS"
+            /></UFormField>
+            <UFormField label="Delete"
+              ><USelect v-model="access.delete" :items="ACCESS_LEVELS"
+            /></UFormField>
           </div>
           <UButton size="sm" :loading="updateAccess.isLoading.value" @click="onSaveAccess">
             Save access policy

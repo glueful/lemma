@@ -259,8 +259,10 @@ export function useCollectionMutations() {
       onSettled: () => invalidate(),
     }),
     addField: useMutation({
-      mutation: (vars: { name: string; field: { name: string; type: string; settings?: Record<string, unknown> } }) =>
-        addField(vars.name, vars.field),
+      mutation: (vars: {
+        name: string
+        field: { name: string; type: string; settings?: Record<string, unknown> }
+      }) => addField(vars.name, vars.field),
       onSettled: (_d, _e, vars) => invalidate(vars.name),
     }),
     dropField: useMutation({
@@ -283,7 +285,8 @@ export function useCollectionMutations() {
       onSettled: (_d, _e, vars) => invalidate(vars.name),
     }),
     remove: useMutation({
-      mutation: (vars: { name: string; confirm?: string }) => dropCollection(vars.name, vars.confirm),
+      mutation: (vars: { name: string; confirm?: string }) =>
+        dropCollection(vars.name, vars.confirm),
       onSettled: () => invalidate(),
     }),
   }
@@ -300,7 +303,8 @@ export function useCollectionRowMutations(name: MaybeRefOrGetter<string>) {
       onSettled: invalidate,
     }),
     update: useMutation({
-      mutation: (vars: { uuid: string; row: CollectionRow }) => updateRow(toValue(name), vars.uuid, vars.row),
+      mutation: (vars: { uuid: string; row: CollectionRow }) =>
+        updateRow(toValue(name), vars.uuid, vars.row),
       onSettled: invalidate,
     }),
     remove: useMutation({

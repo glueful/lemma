@@ -25,7 +25,10 @@ describe('collections FieldEditor', () => {
 describe('collections DropConfirmModal', () => {
   // UModal teleports its body/footer out of the wrapper; stub it to render the slots inline.
   const stubs = {
-    Modal: { props: ['open'], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
+    Modal: {
+      props: ['open'],
+      template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>',
+    },
   }
 
   it('keeps the drop button disabled until the exact name is typed', async () => {

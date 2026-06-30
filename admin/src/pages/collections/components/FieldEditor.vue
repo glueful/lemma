@@ -10,7 +10,10 @@ const state = reactive<{ name: string; type: CollectionFieldType }>({
   name: '',
   type: 'collections.text',
 })
-const TYPE_ITEMS = COLLECTION_FIELD_TYPES.map((t) => ({ label: t.replace('collections.', ''), value: t }))
+const TYPE_ITEMS = COLLECTION_FIELD_TYPES.map((t) => ({
+  label: t.replace('collections.', ''),
+  value: t,
+}))
 
 function add() {
   const name = state.name.trim()

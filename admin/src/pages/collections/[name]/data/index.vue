@@ -113,7 +113,11 @@ async function confirmDelete() {
         </template>
 
         <template #empty>
-          <UEmpty icon="i-lucide-rows-3" title="No rows" description="Create the first row in this collection.">
+          <UEmpty
+            icon="i-lucide-rows-3"
+            title="No rows"
+            description="Create the first row in this collection."
+          >
             <template #actions>
               <UButton icon="i-lucide-plus" @click="openCreate">New row</UButton>
             </template>

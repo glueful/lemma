@@ -10,7 +10,9 @@ vi.mock('@/queries/apiKeys', () => ({
     data: ref({ api_keys: [{ uuid: 'k1', name: 'Key 1', scopes: [] }] }),
     status: ref('success'),
   }),
-  useApiKeyMutations: () => ({ updateScopes: { mutateAsync: updateScopesMock, isLoading: ref(false) } }),
+  useApiKeyMutations: () => ({
+    updateScopes: { mutateAsync: updateScopesMock, isLoading: ref(false) },
+  }),
 }))
 vi.mock('@/composables/useNotify', () => ({ useNotify: () => ({ error: vi.fn() }) }))
 

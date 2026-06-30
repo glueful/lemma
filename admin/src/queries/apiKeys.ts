@@ -169,7 +169,8 @@ export function useApiKeyMutations() {
   })
   const revoke = useMutation({ mutation: revokeApiKey, onSettled: invalidate })
   const updateScopes = useMutation({
-    mutation: (vars: { uuid: string; scopes: string[] }) => updateApiKeyScopes(vars.uuid, vars.scopes),
+    mutation: (vars: { uuid: string; scopes: string[] }) =>
+      updateApiKeyScopes(vars.uuid, vars.scopes),
     onSettled: invalidate,
   })
 

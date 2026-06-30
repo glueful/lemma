@@ -471,7 +471,8 @@ export interface paths {
         put?: never;
         /** Create a row */
         post: operations["postV1AdminCollectionsByNameRows"];
-        delete?: never;
+        /** Delete all rows in a collection */
+        delete: operations["deleteV1AdminCollectionsByNameRows"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4526,6 +4527,77 @@ export interface operations {
             };
             /** @description Row created. */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthenticated. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    deleteV1AdminCollectionsByNameRows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rows deleted. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

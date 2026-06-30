@@ -8,13 +8,16 @@ import {
   COLLECTION_FIELD_TYPE_META,
   type AccessLevel,
   type CollectionFieldType,
+  type Collection,
 } from '@/queries/collections'
 import { toApiError } from '@/api/errors'
 import { useNotify } from '@/composables/useNotify'
 import FieldCard from './FieldCard.vue'
 import { VueDraggable } from 'vue-draggable-plus'
 
-const props = defineProps<{ open: boolean }>()
+// `prefill` opens the form pre-populated from an existing collection (the Duplicate action); the
+// user reviews and clicks Create — nothing is created until then.
+const props = defineProps<{ open: boolean; prefill?: Collection | null }>()
 const emit = defineEmits<{ 'update:open': [value: boolean]; created: [name: string] }>()
 
 const { success, error: notifyError } = useNotify()
@@ -104,11 +107,35 @@ const tabs: TabsItem[] = [
 
 const createForm = useTemplateRef<Form<Schema>>('createForm')
 
-// Reset to a clean form each time the slideover opens.
+function seedFromPrefill(src: Collection) {
+  state.name = `${src.name}_copy`
+  const custom: FieldRow[] = src.fields.map((f) => ({
+    id: fieldSeq++,
+    name: f.name,
+    type: f.type as CollectionFieldType,
+    settings: { ...f.settings },
+    open: false,
+  }))
+  const all = [...systemFields(), ...custom]
+  const idx = (n: string) => {
+    const i = src.fieldOrder.indexOf(n)
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i
+  }
+  fields.value = all.sort((a, b) => idx(a.name) - idx(b.name))
+  access.read = src.accessPolicy.read
+  access.write = src.accessPolicy.write
+  access.delete = src.accessPolicy.delete
+}
+
+// Reset (or prefill from a source collection) each time the slideover opens.
 watch(
   () => props.open,
   (open) => {
     if (!open) return
+    if (props.prefill) {
+      seedFromPrefill(props.prefill)
+      return
+    }
     state.name = ''
     fields.value = systemFields()
     access.read = 'scoped'

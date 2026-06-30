@@ -45,8 +45,9 @@ import DataBrowser from '@/pages/collections/[name]/data/index.vue'
 const stubs = {
   RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
   RowDrawer: { props: ['open'], template: '<div v-if="open" data-test="row-drawer" />' },
-  // Not under test here, and it pulls in the schema mutations/api-key queries.
+  // Not under test here, and they pull in the schema mutations/api-key queries.
   CollectionEditSlideover: true,
+  CollectionCreateSlideover: true,
 }
 
 describe('collections data browser', () => {

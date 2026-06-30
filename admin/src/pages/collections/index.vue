@@ -23,6 +23,16 @@ function clearSelection() {
 }
 
 const showCreate = ref(false)
+// When set, the create slideover opens pre-filled from this collection (the Duplicate action).
+const duplicateSource = ref<Collection | null>(null)
+function onNewCollection() {
+  duplicateSource.value = null
+  showCreate.value = true
+}
+function onDuplicate(collection: Collection) {
+  duplicateSource.value = collection
+  showCreate.value = true
+}
 function onCreated(name: string) {
   router.replace({ query: { ...route.query, collection: name } })
 }
@@ -46,7 +56,7 @@ function onDropped() {
             class="h-full"
             :selected-name="selectedName"
             @select="select"
-            @create="showCreate = true"
+            @create="onNewCollection"
           />
         </div>
 
@@ -81,12 +91,17 @@ function onDropped() {
     </template>
   </UDashboardPanel>
 
-  <CollectionCreateSlideover v-model:open="showCreate" @created="onCreated" />
+  <CollectionCreateSlideover
+    v-model:open="showCreate"
+    :prefill="duplicateSource"
+    @created="onCreated"
+  />
   <CollectionEditSlideover
     v-if="selectedName"
     v-model:open="showEdit"
     :name="selectedName"
     @dropped="onDropped"
+    @duplicate="onDuplicate"
   />
 </template>
 

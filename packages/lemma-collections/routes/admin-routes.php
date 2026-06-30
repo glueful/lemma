@@ -56,5 +56,7 @@ $router->group(
             ->middleware('lemma_permission:collections.data.manage');
         $router->delete('/collections/{name}/rows/{uuid}', [CollectionDataController::class, 'delete'])
             ->middleware('lemma_permission:collections.data.manage');
+        $router->delete('/collections/{name}/rows', [CollectionDataController::class, 'truncate'])
+            ->middleware('lemma_permission:collections.data.manage');
     },
 );

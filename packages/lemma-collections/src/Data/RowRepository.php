@@ -140,6 +140,24 @@ final class RowRepository
     }
 
     /**
+     * Empty the collection's table — a real TRUNCATE that also resets the auto-increment id —
+     * keeping the schema. A deliberate bulk admin action: no per-row events or reference checks.
+     * The table name is a derived `collection_<hash>` slug (no user input), so it is safe to
+     * interpolate. Returns the number of rows that were cleared.
+     */
+    public function truncate(CollectionDefinition $def): int
+    {
+        $table = $def->tableName;
+        $count = (int) $this->connection->table($table)->count();
+
+        // PostgreSQL: RESTART IDENTITY resets the auto-increment id; CASCADE is harmless here
+        // (collection relations are loose uuids, not FK constraints).
+        $this->connection->getPDO()->exec("TRUNCATE TABLE \"{$table}\" RESTART IDENTITY CASCADE");
+
+        return $count;
+    }
+
+    /**
      * Retrieve a row from the collection's table by UUID.
      *
      * @return array<string, mixed>

@@ -97,7 +97,7 @@ final class CollectionManagerTest extends LemmaTestCase
             'name'   => 'articles',
             'label'  => 'Articles',
             'fields' => [
-                ['name' => 'title', 'type' => 'collections.text', 'settings' => []],
+                ['name' => 'title', 'type' => 'collections.string', 'settings' => []],
             ],
         ], 'admin', 'u1');
 
@@ -174,7 +174,7 @@ final class CollectionManagerTest extends LemmaTestCase
         $this->manager()->create([
             'name'   => 'articles',
             'fields' => [
-                ['name' => 'uuid', 'type' => 'collections.text', 'settings' => []],
+                ['name' => 'uuid', 'type' => 'collections.string', 'settings' => []],
             ],
         ], 'admin', null);
     }
@@ -197,7 +197,7 @@ final class CollectionManagerTest extends LemmaTestCase
 
         $updated = $manager->addField(
             'articles',
-            ['name' => 'bio', 'type' => 'collections.longtext', 'settings' => []],
+            ['name' => 'bio', 'type' => 'collections.text', 'settings' => []],
             'admin',
             null,
         );
@@ -221,7 +221,7 @@ final class CollectionManagerTest extends LemmaTestCase
         $def     = $manager->create([
             'name'   => 'articles',
             'fields' => [
-                ['name' => 'title', 'type' => 'collections.text', 'settings' => []],
+                ['name' => 'title', 'type' => 'collections.string', 'settings' => []],
             ],
         ], 'admin', null);
 
@@ -255,7 +255,7 @@ final class CollectionManagerTest extends LemmaTestCase
         $def = $manager->create([
             'name'   => 'articles',
             'fields' => [
-                ['name' => 'notes', 'type' => 'collections.longtext', 'settings' => []],
+                ['name' => 'notes', 'type' => 'collections.text', 'settings' => []],
             ],
         ], 'admin', null);
 
@@ -315,7 +315,7 @@ final class CollectionManagerTest extends LemmaTestCase
         $def = $manager->create([
             'name'   => 'articles',
             'fields' => [
-                ['name' => 'notes', 'type' => 'collections.longtext', 'settings' => []],
+                ['name' => 'notes', 'type' => 'collections.text', 'settings' => []],
             ],
         ], 'admin', null);
 
@@ -371,7 +371,7 @@ final class CollectionManagerTest extends LemmaTestCase
             $this->manager()->create([
                 'name'   => 'articles',
                 'fields' => [
-                    ['name' => 'select', 'type' => 'collections.text', 'settings' => []],
+                    ['name' => 'select', 'type' => 'collections.string', 'settings' => []],
                 ],
             ], 'admin', null);
         } catch (CollectionValidationException $e) {
@@ -394,7 +394,7 @@ final class CollectionManagerTest extends LemmaTestCase
             $this->manager()->create([
                 'name'   => 'articles',
                 'fields' => [
-                    ['name' => 'created_by_id', 'type' => 'collections.text', 'settings' => []],
+                    ['name' => 'created_by_id', 'type' => 'collections.string', 'settings' => []],
                 ],
             ], 'admin', null);
         } catch (CollectionValidationException $e) {
@@ -471,7 +471,7 @@ final class CollectionManagerTest extends LemmaTestCase
         try {
             $manager->addField(
                 'articles',
-                ['name' => 'uuid', 'type' => 'collections.text', 'settings' => []],
+                ['name' => 'uuid', 'type' => 'collections.string', 'settings' => []],
                 'admin',
                 null,
             );

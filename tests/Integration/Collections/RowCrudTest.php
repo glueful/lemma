@@ -37,13 +37,13 @@ final class RowCrudTest extends LemmaTestCase
                 // Non-nullable text (required).
                 [
                     'name'     => 'title',
-                    'type'     => 'collections.text',
+                    'type'     => 'collections.string',
                     'settings' => ['nullable' => false],
                 ],
                 // Nullable longtext (optional).
                 [
                     'name'     => 'body',
-                    'type'     => 'collections.longtext',
+                    'type'     => 'collections.text',
                     'settings' => ['nullable' => true],
                 ],
                 // Nullable integer (for type-coercion test).
@@ -67,7 +67,7 @@ final class RowCrudTest extends LemmaTestCase
                 // Nullable unique text (for unique-constraint tests).
                 [
                     'name'     => 'slug',
-                    'type'     => 'collections.text',
+                    'type'     => 'collections.string',
                     'settings' => ['nullable' => true, 'unique' => true],
                 ],
                 // Nullable single asset (for asset-existence tests).

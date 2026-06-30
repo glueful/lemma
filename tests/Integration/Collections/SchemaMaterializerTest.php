@@ -88,7 +88,7 @@ final class SchemaMaterializerTest extends LemmaTestCase
         $def = new CollectionDefinition('clx_1', 'products', 'Products', 'collection_clx1', 'table', [
             CollectionField::fromArray([
                 'name'     => 'title',
-                'type'     => 'collections.text',
+                'type'     => 'collections.string',
                 'settings' => ['length' => 120],
             ]),
         ], 1, 'active');
@@ -141,7 +141,7 @@ final class SchemaMaterializerTest extends LemmaTestCase
         // Create the table so ALTER TABLE has a target and 'title' column already exists.
         $titleField = CollectionField::fromArray([
             'name'     => 'title',
-            'type'     => 'collections.text',
+            'type'     => 'collections.string',
             'settings' => [],
         ]);
         $def = $this->makeDefinition('clx_fail', [$titleField]);
@@ -197,7 +197,7 @@ final class SchemaMaterializerTest extends LemmaTestCase
         // Create table with a 'slug' field.
         $slugField = CollectionField::fromArray([
             'name'     => 'slug',
-            'type'     => 'collections.text',
+            'type'     => 'collections.string',
             'settings' => [],
         ]);
         $def = $this->makeDefinition('clx_pf', [$slugField]);
@@ -230,7 +230,7 @@ final class SchemaMaterializerTest extends LemmaTestCase
             'add_index',
             CollectionField::fromArray([
                 'name'     => 'slug',
-                'type'     => 'collections.text',
+                'type'     => 'collections.string',
                 'settings' => ['unique' => true],
             ]),
             true,
@@ -272,7 +272,7 @@ final class SchemaMaterializerTest extends LemmaTestCase
         // add_field: introduce a 'bio' longtext column.
         $bioField = CollectionField::fromArray([
             'name'     => 'bio',
-            'type'     => 'collections.longtext',
+            'type'     => 'collections.text',
             'settings' => [],
         ]);
         $mat->apply($def, [new SchemaChange('add_field', $bioField, false)], 'admin', null);
@@ -315,7 +315,7 @@ final class SchemaMaterializerTest extends LemmaTestCase
         // Create table with a 'notes' field.
         $notesField = CollectionField::fromArray([
             'name'     => 'notes',
-            'type'     => 'collections.longtext',
+            'type'     => 'collections.text',
             'settings' => [],
         ]);
         $def = $this->makeDefinition('clx_df', [$notesField]);

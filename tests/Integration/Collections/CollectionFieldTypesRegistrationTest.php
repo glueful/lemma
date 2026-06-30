@@ -15,8 +15,8 @@ final class CollectionFieldTypesRegistrationTest extends LemmaTestCase
 {
     /** @var list<string> */
     private const EXPECTED_TYPES = [
+        'collections.string',
         'collections.text',
-        'collections.longtext',
         'collections.integer',
         'collections.decimal',
         'collections.boolean',
@@ -62,7 +62,7 @@ final class CollectionFieldTypesRegistrationTest extends LemmaTestCase
         $collectionsKeys = array_filter($allKeys, static fn (string $k): bool => str_starts_with($k, 'collections.'));
 
         // The two domains must be disjoint at the FULL (namespaced) key level. The prefix is exactly
-        // what lets `content.text` and `collections.text` coexist as distinct field types, so bare-name
+        // what lets `content.text` and `collections.string` coexist as distinct field types, so bare-name
         // overlap across domains is expected and fine — what must NOT happen is the same full key
         // registered under both domains.
         $collisions = array_intersect($contentKeys, $collectionsKeys);
@@ -74,9 +74,9 @@ final class CollectionFieldTypesRegistrationTest extends LemmaTestCase
 
     public function testScalarTypesAreFilterableSortableAndIndexable(): void
     {
-        // Filterable/sortable scalars. longtext is deliberately excluded — see the dedicated test
-        // below: a TEXT column can't be plainly indexed or sorted.
-        $scalarTypes = ['collections.text', 'collections.integer', 'collections.decimal',
+        // Filterable/sortable scalars. The `text` type is deliberately excluded — see the dedicated
+        // test below: a TEXT column can't be plainly indexed or sorted.
+        $scalarTypes = ['collections.string', 'collections.integer', 'collections.decimal',
                         'collections.boolean', 'collections.date', 'collections.datetime',
                         'collections.email', 'collections.url', 'collections.enum'];
 
@@ -88,14 +88,14 @@ final class CollectionFieldTypesRegistrationTest extends LemmaTestCase
         }
     }
 
-    public function testLongtextIsIndexableButNotFilterableOrSortable(): void
+    public function testTextIsIndexableButNotFilterableOrSortable(): void
     {
-        // Spec carve-out: longtext maps to a TEXT column, which cannot be plainly indexed or
+        // Spec carve-out: the `text` type maps to a TEXT column, which cannot be plainly indexed or
         // sorted — so it is a scalar that is intentionally NOT filterable/sortable.
-        $caps = $this->registry->get('collections.longtext')->capabilities();
-        self::assertFalse($caps['filterable'] ?? true, 'longtext must not be filterable.');
-        self::assertFalse($caps['sortable'] ?? true, 'longtext must not be sortable.');
-        self::assertTrue($caps['indexable'] ?? false, 'longtext should still be indexable.');
+        $caps = $this->registry->get('collections.text')->capabilities();
+        self::assertFalse($caps['filterable'] ?? true, 'text must not be filterable.');
+        self::assertFalse($caps['sortable'] ?? true, 'text must not be sortable.');
+        self::assertTrue($caps['indexable'] ?? false, 'text should still be indexable.');
     }
 
     public function testJsonRelationAssetAreNotFilterableOrSortable(): void

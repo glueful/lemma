@@ -18,7 +18,7 @@ use Glueful\Repository\BlobRepository;
  * Throws RowValidationException carrying per-field errors on any failure.
  *
  * Validation rules per field type:
- *   collections.text/longtext/json  — cast to string, no further validation
+ *   collections.string/text/json    — cast to string, no further validation
  *   collections.integer             — "42" → 42; decimal strings are rejected
  *   collections.decimal             — kept as string; must be numeric
  *   collections.boolean             — "true"/"1"/true → true; "false"/"0"/false → false
@@ -125,8 +125,8 @@ final class RowValidator
         $name = $field->name;
 
         switch ($field->type) {
+            case 'collections.string':
             case 'collections.text':
-            case 'collections.longtext':
             case 'collections.json':
                 $coerced = (string) $value;
                 break;

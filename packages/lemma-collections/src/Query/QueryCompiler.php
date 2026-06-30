@@ -36,7 +36,7 @@ use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
  * ## Filterable / sortable decisions
  *
  * User-defined fields: delegated to FieldTypeRegistry — capabilities()['filterable'] /
- * capabilities()['sortable']. For example, 'collections.longtext' and 'collections.json'
+ * capabilities()['sortable']. For example, 'collections.text' and 'collections.json'
  * are NOT filterable or sortable per their registry definitions.
  *
  * System columns uuid, created_at, updated_at: always filterable and sortable.

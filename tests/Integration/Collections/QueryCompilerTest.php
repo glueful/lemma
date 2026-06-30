@@ -38,14 +38,14 @@ final class QueryCompilerTest extends LemmaTestCase
             'label'  => 'Query Compiler Test',
             'fields' => [
                 // Filterable + sortable
-                ['name' => 'title', 'type' => 'collections.text', 'settings' => ['nullable' => false]],
+                ['name' => 'title', 'type' => 'collections.string', 'settings' => ['nullable' => false]],
                 ['name' => 'score', 'type' => 'collections.integer', 'settings' => ['nullable' => true]],
                 ['name' => 'status', 'type' => 'collections.enum', 'settings' => [
                     'nullable' => true,
                     'values'   => ['draft', 'published'],
                 ]],
                 // NOT filterable, NOT sortable (longtext)
-                ['name' => 'body', 'type' => 'collections.longtext', 'settings' => ['nullable' => true]],
+                ['name' => 'body', 'type' => 'collections.text', 'settings' => ['nullable' => true]],
                 // NOT filterable, NOT sortable (json)
                 ['name' => 'tags', 'type' => 'collections.json', 'settings' => ['nullable' => true]],
             ],
@@ -266,7 +266,7 @@ final class QueryCompilerTest extends LemmaTestCase
         $this->expectException(InvalidQueryException::class);
 
         $this->compiler()->list($this->def, [
-            'sort' => 'body', // collections.longtext: sortable=false
+            'sort' => 'body', // collections.text: sortable=false
         ]);
     }
 
@@ -290,7 +290,7 @@ final class QueryCompilerTest extends LemmaTestCase
         $this->expectException(InvalidQueryException::class);
 
         $this->compiler()->list($this->def, [
-            'filter' => ['body' => ['eq' => 'some text']], // collections.longtext: filterable=false
+            'filter' => ['body' => ['eq' => 'some text']], // collections.text: filterable=false
         ]);
     }
 

@@ -128,7 +128,7 @@ final class RemovabilityTest extends LemmaTestCase
                 'name'   => self::COL,
                 'label'  => 'Removability Proof',
                 'fields' => [
-                    ['name' => 'title', 'type' => 'collections.text', 'settings' => ['nullable' => false]],
+                    ['name' => 'title', 'type' => 'collections.string', 'settings' => ['nullable' => false]],
                 ],
             ],
             'system',

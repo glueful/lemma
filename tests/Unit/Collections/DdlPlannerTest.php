@@ -21,7 +21,7 @@ final class DdlPlannerTest extends TestCase
 
     private static function text(array $settings = []): CollectionField
     {
-        return new CollectionField('', 'collections.text', $settings);
+        return new CollectionField('', 'collections.string', $settings);
     }
 
     private static function integer(array $settings = []): CollectionField
@@ -183,7 +183,7 @@ final class DdlPlannerTest extends TestCase
         } catch (BlockedSchemaChangeException $e) {
             self::assertStringContainsString('score', $e->getMessage());
             self::assertStringContainsString('collections.integer', $e->getMessage());
-            self::assertStringContainsString('collections.text', $e->getMessage());
+            self::assertStringContainsString('collections.string', $e->getMessage());
         }
     }
 

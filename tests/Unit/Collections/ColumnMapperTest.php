@@ -31,7 +31,7 @@ final class ColumnMapperTest extends TestCase
 
         $title = $m->column(CollectionField::fromArray([
             'name' => 'title',
-            'type' => 'collections.text',
+            'type' => 'collections.string',
             'settings' => ['length' => 120, 'nullable' => false],
         ]));
         self::assertSame(['string', [120]], [$title->type, $title->params]);
@@ -45,18 +45,18 @@ final class ColumnMapperTest extends TestCase
         self::assertSame('text', $tags->type); // JSON array column
     }
 
-    public function testTextDefaultLength(): void
+    public function testStringDefaultLength(): void
     {
         $col = $this->mapper->column(
-            CollectionField::fromArray(['name' => 'title', 'type' => 'collections.text', 'settings' => []])
+            CollectionField::fromArray(['name' => 'title', 'type' => 'collections.string', 'settings' => []])
         );
         self::assertSame(['string', [255]], [$col->type, $col->params]);
     }
 
-    public function testLongtextMapsToText(): void
+    public function testTextMapsToTextColumn(): void
     {
         $col = $this->mapper->column(
-            CollectionField::fromArray(['name' => 'body', 'type' => 'collections.longtext', 'settings' => []])
+            CollectionField::fromArray(['name' => 'body', 'type' => 'collections.text', 'settings' => []])
         );
         self::assertSame('text', $col->type);
         self::assertSame([], $col->params);
@@ -169,7 +169,7 @@ final class ColumnMapperTest extends TestCase
     public function testNullableDefaultsToTrue(): void
     {
         $col = $this->mapper->column(
-            CollectionField::fromArray(['name' => 'x', 'type' => 'collections.text', 'settings' => []])
+            CollectionField::fromArray(['name' => 'x', 'type' => 'collections.string', 'settings' => []])
         );
         self::assertTrue($col->nullable);
     }
@@ -177,7 +177,7 @@ final class ColumnMapperTest extends TestCase
     public function testUniqueDefaultsToFalse(): void
     {
         $col = $this->mapper->column(
-            CollectionField::fromArray(['name' => 'x', 'type' => 'collections.text', 'settings' => []])
+            CollectionField::fromArray(['name' => 'x', 'type' => 'collections.string', 'settings' => []])
         );
         self::assertFalse($col->unique);
     }
@@ -186,7 +186,7 @@ final class ColumnMapperTest extends TestCase
     {
         $col = $this->mapper->column(CollectionField::fromArray([
             'name' => 'slug',
-            'type' => 'collections.text',
+            'type' => 'collections.string',
             'settings' => ['unique' => true],
         ]));
         self::assertTrue($col->unique);
@@ -195,8 +195,8 @@ final class ColumnMapperTest extends TestCase
     public function testSupportedTypesContainsAllTypes(): void
     {
         $types = $this->mapper->supportedTypes();
+        self::assertContains('collections.string', $types);
         self::assertContains('collections.text', $types);
-        self::assertContains('collections.longtext', $types);
         self::assertContains('collections.integer', $types);
         self::assertContains('collections.decimal', $types);
         self::assertContains('collections.boolean', $types);
@@ -213,7 +213,7 @@ final class ColumnMapperTest extends TestCase
     public function testColumnNamePassedThrough(): void
     {
         $col = $this->mapper->column(
-            CollectionField::fromArray(['name' => 'my_column', 'type' => 'collections.text', 'settings' => []])
+            CollectionField::fromArray(['name' => 'my_column', 'type' => 'collections.string', 'settings' => []])
         );
         self::assertSame('my_column', $col->name);
     }

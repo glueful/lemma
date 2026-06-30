@@ -360,6 +360,31 @@ final class CollectionManager
         return $next;
     }
 
+    /**
+     * Replace the display order of all columns (system + custom). Metadata only — no DDL.
+     *
+     * @param list<string> $order
+     */
+    public function setFieldOrder(string $name, array $order): CollectionDefinition
+    {
+        $current = $this->loadOrFail($name);
+        $next    = new CollectionDefinition(
+            uuid: $current->uuid,
+            name: $current->name,
+            label: $current->label,
+            tableName: $current->tableName,
+            storageMode: $current->storageMode,
+            fields: $current->fields,
+            schemaVersion: $current->schemaVersion,
+            status: $current->status,
+            accessPolicy: $current->accessPolicy,
+            fieldOrder: array_values(array_filter($order, 'is_string')),
+        );
+        $this->repo->update($next);
+
+        return $next;
+    }
+
     // ----------------------------------------------------------------- private
 
     /**

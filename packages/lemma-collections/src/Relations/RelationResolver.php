@@ -14,10 +14,11 @@ use Glueful\Lemma\Collections\Schema\CollectionField;
 /**
  * Validates and resolves collection↔collection relation fields.
  *
- * ## Scope (v1)
- * Only `collection:*` targets are handled. A `content:*` target descriptor is out of scope
- * for v1 — encountering one is treated as unsupported and silently skipped (no validation,
- * no expansion). Pure collection relations always use `settings['target'] = "collection:{name}"`.
+ * ## Scope
+ * Two target kinds are handled: `collection:{name}` (collection↔collection) and `users` (a
+ * relation to the framework users table, exposing only safe columns — never the password). Any
+ * other descriptor (e.g. a `content:*` target) is unsupported and silently skipped (no validation,
+ * no expansion).
  *
  * ## Methods
  *
@@ -38,6 +39,12 @@ use Glueful\Lemma\Collections\Schema\CollectionField;
  */
 final class RelationResolver
 {
+    /** Relation target descriptor for the framework users table (`settings['target'] = "users"`). */
+    private const USERS_TARGET = 'users';
+
+    /** Safe columns exposed when expanding a users relation — never the password/hash. */
+    private const USERS_COLUMNS = ['uuid', 'username', 'email', 'status'];
+
     public function __construct(
         private readonly Connection $connection,
         private readonly CollectionDefinitionRepository $definitions,
@@ -60,7 +67,12 @@ final class RelationResolver
     {
         $target = $field->settings['target'] ?? '';
 
-        // content:* targets are out of scope for v1 — skip silently.
+        if ($target === self::USERS_TARGET) {
+            $this->assertUuidsExistIn($field, $value, 'users', 'users');
+            return;
+        }
+
+        // Non-collection targets (e.g. content:*) are out of scope — skip silently.
         if (!str_starts_with($target, 'collection:')) {
             return;
         }
@@ -79,6 +91,21 @@ final class RelationResolver
             ]);
         }
 
+        $this->assertUuidsExistIn($field, $value, $targetDef->tableName, $targetName);
+    }
+
+    /**
+     * Assert every referenced uuid exists in $table (single or multi value), else a 422-mapped error.
+     *
+     * @param array<int, string>|string $value
+     * @throws RowValidationException
+     */
+    private function assertUuidsExistIn(
+        CollectionField $field,
+        array|string $value,
+        string $table,
+        string $label,
+    ): void {
         $isMulti = !empty($field->settings['multi']);
         $uuids   = $isMulti ? (array) $value : [$value];
 
@@ -88,17 +115,17 @@ final class RelationResolver
             }
 
             $exists = $this->connection
-                ->table($targetDef->tableName)
+                ->table($table)
                 ->where('uuid', $uuid)
                 ->count() > 0;
 
             if (!$exists) {
                 throw RowValidationException::make([
                     $field->name => sprintf(
-                        "Field '%s' references a non-existent row uuid '%s' in collection '%s'.",
+                        "Field '%s' references a non-existent row uuid '%s' in '%s'.",
                         $field->name,
                         $uuid,
-                        $targetName,
+                        $label,
                     ),
                 ]);
             }
@@ -131,28 +158,41 @@ final class RelationResolver
                 continue;
             }
 
-            $target = $field->settings['target'] ?? '';
-            if (!str_starts_with($target, 'collection:')) {
-                continue; // content:* — out of scope for v1
-            }
-
-            $targetName = substr($target, strlen('collection:'));
-            $targetDef  = $this->definitions->findByName($targetName);
-
-            if ($targetDef === null) {
-                continue;
+            [$table, $columns] = $this->resolveTargetTable((string) ($field->settings['target'] ?? ''));
+            if ($table === null) {
+                continue; // unsupported / unknown target
             }
 
             $isMulti = !empty($field->settings['multi']);
 
             if ($isMulti) {
-                $rows = $this->expandMulti($rows, $fieldName, $targetDef);
+                $rows = $this->expandMulti($rows, $fieldName, $table, $columns);
             } else {
-                $rows = $this->expandSingle($rows, $fieldName, $targetDef);
+                $rows = $this->expandSingle($rows, $fieldName, $table, $columns);
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * Map a relation target descriptor to the table to read and the columns to expose.
+     *
+     * @return array{0: string|null, 1: list<string>|null} [table, columns]; columns null = all
+     *         columns; a null table means the target is unsupported/unknown and should be skipped.
+     */
+    private function resolveTargetTable(string $target): array
+    {
+        if ($target === self::USERS_TARGET) {
+            return ['users', self::USERS_COLUMNS];
+        }
+
+        if (str_starts_with($target, 'collection:')) {
+            $def = $this->definitions->findByName(substr($target, strlen('collection:')));
+            return $def !== null ? [$def->tableName, null] : [null, null];
+        }
+
+        return [null, null];
     }
 
     /**
@@ -219,7 +259,7 @@ final class RelationResolver
      * @param  list<array<string, mixed>> $rows
      * @return list<array<string, mixed>>
      */
-    private function expandSingle(array $rows, string $fieldName, CollectionDefinition $targetDef): array
+    private function expandSingle(array $rows, string $fieldName, string $table, ?array $columns): array
     {
         // Collect all unique referenced uuids across every row.
         $uuids = [];
@@ -234,10 +274,11 @@ final class RelationResolver
             return $rows;
         }
 
-        $targetRows = $this->connection
-            ->table($targetDef->tableName)
-            ->whereIn('uuid', array_keys($uuids))
-            ->get();
+        $query = $this->connection->table($table)->whereIn('uuid', array_keys($uuids));
+        if ($columns !== null) {
+            $query = $query->select($columns);
+        }
+        $targetRows = $query->get();
 
         /** @var array<string, array<string, mixed>> $byUuid */
         $byUuid = [];
@@ -262,7 +303,7 @@ final class RelationResolver
      * @param  list<array<string, mixed>> $rows
      * @return list<array<string, mixed>>
      */
-    private function expandMulti(array $rows, string $fieldName, CollectionDefinition $targetDef): array
+    private function expandMulti(array $rows, string $fieldName, string $table, ?array $columns): array
     {
         // Collect all unique referenced uuids across every row.
         $uuids = [];
@@ -286,10 +327,11 @@ final class RelationResolver
             return $rows;
         }
 
-        $targetRows = $this->connection
-            ->table($targetDef->tableName)
-            ->whereIn('uuid', array_keys($uuids))
-            ->get();
+        $query = $this->connection->table($table)->whereIn('uuid', array_keys($uuids));
+        if ($columns !== null) {
+            $query = $query->select($columns);
+        }
+        $targetRows = $query->get();
 
         /** @var array<string, array<string, mixed>> $byUuid */
         $byUuid = [];

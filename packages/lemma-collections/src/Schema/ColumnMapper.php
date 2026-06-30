@@ -8,8 +8,8 @@ namespace Glueful\Lemma\Collections\Schema;
  * Maps a CollectionField to a physical ColumnSpec (spec §4.3).
  *
  * Mapping table:
- *   collections.text      → string([length=255])
- *   collections.longtext  → text
+ *   collections.string      → string([length=255])
+ *   collections.text  → text
  *   collections.integer   → bigInteger if bigint else integer
  *   collections.decimal   → decimal([precision, scale])
  *   collections.boolean   → boolean
@@ -26,8 +26,8 @@ final class ColumnMapper
 {
     /** @var list<string> */
     private const SUPPORTED = [
+        'collections.string',
         'collections.text',
-        'collections.longtext',
         'collections.integer',
         'collections.decimal',
         'collections.boolean',
@@ -49,11 +49,11 @@ final class ColumnMapper
         $name     = $field->name;
 
         switch ($field->type) {
-            case 'collections.text':
+            case 'collections.string':
                 $length = isset($s['length']) ? (int) $s['length'] : 255;
                 return new ColumnSpec($name, 'string', [$length], $nullable, $unique);
 
-            case 'collections.longtext':
+            case 'collections.text':
                 return new ColumnSpec($name, 'text', [], $nullable, $unique);
 
             case 'collections.integer':

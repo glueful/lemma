@@ -14,6 +14,7 @@ use Glueful\Lemma\Collections\Http\DTOs\AddIndexData;
 use Glueful\Lemma\Collections\Http\DTOs\CreateCollectionData;
 use Glueful\Lemma\Collections\Http\DTOs\FieldData;
 use Glueful\Lemma\Collections\Http\DTOs\UpdateAccessData;
+use Glueful\Lemma\Collections\Http\DTOs\UpdateFieldOrderData;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\AccessPolicy;
 use Glueful\Routing\Attributes\ApiOperation;
@@ -143,6 +144,19 @@ final class CollectionAdminSchemaController
         }
 
         return Response::success(['collection' => $definition], 'Access policy updated.');
+    }
+
+    #[ApiOperation(summary: 'Reorder a collection’s fields', tags: ['Collections Admin'])]
+    #[ApiResponse(200, description: 'Field order updated.')]
+    public function updateFieldOrder(UpdateFieldOrderData $data, string $name): Response
+    {
+        try {
+            $definition = $this->manager->setFieldOrder($name, $data->field_order);
+        } catch (\Throwable $e) {
+            return $this->mapException($e);
+        }
+
+        return Response::success(['collection' => $definition], 'Field order updated.');
     }
 
     #[ApiOperation(summary: 'Drop a collection (guarded)', tags: ['Collections Admin'])]

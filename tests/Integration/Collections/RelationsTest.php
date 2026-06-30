@@ -56,7 +56,7 @@ final class RelationsTest extends LemmaTestCase
             'name'   => self::AUTHORS_COLLECTION,
             'label'  => 'Rel Test Authors',
             'fields' => [
-                ['name' => 'name', 'type' => 'collections.text', 'settings' => ['nullable' => false]],
+                ['name' => 'name', 'type' => 'collections.string', 'settings' => ['nullable' => false]],
             ],
         ], 'admin', 'u1');
 
@@ -65,7 +65,7 @@ final class RelationsTest extends LemmaTestCase
             'name'   => self::ARTICLES_COLLECTION,
             'label'  => 'Rel Test Articles',
             'fields' => [
-                ['name' => 'title', 'type' => 'collections.text', 'settings' => ['nullable' => false]],
+                ['name' => 'title', 'type' => 'collections.string', 'settings' => ['nullable' => false]],
                 ['name' => 'author', 'type' => 'collections.relation', 'settings' => [
                     'nullable' => true,
                     'target'   => 'collection:' . self::AUTHORS_COLLECTION,
@@ -84,7 +84,7 @@ final class RelationsTest extends LemmaTestCase
             'name'   => self::NESTED_COLLECTION,
             'label'  => 'Rel Test Nested',
             'fields' => [
-                ['name' => 'title', 'type' => 'collections.text', 'settings' => ['nullable' => false]],
+                ['name' => 'title', 'type' => 'collections.string', 'settings' => ['nullable' => false]],
                 ['name' => 'article', 'type' => 'collections.relation', 'settings' => [
                     'nullable' => true,
                     'target'   => 'collection:' . self::ARTICLES_COLLECTION,

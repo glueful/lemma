@@ -26,7 +26,7 @@ final class AdminDataApiTest extends LemmaTestCase
         $this->container()->get(CollectionManager::class)->create([
             'name'   => self::NAME,
             'label'  => 'Widgets',
-            'fields' => [['name' => 'title', 'type' => 'collections.text', 'settings' => ['nullable' => false]]],
+            'fields' => [['name' => 'title', 'type' => 'collections.string', 'settings' => ['nullable' => false]]],
         ], 'admin', 'setup');
     }
 

@@ -37,7 +37,7 @@ final class AccessPolicyPersistenceTest extends LemmaTestCase
         $this->manager()->create([
             'name' => 'articles',
             'label' => 'Articles',
-            'fields' => [['name' => 'title', 'type' => 'collections.text', 'settings' => []]],
+            'fields' => [['name' => 'title', 'type' => 'collections.string', 'settings' => []]],
             'access' => ['read' => 'public', 'write' => 'scoped', 'delete' => 'scoped'],
         ], 'admin', 'u-1');
 
@@ -54,7 +54,7 @@ final class AccessPolicyPersistenceTest extends LemmaTestCase
         $this->manager()->create([
             'name' => 'secrets',
             'label' => 'Secrets',
-            'fields' => [['name' => 'value', 'type' => 'collections.text', 'settings' => []]],
+            'fields' => [['name' => 'value', 'type' => 'collections.string', 'settings' => []]],
         ], 'admin', 'u-1');
 
         $loaded = $this->repo()->findByName('secrets');

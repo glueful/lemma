@@ -52,10 +52,10 @@ final class FieldTypeRegistryTest extends TestCase
     public function testRegisterGetHasAll(): void
     {
         $r = new DefaultFieldTypeRegistry();
-        $r->register($this->def('collections.text'));
-        self::assertTrue($r->has('collections.text'));
-        self::assertSame('collections.text', $r->get('collections.text')->key());
-        self::assertArrayHasKey('collections.text', $r->all());
+        $r->register($this->def('collections.string'));
+        self::assertTrue($r->has('collections.string'));
+        self::assertSame('collections.string', $r->get('collections.string')->key());
+        self::assertArrayHasKey('collections.string', $r->all());
     }
 
     public function testDuplicateKeyThrows(): void

@@ -11,8 +11,8 @@ use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
  * Registers the full set of collection field types under the "collections.*" namespace.
  *
  * Capability rules (spec §4):
- *   - Scalar types (text, longtext, integer, decimal, boolean, date, datetime, email, url, enum):
- *       filterable+sortable+indexable=true  (longtext: filterable+sortable=false, indexable=true)
+ *   - Scalar types (string, text, integer, decimal, boolean, date, datetime, email, url, enum):
+ *       filterable+sortable+indexable=true  (text: filterable+sortable=false, indexable=true)
  *   - JSON/object types (json): filterable=false, sortable=false, indexable=false
  *   - Reference/asset types (relation, asset): filterable=false, sortable=false, multi=true
  *
@@ -32,7 +32,7 @@ final class CollectionFieldTypes
     {
         return [
             // --- Scalar types: filterable, sortable, indexable ---
-            self::make('collections.text', 'Text', 'scalar', 'text-input', [
+            self::make('collections.string', 'String', 'scalar', 'text-input', [
                 'filterable' => true,
                 'sortable'   => true,
                 'indexable'  => true,
@@ -40,7 +40,7 @@ final class CollectionFieldTypes
                 'localized'  => false,
             ]),
             // Long text: not filterable/sortable (no B-tree on unbounded text), but full-text indexable
-            self::make('collections.longtext', 'Long Text', 'scalar', 'textarea', [
+            self::make('collections.text', 'Text', 'scalar', 'textarea', [
                 'filterable' => false,
                 'sortable'   => false,
                 'indexable'  => true,

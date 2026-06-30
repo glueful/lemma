@@ -41,7 +41,7 @@ final class AdminSchemaApiTest extends LemmaTestCase
         $dto = new CreateCollectionData(
             name: self::NAME,
             label: 'Gadgets',
-            fields: [new FieldData('title', 'collections.text', ['nullable' => false])],
+            fields: [new FieldData('title', 'collections.string', ['nullable' => false])],
             access: ['read' => 'public', 'write' => 'scoped', 'delete' => 'scoped'],
         );
 
@@ -120,7 +120,7 @@ final class AdminSchemaApiTest extends LemmaTestCase
     private function seed(): void
     {
         $this->controller()->store(
-            new CreateCollectionData(self::NAME, 'Gadgets', [new FieldData('title', 'collections.text', ['nullable' => false])]),
+            new CreateCollectionData(self::NAME, 'Gadgets', [new FieldData('title', 'collections.string', ['nullable' => false])]),
             $this->request(),
         );
     }

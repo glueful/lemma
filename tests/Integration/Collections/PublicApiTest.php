@@ -43,7 +43,7 @@ final class PublicApiTest extends LemmaTestCase
             'name'   => self::COL,
             'label'  => 'Test Products',
             'fields' => [
-                ['name' => 'title', 'type' => 'collections.text', 'settings' => ['nullable' => false]],
+                ['name' => 'title', 'type' => 'collections.string', 'settings' => ['nullable' => false]],
                 ['name' => 'price', 'type' => 'collections.integer', 'settings' => ['nullable' => true]],
             ],
         ], 'admin', 'setup');
@@ -323,7 +323,7 @@ final class PublicApiTest extends LemmaTestCase
             'name'   => self::COL2,
             'label'  => 'Public Docs',
             'fields' => [
-                ['name' => 'title', 'type' => 'collections.text', 'settings' => ['nullable' => false]],
+                ['name' => 'title', 'type' => 'collections.string', 'settings' => ['nullable' => false]],
             ],
             'access' => ['read' => 'public', 'write' => 'scoped', 'delete' => 'scoped'],
         ], 'admin', 'setup');

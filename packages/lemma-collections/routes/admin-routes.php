@@ -38,6 +38,8 @@ $router->group(
             ->middleware('lemma_permission:collections.schema.manage');
         $router->patch('/collections/{name}/access', [CollectionAdminSchemaController::class, 'updateAccess'])
             ->middleware('lemma_permission:collections.schema.manage');
+        $router->patch('/collections/{name}/field-order', [CollectionAdminSchemaController::class, 'updateFieldOrder'])
+            ->middleware('lemma_permission:collections.schema.manage');
         $router->delete('/collections/{name}', [CollectionAdminSchemaController::class, 'destroy'])
             ->middleware('lemma_permission:collections.schema.manage');
 

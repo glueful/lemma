@@ -143,7 +143,7 @@ final class RelationsTest extends LemmaTestCase
 
     private function tableNameFor(string $name): string
     {
-        return 'collection_' . substr(hash('sha256', $name), 0, 12);
+        return CollectionManager::tableNameFor($name);
     }
 
     private function cleanupAll(): void

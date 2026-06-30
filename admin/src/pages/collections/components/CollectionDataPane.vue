@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, h, ref } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
 import {
   useCollection,
@@ -42,7 +42,18 @@ const columns = computed<TableColumn<CollectionRow>[]>(() => {
   for (const n of displayable) if (!ordered.includes(n)) ordered.push(n)
 
   return [
-    ...ordered.map((n) => ({ accessorKey: n, header: SYSTEM_HEADERS[n] ?? n })),
+    ...ordered.map((n) => ({
+      accessorKey: n,
+      header: SYSTEM_HEADERS[n] ?? n,
+      // Cap a cell's width and wrap, so long values (e.g. rich text) don't push other columns
+      // off-screen and force horizontal scrolling.
+      cell: ({ getValue }: { getValue: () => unknown }) =>
+        h(
+          'div',
+          { class: 'line-clamp-2 max-w-xs whitespace-normal break-words' },
+          String(getValue() ?? ''),
+        ),
+    })),
     { id: 'actions', header: '' },
   ]
 })

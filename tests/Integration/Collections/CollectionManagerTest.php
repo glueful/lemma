@@ -15,7 +15,7 @@ final class CollectionManagerTest extends LemmaTestCase
 {
     /**
      * Names used across tests — table names are derived deterministically as
-     * 'collection_' . substr(hash('sha256', $name), 0, 12).
+     * CollectionManager::tableNameFor($name).
      *
      * @var list<string>
      */
@@ -81,7 +81,7 @@ final class CollectionManagerTest extends LemmaTestCase
      */
     private function tableNameFor(string $name): string
     {
-        return 'collection_' . substr(hash('sha256', $name), 0, 12);
+        return CollectionManager::tableNameFor($name);
     }
 
     // ----------------------------------------------------------------- tests

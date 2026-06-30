@@ -135,7 +135,7 @@ const valuesText = computed({
           v-model="target"
           :items="collectionItems"
           placeholder="Pick a target"
-          class="w-full max-w-xs"
+          class="w-full"
           :disabled="disabled"
         />
       </UFormField>

@@ -16,8 +16,10 @@ withDefaults(
   defineProps<{
     placeholder?: string
     editable?: boolean
+    // Extra classes for the editor content area — e.g. 'max-h-96 overflow-y-auto' to cap + scroll it.
+    contentClass?: string
   }>(),
-  { editable: true },
+  { editable: true, contentClass: '' },
 )
 
 const model = defineModel<string>()
@@ -138,7 +140,7 @@ const bubbleItems = [
     :editable="editable"
     :placeholder="placeholder"
     :extensions="extensions"
-    :ui="{ base: 'py-3 outline-none min-h-64' }"
+    :ui="{ base: `py-3 outline-none min-h-64 ${contentClass}` }"
     class="w-full"
   >
     <UEditorToolbar

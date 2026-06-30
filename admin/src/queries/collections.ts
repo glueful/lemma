@@ -197,6 +197,15 @@ export async function updateFieldOrder(name: string, fieldOrder: string[]) {
   return data
 }
 
+/** Delete every row in a collection (keeps the schema). */
+export async function truncateRows(name: string) {
+  const { data, error, response } = await client.DELETE('/collections/{name}/rows', {
+    params: { path: { name } },
+  })
+  if (error) throw toApiError(error, response)
+  return data
+}
+
 export async function dropCollection(name: string, confirm?: string) {
   const { data, error, response } = await client.DELETE('/collections/{name}', {
     params: { path: { name } },
@@ -322,6 +331,13 @@ export function useCollectionMutations() {
       mutation: (vars: { name: string; order: string[] }) =>
         updateFieldOrder(vars.name, vars.order),
       onSettled: (_d, _e, vars) => invalidate(vars.name),
+    }),
+    truncate: useMutation({
+      mutation: (vars: { name: string }) => truncateRows(vars.name),
+      onSettled: (_d, _e, vars) => {
+        invalidate(vars.name)
+        cache.invalidateQueries({ key: qk.collectionRows(vars.name) })
+      },
     }),
     remove: useMutation({
       mutation: (vars: { name: string; confirm?: string }) =>

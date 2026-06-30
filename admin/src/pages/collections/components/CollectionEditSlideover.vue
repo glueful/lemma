@@ -17,11 +17,23 @@ import DropConfirmModal from './DropConfirmModal.vue'
 import ScopesPanel from '../[name]/components/ScopesPanel.vue'
 
 const props = defineProps<{ open: boolean; name: string }>()
-const emit = defineEmits<{ 'update:open': [value: boolean]; dropped: [name: string] }>()
+const emit = defineEmits<{
+  'update:open': [value: boolean]
+  dropped: [name: string]
+  duplicate: [collection: Collection]
+}>()
 
 const { success, error: notifyError } = useNotify()
-const { addField, dropField, addIndex, dropIndex, updateAccess, updateFieldOrder, remove } =
-  useCollectionMutations()
+const {
+  addField,
+  dropField,
+  addIndex,
+  dropIndex,
+  updateAccess,
+  updateFieldOrder,
+  truncate,
+  remove,
+} = useCollectionMutations()
 
 const { data: collection } = useCollection(computed(() => props.name))
 
@@ -108,7 +120,15 @@ const addItems = COLLECTION_FIELD_TYPES.map((t) => ({
   onSelect: () => addNewField(t),
 }))
 function addNewField(type: CollectionFieldType) {
-  fields.value.push({ id: seq++, name: '', type, settings: {}, open: true })
+  // Land new fields above the timestamps (…custom…, created_at, updated_at).
+  const at = fields.value.findIndex((f) => f.name === 'created_at')
+  fields.value.splice(at === -1 ? fields.value.length : at, 0, {
+    id: seq++,
+    name: '',
+    type,
+    settings: {},
+    open: true,
+  })
 }
 
 // Removing a new (unsaved) card is local; removing an existing field needs a typed confirmation.
@@ -193,6 +213,66 @@ async function confirmDropCollection(token: string | undefined) {
     notifyError(e, 'Couldn’t drop collection')
   }
 }
+
+const truncateOpen = ref(false)
+async function confirmTruncate() {
+  try {
+    await truncate.mutateAsync({ name: props.name })
+    success('Collection truncated', `All rows in “${props.name}” were deleted.`)
+    truncateOpen.value = false
+  } catch (e) {
+    notifyError(e, 'Couldn’t truncate the collection')
+  }
+}
+
+function copyJson() {
+  const def = collection.value
+  if (!def) return
+  const json = JSON.stringify(
+    {
+      name: def.name,
+      label: def.label,
+      fields: def.fields,
+      access: def.accessPolicy,
+      field_order: def.fieldOrder,
+    },
+    null,
+    2,
+  )
+  navigator.clipboard?.writeText(json)
+  success('Copied', 'Collection definition copied as JSON.')
+}
+
+function duplicate() {
+  if (!collection.value) return
+  emit('duplicate', collection.value)
+  emit('update:open', false)
+}
+
+const menuItems = [
+  [
+    { label: 'Copy JSON', icon: 'i-lucide-braces', onSelect: copyJson },
+    { label: 'Duplicate', icon: 'i-lucide-copy', onSelect: duplicate },
+  ],
+  [
+    {
+      label: 'Truncate',
+      icon: 'i-lucide-eraser',
+      color: 'warning' as const,
+      onSelect: () => {
+        truncateOpen.value = true
+      },
+    },
+    {
+      label: 'Delete',
+      icon: 'i-lucide-trash-2',
+      color: 'error' as const,
+      onSelect: () => {
+        dropCollectionOpen.value = true
+      },
+    },
+  ],
+]
 </script>
 
 <template>
@@ -203,6 +283,16 @@ async function confirmDropCollection(token: string | undefined) {
     @update:open="(v: boolean) => emit('update:open', v)"
   >
     <template #body>
+      <div class="mb-3 flex justify-end">
+        <UDropdownMenu :items="menuItems" :content="{ align: 'end' }">
+          <UButton
+            icon="i-lucide-ellipsis"
+            color="neutral"
+            variant="ghost"
+            aria-label="Collection actions"
+          />
+        </UDropdownMenu>
+      </div>
       <UTabs :items="tabs" variant="link" class="w-full" :ui="{ content: 'pt-4' }">
         <template #fields>
           <div class="space-y-3">
@@ -262,24 +352,15 @@ async function confirmDropCollection(token: string | undefined) {
     </template>
 
     <template #footer>
-      <div class="flex w-full items-center justify-between">
+      <div class="flex w-full items-center justify-end gap-2">
         <UButton
-          color="error"
+          color="neutral"
           variant="ghost"
-          icon="i-lucide-trash-2"
-          label="Drop collection"
-          @click="dropCollectionOpen = true"
+          label="Close"
+          :disabled="saving"
+          @click="emit('update:open', false)"
         />
-        <div class="flex items-center gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            label="Close"
-            :disabled="saving"
-            @click="emit('update:open', false)"
-          />
-          <UButton label="Save changes" :loading="saving" @click="onSave" />
-        </div>
+        <UButton label="Save changes" :loading="saving" @click="onSave" />
       </div>
     </template>
   </USlideover>
@@ -301,5 +382,15 @@ async function confirmDropCollection(token: string | undefined) {
     :message="`Drop “${name}”? This drops the table and every row in it.`"
     @confirm="confirmDropCollection"
     @cancel="dropCollectionOpen = false"
+  />
+
+  <DropConfirmModal
+    :open="truncateOpen"
+    title="Truncate collection"
+    :confirm-name="name"
+    :loading="truncate.isLoading.value"
+    :message="`Delete every row in “${name}”? The schema is kept; the row data cannot be recovered.`"
+    @confirm="confirmTruncate"
+    @cancel="truncateOpen = false"
   />
 </template>

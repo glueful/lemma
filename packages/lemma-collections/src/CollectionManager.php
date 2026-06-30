@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Glueful\Lemma\Collections;
 
 use Glueful\Database\Connection;
+use Glueful\Events\EventService;
+use Glueful\Lemma\Collections\Events\CollectionCreated;
+use Glueful\Lemma\Collections\Events\CollectionDropped;
+use Glueful\Lemma\Collections\Events\CollectionUpdated;
 use Glueful\Lemma\Collections\Exceptions\CollectionValidationException;
 use Glueful\Lemma\Collections\Exceptions\DestructiveConfirmationRequiredException;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
@@ -23,12 +27,13 @@ use Glueful\Lemma\Collections\Support\PublicId;
  *
  * ## Table name derivation
  *
- * Physical table names are deterministic and collision-resistant:
- *   table_name = 'collection_' . substr(hash('sha256', $name), 0, 12)
+ * Physical table names are the collection name with a short, readable prefix:
+ *   table_name = 'coll_' . $name        (e.g. 'posts' -> 'coll_posts')
  *
- * The 12-hex-char suffix gives 48 bits of address space — more than sufficient for the
- * small number of user-defined collections in a single Lemma instance while keeping names
- * short enough to fit the 80-char `table_name` column.
+ * Names are validated as safe identifiers ([a-z][a-z0-9_]*) and capped (MAX_NAME_LENGTH) so the
+ * table name stays within the 63-char identifier limit. The 'coll_' prefix groups collection
+ * tables together and keeps them distinct from the pack's own 'collection_*' metadata tables
+ * (collection_definitions, collection_schema_changes).
  *
  * ## Empty-table light path for destructive operations
  *
@@ -48,6 +53,12 @@ use Glueful\Lemma\Collections\Support\PublicId;
  */
 final class CollectionManager
 {
+    /** Prefix for a collection's physical table: TABLE_PREFIX . name (e.g. 'coll_posts'). */
+    private const TABLE_PREFIX = 'coll_';
+
+    /** Max collection-name length so TABLE_PREFIX . name fits the 63-char identifier limit. */
+    private const MAX_NAME_LENGTH = 58;
+
     /**
      * System columns added to every collection table by SchemaMaterializer.
      * Field names that collide with these must be rejected at the create() gate.
@@ -90,6 +101,7 @@ final class CollectionManager
         private readonly SchemaMaterializer $materializer,
         private readonly Connection $connection,
         private readonly ColumnMapper $columnMapper,
+        private readonly EventService $events,
     ) {
     }
 
@@ -110,7 +122,7 @@ final class CollectionManager
 
         $name      = (string) $payload['name'];
         $label     = isset($payload['label']) ? (string) $payload['label'] : $this->deriveLabel($name);
-        $tableName = $this->deriveTableName($name);
+        $tableName = self::tableNameFor($name);
         $uuid      = PublicId::generate('col');
 
         /** @var list<CollectionField> $fields */
@@ -154,6 +166,8 @@ final class CollectionManager
             throw $e;
         }
 
+        $this->events->dispatch(new CollectionCreated($name, $actorType, $actorId));
+
         return $def;
     }
 
@@ -184,6 +198,8 @@ final class CollectionManager
 
         $this->materializer->apply($next, $ops, $actorType, $actorId);
         $this->repo->update($next);
+
+        $this->events->dispatch(new CollectionUpdated($name, 'field_added', $fieldName, $actorType, $actorId));
 
         return $next;
     }
@@ -218,6 +234,8 @@ final class CollectionManager
         $this->materializer->apply($next, $ops, $actorType, $actorId);
         $this->repo->update($next);
 
+        $this->events->dispatch(new CollectionUpdated($name, 'index_added', $field, $actorType, $actorId));
+
         return $next;
     }
 
@@ -251,6 +269,8 @@ final class CollectionManager
 
         $this->materializer->apply($next, $ops, $actorType, $actorId);
         $this->repo->update($next);
+
+        $this->events->dispatch(new CollectionUpdated($name, 'index_removed', $field, $actorType, $actorId));
 
         return $next;
     }
@@ -294,6 +314,8 @@ final class CollectionManager
         $this->materializer->apply($next, $ops, $actorType, $actorId);
         $this->repo->update($next);
 
+        $this->events->dispatch(new CollectionUpdated($name, 'field_dropped', $field, $actorType, $actorId));
+
         return $next;
     }
 
@@ -333,6 +355,8 @@ final class CollectionManager
         );
 
         $this->repo->delete($current->uuid);
+
+        $this->events->dispatch(new CollectionDropped($name, $actorType, $actorId));
     }
 
     /**
@@ -406,6 +430,8 @@ final class CollectionManager
         $name = isset($payload['name']) ? (string) $payload['name'] : '';
         if ($name === '' || preg_match('/^[a-z][a-z0-9_]*$/', $name) !== 1) {
             $errors['name'] = 'Name must start with a lowercase letter and contain only [a-z0-9_].';
+        } elseif (strlen($name) > self::MAX_NAME_LENGTH) {
+            $errors['name'] = sprintf('Name must be at most %d characters.', self::MAX_NAME_LENGTH);
         }
 
         // Fail early on storage_mode / name errors before inspecting fields.
@@ -442,15 +468,12 @@ final class CollectionManager
     }
 
     /**
-     * Derive the deterministic physical table name for a collection.
-     *
-     * Algorithm: 'collection_' + first 12 hex chars of SHA-256 of the collection name.
-     * This gives 48 bits of uniqueness space — sufficient for any realistic number of
-     * user-defined collections in a single Lemma deployment.
+     * Physical table name for a collection: the name with the {@see self::TABLE_PREFIX} prefix.
+     * Public + static so tests and tooling resolve the table name without re-deriving the scheme.
      */
-    private function deriveTableName(string $name): string
+    public static function tableNameFor(string $name): string
     {
-        return 'collection_' . substr(hash('sha256', $name), 0, 12);
+        return self::TABLE_PREFIX . $name;
     }
 
     /**

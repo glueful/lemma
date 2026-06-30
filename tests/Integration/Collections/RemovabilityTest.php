@@ -267,7 +267,7 @@ final class RemovabilityTest extends LemmaTestCase
         $schema = $this->container()->get(SchemaBuilderInterface::class);
         $schema->reset();
 
-        $tableName = 'collection_' . substr(hash('sha256', self::COL), 0, 12);
+        $tableName = CollectionManager::tableNameFor(self::COL);
         if ($schema->hasTable($tableName)) {
             $schema->dropTableIfExists($tableName);
         }

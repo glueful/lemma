@@ -93,7 +93,7 @@ final class UserRelationTest extends LemmaTestCase
     private function cleanup(): void
     {
         $schema = $this->container()->get(SchemaBuilderInterface::class);
-        $table = 'collection_' . substr(hash('sha256', self::COLLECTION), 0, 12);
+        $table = CollectionManager::tableNameFor(self::COLLECTION);
         if ($schema->hasTable($table)) {
             $schema->dropTableIfExists($table);
         }

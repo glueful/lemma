@@ -97,7 +97,7 @@ final class AdminDataApiTest extends LemmaTestCase
 
     private function table(): string
     {
-        return 'collection_' . substr(hash('sha256', self::NAME), 0, 12);
+        return CollectionManager::tableNameFor(self::NAME);
     }
 
     private function dropCollection(): void

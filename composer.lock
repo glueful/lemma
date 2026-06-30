@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "67a083c2d99b45d5d6d748882b66780f",
+    "content-hash": "c82d9aa1b01be417a0fe6306999e9389",
     "packages": [
         {
             "name": "composer/semver",
@@ -485,16 +485,16 @@
         },
         {
             "name": "glueful/audit",
-            "version": "v1.2.1",
+            "version": "v1.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/audit.git",
-                "reference": "18d221f488553f489b8520561ceb518e448721ef"
+                "reference": "524da4b3fe6229f46d4010748001368f7ce1e043"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/audit/zipball/18d221f488553f489b8520561ceb518e448721ef",
-                "reference": "18d221f488553f489b8520561ceb518e448721ef",
+                "url": "https://api.github.com/repos/glueful/audit/zipball/524da4b3fe6229f46d4010748001368f7ce1e043",
+                "reference": "524da4b3fe6229f46d4010748001368f7ce1e043",
                 "shasum": ""
             },
             "require": {
@@ -514,7 +514,7 @@
             "extra": {
                 "glueful": {
                     "name": "Audit",
-                    "version": "1.2.1",
+                    "version": "1.3.0",
                     "provider": "Glueful\\Extensions\\Audit\\AuditServiceProvider",
                     "requires": {
                         "glueful": ">=1.63.0",
@@ -557,9 +557,9 @@
             ],
             "support": {
                 "issues": "https://github.com/glueful/audit/issues",
-                "source": "https://github.com/glueful/audit/tree/v1.2.1"
+                "source": "https://github.com/glueful/audit/tree/v1.3.0"
             },
-            "time": "2026-06-28T06:58:07+00:00"
+            "time": "2026-06-30T21:32:09+00:00"
         },
         {
             "name": "glueful/email-notification",

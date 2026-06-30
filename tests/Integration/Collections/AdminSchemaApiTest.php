@@ -6,6 +6,7 @@ namespace App\Tests\Integration\Collections;
 
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Database\Schema\Interfaces\SchemaBuilderInterface;
+use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Data\Actor;
 use Glueful\Lemma\Collections\Data\RowRepository;
 use Glueful\Lemma\Collections\Http\Controllers\CollectionAdminSchemaController;
@@ -152,7 +153,7 @@ final class AdminSchemaApiTest extends LemmaTestCase
     private function dropCollection(string $name): void
     {
         $schema = $this->container()->get(SchemaBuilderInterface::class);
-        $table  = 'collection_' . substr(hash('sha256', $name), 0, 12);
+        $table  = CollectionManager::tableNameFor($name);
         if ($schema->hasTable($table)) {
             $schema->dropTableIfExists($table);
         }

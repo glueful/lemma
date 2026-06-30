@@ -270,6 +270,21 @@ final class CollectionDataController
         return Response::noContent();
     }
 
+    /** DELETE /collections/{name}/rows — delete every row (keeps the schema). */
+    #[ApiOperation(summary: 'Delete all rows in a collection', tags: ['Collections'])]
+    #[ApiResponse(200, description: 'Rows deleted.')]
+    public function truncate(Request $request, string $name): Response
+    {
+        $def = $this->definitions->findByName($name);
+        if ($def === null) {
+            return Response::notFound("Collection '{$name}' not found.");
+        }
+
+        $deleted = $this->rows->truncate($def);
+
+        return Response::success(['deleted' => $deleted], "Cleared {$deleted} row(s) from '{$name}'.");
+    }
+
     // ── private helpers ───────────────────────────────────────────────────────
 
     /**

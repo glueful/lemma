@@ -12,4 +12,7 @@ export const qk = {
   schedules: (uuid: string) => ['schedules', uuid] as const,
   versions: (uuid: string) => ['versions', uuid] as const,
   redirects: (type: string) => ['redirects', type] as const,
+  collections: () => ['collections'] as const,
+  collection: (name: string) => ['collection', name] as const,
+  collectionRows: (name: string) => ['collection-rows', name] as const,
 }

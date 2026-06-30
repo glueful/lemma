@@ -48,6 +48,7 @@ final class OptionalApiKeyAuthMiddleware implements RouteMiddleware
         $request->attributes->set('user_data', $userData);
         $request->attributes->set('auth_method', 'api_key');
         $request->attributes->set('api_key_scopes', $key->getScopes());
+        $request->attributes->set('api_key_uuid', (string) $key->uuid);
 
         return $next($request);
     }

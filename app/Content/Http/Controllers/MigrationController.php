@@ -11,7 +11,7 @@ use App\Content\Schema\SchemaParseException;
 use App\Content\Services\ActiveMigrationException;
 use App\Content\Services\MigrationService;
 use App\Http\DTOs\ErrorResponse;
-use Glueful\Auth\UserIdentity;
+use App\Support\ActorHelper;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
@@ -90,8 +90,6 @@ final class MigrationController
 
     private function actor(Request $request): ?string
     {
-        $user = $request->attributes->get('auth.user');
-
-        return $user instanceof UserIdentity ? $user->id() : null;
+        return ActorHelper::uuidFromRequest($request);
     }
 }

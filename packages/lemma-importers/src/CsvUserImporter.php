@@ -11,6 +11,7 @@ use Glueful\Extensions\Aegis\AegisPermissionProvider;
 use Glueful\Extensions\ImportExport\Support\ImportContext;
 use Glueful\Extensions\ImportExport\Support\ImportOptions;
 use Glueful\Extensions\Users\Repositories\UserRepository;
+use Glueful\Helpers\Utils;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
 
@@ -97,7 +98,7 @@ final class CsvUserImporter extends AbstractCsvImporter
         if ($username === '' || $email === '') {
             throw new \InvalidArgumentException('Both username and email are required.');
         }
-        if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+        if (!Utils::isValidEmail($email)) {
             throw new \InvalidArgumentException(sprintf('Invalid email "%s".', $email));
         }
         if ($this->users->emailExists($email)) {
@@ -117,7 +118,7 @@ final class CsvUserImporter extends AbstractCsvImporter
             'username' => $username,
             'email' => $email,
             // create() does not hash; a missing password becomes a random one (user must reset).
-            'password' => (new PasswordHasher())->hash($password !== '' ? $password : bin2hex(random_bytes(8))),
+            'password' => (new PasswordHasher())->hash($password !== '' ? $password : Utils::generateSecurePassword()),
             'status' => $status !== '' ? $status : 'active',
             'email_verified_at' => date('Y-m-d H:i:s'),
         ]);

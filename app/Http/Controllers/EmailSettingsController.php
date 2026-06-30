@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Helpers\Utils;
+use Glueful\Http\Response;
 use Glueful\Installer\EnvWriter;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
@@ -64,7 +66,7 @@ final class EmailSettingsController
         }
         $settings['password_set'] = ($env->get('MAIL_PASSWORD') ?? '') !== '';
 
-        return $this->ok(['settings' => $settings]);
+        return Response::success(['settings' => $settings]);
     }
 
     #[ApiOperation(
@@ -80,7 +82,7 @@ final class EmailSettingsController
         $body = $this->body($request);
 
         $from = isset($body['from']) ? trim((string) $body['from']) : null;
-        if ($from !== null && $from !== '' && filter_var($from, FILTER_VALIDATE_EMAIL) === false) {
+        if ($from !== null && $from !== '' && !Utils::isValidEmail($from)) {
             return $this->error('“From” must be a valid email address.', ['from' => 'Enter a valid email.']);
         }
         if (isset($body['port']) && (string) $body['port'] !== '' && !ctype_digit((string) $body['port'])) {
@@ -102,7 +104,7 @@ final class EmailSettingsController
             $this->env()->setMany($pairs);
         }
 
-        return $this->ok(
+        return Response::success(
             ['message' => 'Email settings saved.'],
             'Email settings saved. Changes apply on the next request (a restart may be needed).',
         );
@@ -120,7 +122,7 @@ final class EmailSettingsController
     {
         $body = $this->body($request);
         $to = trim((string) ($body['to'] ?? ''));
-        if (filter_var($to, FILTER_VALIDATE_EMAIL) === false) {
+        if (!Utils::isValidEmail($to)) {
             return $this->error('Enter a valid recipient email.', ['to' => 'Enter a valid email.']);
         }
 
@@ -167,7 +169,7 @@ final class EmailSettingsController
             return $this->error('Test email failed: ' . $e->getMessage());
         }
 
-        return $this->ok(['message' => "Test email sent to {$to}."], "Test email sent to {$to}.");
+        return Response::success(['message' => "Test email sent to {$to}."], "Test email sent to {$to}.");
     }
 
     /** @return array<string,mixed> */
@@ -175,14 +177,6 @@ final class EmailSettingsController
     {
         $decoded = json_decode((string) $request->getContent(), true);
         return is_array($decoded) ? $decoded : [];
-    }
-
-    /**
-     * @param array<string,mixed> $data
-     */
-    private function ok(array $data, string $message = 'OK'): JsonResponse
-    {
-        return new JsonResponse(['success' => true, 'message' => $message, 'data' => $data]);
     }
 
     /**

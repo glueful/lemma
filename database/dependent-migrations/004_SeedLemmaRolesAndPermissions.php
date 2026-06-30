@@ -39,7 +39,12 @@ final class SeedLemmaRolesAndPermissions implements MigrationInterface
 
     /** Lemma permissions granted onto EXISTING Aegis roles. aegis role slug => [perm slugs] */
     private const ROLE_GRANTS = [
-        'administrator' => ['content.publish', 'content.manage', 'content.routes'],
+        'administrator' => [
+            'content.publish', 'content.manage', 'content.routes',
+            // Collections admin permissions: the rows are declared by the lemma-collections pack's
+            // own migration; this grants them to administrator. Aegis seeds the role before this runs.
+            'collections.manage', 'collections.schema.manage', 'collections.data.manage',
+        ],
     ];
 
     private Connection $db;

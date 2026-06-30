@@ -25,6 +25,7 @@ use App\Content\Validation\FieldValidator;
 use App\Content\Validation\ValidationException;
 use App\Http\DTOs\ErrorResponse;
 use App\Settings\GeneralSettings;
+use App\Support\ActorHelper;
 use Glueful\Auth\UserIdentity;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
@@ -490,7 +491,6 @@ final class EntryController
      */
     private function actor(Request $request): ?string
     {
-        $user = $request->attributes->get('auth.user');
-        return $user instanceof UserIdentity ? $user->id() : null;
+        return ActorHelper::uuidFromRequest($request);
     }
 }

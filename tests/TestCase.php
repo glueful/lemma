@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace App\Tests;
 
-use Glueful\Framework;
+use App\Tests\Support\TestApplication;
 use Glueful\Testing\TestCase as FrameworkTestCase;
 
 abstract class TestCase extends FrameworkTestCase
 {
     protected function createApplication(): \Glueful\Application
     {
-        $framework = Framework::create(__DIR__ . '/..')
-            ->withEnvironment('testing');
-        return $framework->boot();
+        // Reuse the single process-shared boot. Booting the framework a second time in the
+        // same process would consume the framework's one-shot extension-route loaders and leave
+        // the other suites' router without those routes. See TestApplication for details.
+        return TestApplication::instance();
     }
 }

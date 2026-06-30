@@ -10,7 +10,7 @@ use App\Content\Localization\ContentLocaleService;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\ScheduleRepository;
 use App\Http\DTOs\ErrorResponse;
-use Glueful\Auth\UserIdentity;
+use App\Support\ActorHelper;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
@@ -82,8 +82,6 @@ final class ScheduleController
 
     private function actor(Request $request): ?string
     {
-        $user = $request->attributes->get('auth.user');
-
-        return $user instanceof UserIdentity ? $user->id() : null;
+        return ActorHelper::uuidFromRequest($request);
     }
 }

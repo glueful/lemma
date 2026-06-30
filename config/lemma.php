@@ -14,6 +14,16 @@ return [
         'editor' => 'editor',
     ],
 
+    // Collections public read API defaults (see packages/lemma-collections).
+    'collections' => [
+        // Default page size when the request omits perPage.
+        'default_per_page' => (int) env('LEMMA_COLLECTIONS_DEFAULT_PER_PAGE', 20),
+        // Hard cap on page size to keep latency predictable.
+        'max_per_page' => (int) env('LEMMA_COLLECTIONS_MAX_PER_PAGE', 100),
+        // Hard cap on rows per bulk-create request.
+        'max_bulk' => (int) env('LEMMA_COLLECTIONS_MAX_BULK', 100),
+    ],
+
     // Public delivery API defaults (see docs/V1_DESIGN.md §6). Delivery is private by
     // default: clients need read:content or read:content:{type}, unless a content type sets
     // public_delivery=true.

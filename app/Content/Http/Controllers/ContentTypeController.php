@@ -17,6 +17,7 @@ use App\Content\Schema\SchemaParseException;
 use App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeListData;
 use App\Content\Http\DTOs\Responses\ContentTypes\ContentTypeResultData;
 use App\Http\DTOs\ErrorResponse;
+use App\Support\ActorHelper;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
 use Glueful\Queue\QueueManager;
@@ -214,7 +215,6 @@ final class ContentTypeController
      */
     private function actor(Request $request): ?string
     {
-        $user = $request->attributes->get('auth.user');
-        return $user instanceof UserIdentity ? $user->id() : null;
+        return ActorHelper::uuidFromRequest($request);
     }
 }

@@ -26,23 +26,27 @@ foreach (glob($root . '/packages/*', GLOB_ONLYDIR) ?: [] as $pkgDir) {
     if (basename($pkgDir) === 'lemma-contracts') {
         continue;
     }
-    if (!is_dir($pkgDir . '/src')) {
-        continue;
-    }
-    $srcIterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($pkgDir . '/src', FilesystemIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::LEAVES_ONLY,
-    );
-    foreach ($srcIterator as $file) {
-        /** @var SplFileInfo $file */
-        if ($file->getExtension() !== 'php') {
+    // Pack PHP lives under src/ (classes) and routes/ (route definition files); both must be
+    // App-free. lemma-contracts is skipped above.
+    foreach (['src', 'routes'] as $sub) {
+        if (!is_dir($pkgDir . '/' . $sub)) {
             continue;
         }
-        $src = (string) file_get_contents($file->getPathname());
-        // Matches `use App\...`, `\App\...`, or a bare `App\` namespace reference.
-        if (preg_match('/(^|[^\\w])App\\\\/m', $src) === 1) {
-            $violations[] = basename($pkgDir) . '/src/' . $file->getFilename()
-                . ' references App\\ (packs must use contracts, not the app)';
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($pkgDir . '/' . $sub, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY,
+        );
+        foreach ($iterator as $file) {
+            /** @var SplFileInfo $file */
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+            $src = (string) file_get_contents($file->getPathname());
+            // Matches `use App\...`, `\App\...`, or a bare `App\` namespace reference.
+            if (preg_match('/(^|[^\\w])App\\\\/m', $src) === 1) {
+                $violations[] = basename($pkgDir) . '/' . $sub . '/' . $file->getFilename()
+                    . ' references App\\ (packs must use contracts, not the app)';
+            }
         }
     }
 }

@@ -7,8 +7,6 @@ namespace App\Tests\Support;
 use Glueful\Application;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
-use Glueful\Framework;
-use Glueful\Routing\RouteManifest;
 use Glueful\Routing\Router;
 use Psr\Container\ContainerInterface;
 use PHPUnit\Framework\TestCase;
@@ -30,35 +28,16 @@ abstract class LemmaTestCase extends TestCase
 
     public static function setUpBeforeClass(): void
     {
+        // Reuse the single process-shared boot (see TestApplication). The framework's
+        // ServiceProvider::loadRoutesFrom() latches each extension route file in a process-global
+        // static with no reset hook, so booting the framework more than once per process drops
+        // every extension route (e.g. /v1/collections/*) from the later boot's router. Routing
+        // ALL suites through one boot is the only correct isolation boundary. TestApplication
+        // also resets RouteManifest and clears the stale compiled route cache on that first boot.
+        // Framework::boot() returns a Glueful\Application; we keep its ApplicationContext
+        // (both expose getContainer()).
         if (self::$app === null) {
-            $root = dirname(__DIR__, 2);
-
-            // Earlier suites (e.g. tests/Feature, which boot the framework per test)
-            // leave RouteManifest::$loaded === true process-globally. Without resetting
-            // it, this boot's RouteManifest::load() early-returns and the app routes
-            // (including routes/lemma_admin.php) never register in THIS router. The
-            // framework's per-boot route cache would normally paper over that, but its
-            // signature is basePath-sensitive and is discarded across differing boots,
-            // leaving an empty router. Reset the manifest and drop any stale route cache
-            // so this boot loads every routes/*.php file fresh and deterministically.
-            RouteManifest::reset();
-            self::clearRouteCache($root);
-
-            // Schema is created by `composer test:migrate` before PHPUnit runs.
-            // Framework::boot() returns a Glueful\Application; we keep its
-            // ApplicationContext (both expose getContainer()).
-            self::$app = Framework::create($root)
-                ->withConfigDir($root . '/config')
-                ->withEnvironment('testing')
-                ->boot()
-                ->getContext();
-        }
-    }
-
-    private static function clearRouteCache(string $root): void
-    {
-        foreach (glob($root . '/storage/cache/routes_*.php') ?: [] as $file) {
-            @unlink($file);
+            self::$app = TestApplication::instance()->getContext();
         }
     }
 

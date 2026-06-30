@@ -2,16 +2,22 @@
 import { computed } from 'vue'
 import { useCollections, type CollectionFieldType } from '@/queries/collections'
 
-defineProps<{ type: CollectionFieldType; disabled?: boolean }>()
+defineProps<{ type: CollectionFieldType; disabled?: boolean; indexEditable?: boolean }>()
 
 // The settings object is owned by the parent field row; we mutate its keys in place.
 const settings = defineModel<Record<string, unknown>>('settings', { required: true })
 
-// Relation targets are the other (existing) collections.
+// Relation targets are the other (existing) collections. The resolver keys off a
+// `collection:<name>` target (see RelationResolver), so that prefix is part of the stored value.
 const { data: collections } = useCollections()
-const collectionItems = computed(() =>
-  (collections.value ?? []).map((c) => ({ label: c.label || c.name, value: c.name })),
-)
+const collectionItems = computed(() => [
+  // The framework users table is a first-class relation target (resolver exposes safe columns only).
+  { label: 'Users (system)', value: 'users' },
+  ...(collections.value ?? []).map((c) => ({
+    label: c.label || c.name,
+    value: `collection:${c.name}`,
+  })),
+])
 
 function toNum(v: unknown): number | undefined {
   const n = Number(v)
@@ -88,8 +94,8 @@ const valuesText = computed({
   <div class="space-y-3 rounded-md border border-default bg-elevated/40 p-3">
     <div class="flex items-center gap-4">
       <USwitch v-model="required" label="Required" :disabled="disabled" />
-      <USwitch v-model="unique" label="Unique" :disabled="disabled" />
-      <USwitch v-model="indexed" label="Index" :disabled="disabled" />
+      <USwitch v-model="unique" label="Unique" :disabled="disabled && !indexEditable" />
+      <USwitch v-model="indexed" label="Index" :disabled="disabled && !indexEditable" />
       <USwitch
         v-if="type === 'collections.integer'"
         v-model="bigint"
@@ -98,7 +104,12 @@ const valuesText = computed({
       />
     </div>
 
-    <UFormField v-if="type === 'collections.text'" label="Max length" class="max-w-40">
+    <p v-if="indexEditable" class="text-xs text-muted">
+      Index / Unique can be changed on an existing field. Enabling Unique rebuilds the index and
+      fails if the column's values aren't already unique.
+    </p>
+
+    <UFormField v-if="type === 'collections.string'" label="Max length" class="max-w-40">
       <UInput v-model="length" type="number" min="1" class="w-full" :disabled="disabled" />
     </UFormField>
 
@@ -117,13 +128,13 @@ const valuesText = computed({
     >
       <UFormField
         v-if="type === 'collections.relation'"
-        label="Related collection"
-        help="Stores the related row's uuid."
+        label="Relates to"
+        help="Stores the related row's uuid (a collection row or a user)."
       >
         <USelect
           v-model="target"
           :items="collectionItems"
-          placeholder="Pick a collection"
+          placeholder="Pick a target"
           class="w-full max-w-xs"
           :disabled="disabled"
         />

@@ -30,7 +30,7 @@ describe('collections query layer', () => {
             {
               name: 'posts',
               label: 'Posts',
-              fields: [{ name: 'title', type: 'collections.text', settings: {} }],
+              fields: [{ name: 'title', type: 'collections.string', settings: {} }],
               accessPolicy: { read: 'public', write: 'scoped', delete: 'scoped' },
             },
           ],
@@ -43,7 +43,7 @@ describe('collections query layer', () => {
 
     expect(collections).toHaveLength(1)
     expect(collections[0].name).toBe('posts')
-    expect(collections[0].fields[0].type).toBe('collections.text')
+    expect(collections[0].fields[0].type).toBe('collections.string')
     expect(collections[0].accessPolicy.read).toBe('public')
     expect(collections[0].accessPolicy.write).toBe('scoped')
   })

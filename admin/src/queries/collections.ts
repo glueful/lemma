@@ -6,8 +6,8 @@ import { qk } from './keys'
 
 // Supported collection field types (mirrors ColumnMapper::SUPPORTED on the backend).
 export const COLLECTION_FIELD_TYPES = [
+  'collections.string',
   'collections.text',
-  'collections.longtext',
   'collections.integer',
   'collections.decimal',
   'collections.boolean',
@@ -27,8 +27,8 @@ export const COLLECTION_FIELD_TYPE_META: Record<
   CollectionFieldType,
   { label: string; icon: string }
 > = {
-  'collections.text': { label: 'Text', icon: 'i-lucide-type' },
-  'collections.longtext': { label: 'Long text', icon: 'i-lucide-align-left' },
+  'collections.string': { label: 'String', icon: 'i-lucide-type' },
+  'collections.text': { label: 'Text', icon: 'i-lucide-align-left' },
   'collections.integer': { label: 'Integer', icon: 'i-lucide-hash' },
   'collections.decimal': { label: 'Decimal', icon: 'i-lucide-calculator' },
   'collections.boolean': { label: 'Boolean', icon: 'i-lucide-toggle-left' },
@@ -102,7 +102,7 @@ function normalizeCollection(raw: Record<string, unknown>): Collection {
     tableName: r.tableName,
     fields: (r.fields ?? []).map((f) => ({
       name: f.name ?? '',
-      type: f.type ?? 'collections.text',
+      type: f.type ?? 'collections.string',
       settings: (f.settings as Record<string, unknown>) ?? {},
     })),
     schemaVersion: r.schemaVersion,
@@ -183,6 +183,15 @@ export async function updateAccess(name: string, access: Partial<AccessPolicy>) 
   const { data, error, response } = await client.PATCH('/collections/{name}/access', {
     params: { path: { name } },
     body: access as never,
+  })
+  if (error) throw toApiError(error, response)
+  return data
+}
+
+export async function updateFieldOrder(name: string, fieldOrder: string[]) {
+  const { data, error, response } = await client.PATCH('/collections/{name}/field-order', {
+    params: { path: { name } },
+    body: { field_order: fieldOrder } as never,
   })
   if (error) throw toApiError(error, response)
   return data
@@ -307,6 +316,11 @@ export function useCollectionMutations() {
     updateAccess: useMutation({
       mutation: (vars: { name: string; access: Partial<AccessPolicy> }) =>
         updateAccess(vars.name, vars.access),
+      onSettled: (_d, _e, vars) => invalidate(vars.name),
+    }),
+    updateFieldOrder: useMutation({
+      mutation: (vars: { name: string; order: string[] }) =>
+        updateFieldOrder(vars.name, vars.order),
       onSettled: (_d, _e, vars) => invalidate(vars.name),
     }),
     remove: useMutation({

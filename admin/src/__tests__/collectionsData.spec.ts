@@ -14,7 +14,7 @@ vi.mock('@/queries/collections', () => ({
     data: ref({
       name: 'posts',
       label: 'Posts',
-      fields: [{ name: 'title', type: 'collections.text', settings: {} }],
+      fields: [{ name: 'title', type: 'collections.string', settings: {} }],
       accessPolicy: { read: 'public', write: 'scoped', delete: 'scoped' },
     }),
   }),
@@ -45,6 +45,8 @@ import DataBrowser from '@/pages/collections/[name]/data/index.vue'
 const stubs = {
   RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
   RowDrawer: { props: ['open'], template: '<div v-if="open" data-test="row-drawer" />' },
+  // Not under test here, and it pulls in the schema mutations/api-key queries.
+  CollectionEditSlideover: true,
 }
 
 describe('collections data browser', () => {

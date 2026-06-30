@@ -7,7 +7,7 @@ vi.mock('@/queries/collections', async () => {
   return {
     useCollections: () => ({ data: ref([]) }),
     COLLECTION_FIELD_TYPE_META: {
-      'collections.text': { label: 'Text', icon: 'i-lucide-type' },
+      'collections.string': { label: 'Text', icon: 'i-lucide-type' },
       'collections.integer': { label: 'Integer', icon: 'i-lucide-hash' },
     },
   }
@@ -18,7 +18,7 @@ import DropConfirmModal from '@/pages/collections/components/DropConfirmModal.vu
 
 describe('collections FieldCard', () => {
   it('draft card emits save and carries the typed name', async () => {
-    const model = { name: '', type: 'collections.text' as const, settings: {}, open: true }
+    const model = { name: '', type: 'collections.string' as const, settings: {}, open: true }
     const wrapper = mount(FieldCard, { props: { draft: true, modelValue: model } })
 
     await wrapper.find('[data-test="field-name"]').setValue('title')
@@ -29,7 +29,7 @@ describe('collections FieldCard', () => {
   })
 
   it('non-draft card emits remove from the trash button', async () => {
-    const model = { name: 'title', type: 'collections.text' as const, settings: {}, open: false }
+    const model = { name: 'title', type: 'collections.string' as const, settings: {}, open: false }
     const wrapper = mount(FieldCard, { props: { modelValue: model } })
 
     await wrapper.find('[aria-label="Remove field"]').trigger('click')

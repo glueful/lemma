@@ -5,6 +5,7 @@ import type { Collection } from '@/queries/collections'
 import CollectionsListPane from './components/CollectionsListPane.vue'
 import CollectionDataPane from './components/CollectionDataPane.vue'
 import CollectionCreateSlideover from './components/CollectionCreateSlideover.vue'
+import CollectionEditSlideover from './components/CollectionEditSlideover.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -24,6 +25,11 @@ function clearSelection() {
 const showCreate = ref(false)
 function onCreated(name: string) {
   router.replace({ query: { ...route.query, collection: name } })
+}
+
+const showEdit = ref(false)
+function onDropped() {
+  clearSelection()
 }
 </script>
 
@@ -67,6 +73,7 @@ function onCreated(name: string) {
               :key="selectedName"
               :collection-name="selectedName"
               class="min-h-0 flex-1"
+              @edit-schema="showEdit = true"
             />
           </template>
         </div>
@@ -75,6 +82,12 @@ function onCreated(name: string) {
   </UDashboardPanel>
 
   <CollectionCreateSlideover v-model:open="showCreate" @created="onCreated" />
+  <CollectionEditSlideover
+    v-if="selectedName"
+    v-model:open="showEdit"
+    :name="selectedName"
+    @dropped="onDropped"
+  />
 </template>
 
 <route lang="yaml">

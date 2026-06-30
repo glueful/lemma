@@ -12,6 +12,7 @@ import TablePagination from '@/components/TablePagination.vue'
 import RowDrawer from './RowDrawer.vue'
 
 const props = defineProps<{ collectionName: string }>()
+const emit = defineEmits<{ 'edit-schema': [] }>()
 const { success, error: notifyError } = useNotify()
 
 const name = computed(() => props.collectionName)
@@ -104,7 +105,7 @@ async function confirmDelete() {
           color="neutral"
           size="sm"
           icon="i-lucide-settings-2"
-          :to="`/collections/${collectionName}`"
+          @click="emit('edit-schema')"
         >
           Edit schema
         </UButton>
@@ -139,6 +140,7 @@ async function confirmDelete() {
         <template #empty>
           <UEmpty
             icon="i-lucide-rows-3"
+            variant="naked"
             title="No rows"
             description="Create the first row in this collection."
           >

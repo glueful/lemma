@@ -28,10 +28,9 @@ const schema = z.object({
       /^[a-z][a-z0-9_]*$/,
       'Start with a lowercase letter; letters, numbers and underscores only.',
     ),
-  label: z.string().optional(),
 })
 type Schema = z.output<typeof schema>
-const state = reactive({ name: '', label: '' })
+const state = reactive({ name: '' })
 
 let fieldSeq = 0
 interface FieldRow {
@@ -60,7 +59,7 @@ function systemFields(): FieldRow[] {
     {
       id: fieldSeq++,
       name: 'uuid',
-      type: 'collections.text',
+      type: 'collections.string',
       settings: { nullable: false, unique: true, length: 64 },
       open: false,
       system: true,
@@ -111,7 +110,6 @@ watch(
   (open) => {
     if (!open) return
     state.name = ''
-    state.label = ''
     fields.value = systemFields()
     access.read = 'scoped'
     access.write = 'scoped'
@@ -140,7 +138,6 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   try {
     await create.mutateAsync({
       name: event.data.name,
-      label: event.data.label?.trim() || undefined,
       fields: cleaned,
       access: { read: access.read, write: access.write, delete: access.delete },
       field_order: fieldOrder,
@@ -176,19 +173,14 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
         class="space-y-6"
         @submit="onSubmit"
       >
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <UFormField
-            label="Name"
-            name="name"
-            required
-            help="The collection identifier (table-safe)."
-          >
-            <UInput v-model="state.name" placeholder="e.g. posts" class="w-full" />
-          </UFormField>
-          <UFormField label="Label" name="label" help="Human-friendly name (optional).">
-            <UInput v-model="state.label" placeholder="Posts" class="w-full" />
-          </UFormField>
-        </div>
+        <UFormField
+          label="Name"
+          name="name"
+          required
+          help="Lowercase, table-safe identifier — drives the table, API path and permissions."
+        >
+          <UInput v-model="state.name" placeholder="e.g. posts" class="w-full" />
+        </UFormField>
 
         <UTabs :items="tabs" variant="link" class="w-full" :ui="{ content: 'pt-4' }">
           <template #fields>

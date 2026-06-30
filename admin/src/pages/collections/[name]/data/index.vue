@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import CollectionDataPane from '../../components/CollectionDataPane.vue'
+import CollectionEditSlideover from '../../components/CollectionEditSlideover.vue'
 
 const route = useRoute()
+const router = useRouter()
 const name = computed(() => String(route.params.name))
+
+const showEdit = ref(false)
+function onDropped() {
+  router.push('/collections')
+}
 </script>
 
 <template>
@@ -24,9 +31,11 @@ const name = computed(() => String(route.params.name))
     </template>
 
     <template #body>
-      <CollectionDataPane :collection-name="name" class="h-full" />
+      <CollectionDataPane :collection-name="name" class="h-full" @edit-schema="showEdit = true" />
     </template>
   </UDashboardPanel>
+
+  <CollectionEditSlideover v-model:open="showEdit" :name="name" @dropped="onDropped" />
 </template>
 
 <route lang="yaml">

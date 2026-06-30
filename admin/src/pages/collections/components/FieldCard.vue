@@ -10,6 +10,8 @@ interface FieldModel {
   open?: boolean
   // System fields (id/uuid/created_at/updated_at) render read-only — expandable to view, never edited.
   system?: boolean
+  // Already-persisted custom fields: name/settings read-only (no rename), but can be dropped/reordered.
+  existing?: boolean
 }
 
 // `draft` shows Cancel/Save field actions (add flow); `draggable` renders the reorder handle.
@@ -36,10 +38,7 @@ const meta = computed(() => COLLECTION_FIELD_TYPE_META[field.value.type])
       >
         {{ field.name || 'Untitled field' }}
       </span>
-      <span
-        v-if="field.system"
-        class="flex items-center gap-1 text-xs font-medium text-muted"
-      >
+      <span v-if="field.system" class="flex items-center gap-1 text-xs font-medium text-muted">
         <UIcon name="i-lucide-lock" class="size-3" />
         System
       </span>
@@ -69,14 +68,15 @@ const meta = computed(() => COLLECTION_FIELD_TYPE_META[field.value.type])
           placeholder="e.g. title"
           class="w-full"
           data-test="field-name"
-          :disabled="field.system"
+          :disabled="field.system || field.existing"
         />
       </UFormField>
 
       <FieldSettingsPanel
         v-model:settings="field.settings"
         :type="field.type"
-        :disabled="field.system"
+        :disabled="field.system || field.existing"
+        :index-editable="field.existing && !field.system"
       />
 
       <div v-if="draft" class="flex justify-end gap-2">

@@ -7,7 +7,7 @@ const TWO_COLLECTIONS = [
   {
     name: 'posts',
     label: 'Posts',
-    fields: [{ name: 'title', type: 'collections.text', settings: {} }],
+    fields: [{ name: 'title', type: 'collections.string', settings: {} }],
     accessPolicy: { read: 'public', write: 'scoped', delete: 'scoped' },
   },
   {

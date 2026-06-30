@@ -13,7 +13,7 @@ const main: NavigationMenuItem[] = [
       {
         label: 'Schema',
         icon: 'i-lucide-table-properties',
-        to: '/collections/schema',
+        to: '/collections',
       },
       {
         label: 'Data',

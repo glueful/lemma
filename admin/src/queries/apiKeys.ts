@@ -148,6 +148,15 @@ export async function revokeApiKey(uuid: string): Promise<void> {
   if (error) throw toApiError(error, response)
 }
 
+/** Replace a key's scopes wholesale (PATCH /api-keys/{uuid}/scopes) — the key value is unchanged. */
+export async function updateApiKeyScopes(uuid: string, scopes: string[]): Promise<void> {
+  const { error, response } = await client.PATCH('/api-keys/{uuid}/scopes', {
+    params: { path: { uuid } },
+    body: { scopes } as never,
+  })
+  if (error) throw toApiError(error, response)
+}
+
 export function useApiKeyMutations() {
   const cache = useQueryCache()
   const invalidate = () => cache.invalidateQueries({ key: ['api-keys'] })
@@ -159,8 +168,12 @@ export function useApiKeyMutations() {
     onSettled: invalidate,
   })
   const revoke = useMutation({ mutation: revokeApiKey, onSettled: invalidate })
+  const updateScopes = useMutation({
+    mutation: (vars: { uuid: string; scopes: string[] }) => updateApiKeyScopes(vars.uuid, vars.scopes),
+    onSettled: invalidate,
+  })
 
-  return { create, rotate, revoke }
+  return { create, rotate, revoke, updateScopes }
 }
 
 const STATUS_META: Record<ApiKeyStatus, { label: string; color: 'success' | 'warning' | 'error' }> =

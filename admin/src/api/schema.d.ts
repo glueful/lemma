@@ -1323,6 +1323,26 @@ export interface paths {
         patch: operations["patchV1AdminContenttypesBySlugSchema"];
         trace?: never;
     };
+    "/api-keys/{uuid}/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Replace an API key’s scopes
+         * @description Overwrites the key’s scope list in place — the key value is unchanged. Used by the collections admin to grant/revoke per-collection access. Requires `system.access`.
+         */
+        patch: operations["patchV1AdminApikeysByUuidScopes"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -10099,6 +10119,142 @@ export interface operations {
                             code?: number;
                             timestamp?: string;
                             request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unexpected server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    patchV1AdminApikeysByUuidScopes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "scopes": "example"
+                 *     }
+                 */
+                "application/json": {
+                    scopes?: unknown[];
+                };
+            };
+        };
+        responses: {
+            /** @description Updated key. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            api_key?: {
+                                uuid?: string;
+                                name?: string;
+                                key_prefix?: string;
+                                owner_uuid?: string;
+                                owner_label?: string | null;
+                                scopes?: unknown[];
+                                allowed_ips?: unknown[];
+                                status?: string;
+                                is_rotated?: boolean;
+                                expires_at?: string | null;
+                                revoked_at?: string | null;
+                                created_at?: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description Unauthenticated. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description No such key. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        message?: string;
+                        error?: {
+                            code?: number;
+                            timestamp?: string;
+                            request_id?: string;
+                        };
+                    };
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example false */
+                        success: boolean;
+                        message: string;
+                        errors: {
+                            [key: string]: string[];
                         };
                     };
                 };

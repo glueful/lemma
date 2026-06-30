@@ -10,6 +10,7 @@ import {
 import { useNotify } from '@/composables/useNotify'
 import FieldEditor from '../components/FieldEditor.vue'
 import DropConfirmModal from '../components/DropConfirmModal.vue'
+import ScopesPanel from './components/ScopesPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -177,6 +178,10 @@ async function onSaveAccess() {
           <UButton size="sm" :loading="updateAccess.isLoading.value" @click="onSaveAccess">
             Save access policy
           </UButton>
+        </section>
+
+        <section class="mt-6">
+          <ScopesPanel :collection-name="name" />
         </section>
       </template>
     </template>

@@ -218,6 +218,9 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
     $router->post('/api-keys/{uuid}/rotate', [ApiKeyAdminController::class, 'rotate'])
         ->middleware('lemma_permission:system.access');
 
+    $router->patch('/api-keys/{uuid}/scopes', [ApiKeyAdminController::class, 'updateScopes'])
+        ->middleware('lemma_permission:system.access');
+
     $router->delete('/api-keys/{uuid}', [ApiKeyAdminController::class, 'destroy'])
         ->middleware('lemma_permission:system.access');
 

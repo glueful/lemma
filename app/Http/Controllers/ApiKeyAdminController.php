@@ -12,6 +12,7 @@ use App\Http\DTOs\Responses\ApiKeyListData;
 use App\Http\DTOs\Responses\ApiKeyResultData;
 use App\Http\DTOs\Responses\ApiKeyRotatedData;
 use App\Http\DTOs\RotateApiKeyData;
+use App\Http\DTOs\UpdateApiKeyScopesData;
 use Glueful\Auth\ApiKey\ApiKey;
 use Glueful\Auth\ApiKey\ApiKeyService;
 use App\Support\ActorHelper;
@@ -180,6 +181,36 @@ final class ApiKeyAdminController
             'plain' => $result['new_plain'],
             'old_expires_at' => $result['old_expires_at'],
         ], 'API key rotated.');
+    }
+
+    /** PATCH /v1/admin/api-keys/{uuid}/scopes — replace a key's scopes wholesale (no key rotation). */
+    #[ApiOperation(
+        summary: 'Replace an API key’s scopes',
+        description: 'Overwrites the key’s scope list in place — the key value is unchanged. Used by '
+            . 'the collections admin to grant/revoke per-collection access. Requires `system.access`.',
+        tags: ['API Keys'],
+    )]
+    #[ApiResponse(200, schema: ApiKeyResultData::class, description: 'Updated key.')]
+    #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No such key.')]
+    public function updateScopes(UpdateApiKeyScopesData $input, string $uuid): Response
+    {
+        $row = $this->rowFor($uuid);
+        if ($row === null) {
+            return Response::notFound('API key not found.');
+        }
+
+        $scopes = $this->cleanList($input->scopes);
+        db($this->context)->table('api_keys')->where('uuid', $uuid)->update([
+            'scopes' => $scopes !== [] ? json_encode(array_values($scopes)) : null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $updated = $this->rowFor($uuid) ?? $row;
+
+        return Response::success(
+            ['api_key' => $this->present($updated, $this->ownerLabels([$updated]))],
+            'API key scopes updated.',
+        );
     }
 
     /** DELETE /v1/admin/api-keys/{uuid} — revoke immediately (soft; the row is kept for audit). */

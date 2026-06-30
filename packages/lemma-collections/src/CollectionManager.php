@@ -123,6 +123,10 @@ final class CollectionManager
             ? AccessPolicy::fromArray($payload['access'])
             : AccessPolicy::default();
 
+        $fieldOrder = isset($payload['field_order']) && is_array($payload['field_order'])
+            ? array_values(array_filter($payload['field_order'], 'is_string'))
+            : [];
+
         $def = new CollectionDefinition(
             uuid: $uuid,
             name: $name,
@@ -133,6 +137,7 @@ final class CollectionManager
             schemaVersion: 1,
             status: 'active',
             accessPolicy: $accessPolicy,
+            fieldOrder: $fieldOrder,
         );
 
         $this->repo->insert($def);
@@ -348,6 +353,7 @@ final class CollectionManager
             schemaVersion: $current->schemaVersion,
             status: $current->status,
             accessPolicy: $policy,
+            fieldOrder: $current->fieldOrder,
         );
         $this->repo->update($next);
 
@@ -491,6 +497,7 @@ final class CollectionManager
             schemaVersion: $current->schemaVersion + 1,
             status: $current->status,
             accessPolicy: $current->accessPolicy,
+            fieldOrder: $current->fieldOrder,
         );
     }
 }

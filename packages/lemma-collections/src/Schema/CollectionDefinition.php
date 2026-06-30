@@ -13,6 +13,7 @@ final class CollectionDefinition
 {
     /**
      * @param list<CollectionField> $fields
+     * @param list<string> $fieldOrder display order of all column names (system + custom)
      */
     public function __construct(
         public readonly string $uuid,
@@ -28,6 +29,7 @@ final class CollectionDefinition
             AccessPolicy::SCOPED,
             AccessPolicy::SCOPED,
         ),
+        public readonly array $fieldOrder = [],
     ) {
     }
 
@@ -54,6 +56,12 @@ final class CollectionDefinition
         }
         $accessPolicy = is_array($rawPolicy) ? AccessPolicy::fromArray($rawPolicy) : AccessPolicy::default();
 
+        $rawOrder = $row['field_order'] ?? null;
+        if (is_string($rawOrder) && $rawOrder !== '') {
+            $rawOrder = json_decode($rawOrder, true);
+        }
+        $fieldOrder = is_array($rawOrder) ? array_values(array_filter($rawOrder, 'is_string')) : [];
+
         return new self(
             uuid: (string) ($row['uuid'] ?? ''),
             name: (string) ($row['name'] ?? ''),
@@ -64,6 +72,7 @@ final class CollectionDefinition
             schemaVersion: (int) ($row['schema_version'] ?? 1),
             status: (string) ($row['status'] ?? 'draft'),
             accessPolicy: $accessPolicy,
+            fieldOrder: $fieldOrder,
         );
     }
 

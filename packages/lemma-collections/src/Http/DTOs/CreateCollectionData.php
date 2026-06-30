@@ -19,6 +19,7 @@ final class CreateCollectionData implements RequestData
     /**
      * @param list<FieldData>      $fields
      * @param array<string, mixed> $access {read?, write?, delete?} access levels
+     * @param list<string>         $field_order display order of all column names (system + custom)
      */
     public function __construct(
         #[Rule('required|string|regex:/\A[a-z][a-z0-9_]*\z/')]
@@ -30,6 +31,8 @@ final class CreateCollectionData implements RequestData
         public readonly array $fields = [],
         #[Rule('array')]
         public readonly array $access = [],
+        #[Rule('array')]
+        public readonly array $field_order = [],
     ) {
     }
 
@@ -45,6 +48,9 @@ final class CreateCollectionData implements RequestData
         }
         if ($this->access !== []) {
             $payload['access'] = $this->access;
+        }
+        if ($this->field_order !== []) {
+            $payload['field_order'] = $this->field_order;
         }
 
         return $payload;

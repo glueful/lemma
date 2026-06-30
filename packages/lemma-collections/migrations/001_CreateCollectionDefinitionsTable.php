@@ -25,6 +25,9 @@ final class CreateCollectionDefinitionsTable implements MigrationInterface
             // Per-operation access policy {read,write,delete} of public|scoped (JSON). NULL rows
             // hydrate to the safe all-scoped default in CollectionDefinition::fromRow().
             $table->text('access_policy')->nullable();
+            // Display order of all columns (system + custom) as a JSON list of names; NULL hydrates
+            // to a system-first default. Controls how fields surface in the data browser / API.
+            $table->text('field_order')->nullable();
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
             $table->unique('uuid');

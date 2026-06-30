@@ -4817,6 +4817,10 @@
                                     "access": {
                                         "type": "array",
                                         "items": {}
+                                    },
+                                    "field_order": {
+                                        "type": "array",
+                                        "items": {}
                                     }
                                 },
                                 "required": [
@@ -4827,7 +4831,8 @@
                                 "name": "Jane",
                                 "label": "example",
                                 "fields": "example",
-                                "access": "example"
+                                "access": "example",
+                                "field_order": "example"
                             }
                         }
                     }

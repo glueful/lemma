@@ -72,8 +72,6 @@ removal:
 - The `lemma.importers` capability disappears from `GET /v1/admin/capabilities`, so the format-import
   admin section and the users bulk-CSV import hide automatically.
 
-See [docs/composable-core/REMOVING_LEMMA_IMPORTERS.md](../../docs/composable-core/REMOVING_LEMMA_IMPORTERS.md)
-for the full verification.
 
 ## Not included (deliberately)
 

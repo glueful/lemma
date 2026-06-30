@@ -8,19 +8,19 @@ const main: NavigationMenuItem[] = [
   {
     label: 'Collections',
     icon: 'i-lucide-database',
-    defaultOpen: false,
-    children: [
-      {
-        label: 'Schema',
-        icon: 'i-lucide-table-properties',
-        to: '/collections',
-      },
-      {
-        label: 'Data',
-        icon: 'i-lucide-table',
-        to: '/collections/data',
-      },
-    ],
+    to: '/collections',
+    // children: [
+    //   {
+    //     label: 'Schema',
+    //     icon: 'i-lucide-table-properties',
+    //     to: '/collections',
+    //   },
+    //   {
+    //     label: 'Data',
+    //     icon: 'i-lucide-table',
+    //     to: '/collections/data',
+    //   },
+    // ],
   },
 ]
 

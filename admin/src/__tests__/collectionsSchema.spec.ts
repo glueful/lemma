@@ -26,13 +26,14 @@ vi.mock('@/composables/useNotify', () => ({
   useNotify: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
 
-import CollectionsIndex from '@/pages/collections/index.vue'
+import CollectionsListPane from '@/pages/collections/components/CollectionsListPane.vue'
 
-describe('collections schema builder — list', () => {
+describe('collections list pane', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
   it('renders one row per collection and a create link', () => {
-    const wrapper = mount(CollectionsIndex, {
+    const wrapper = mount(CollectionsListPane, {
+      props: { selectedName: undefined },
       global: {
         // No router in the unit env; stub RouterLink to a plain anchor that preserves `to`.
         stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } },
@@ -44,5 +45,16 @@ describe('collections schema builder — list', () => {
     const newButton = wrapper.find('[data-test="new-collection"]')
     expect(newButton.exists()).toBe(true)
     expect(wrapper.html()).toContain('/collections/new')
+  })
+
+  it('emits select with the collection when a row is clicked', async () => {
+    const wrapper = mount(CollectionsListPane, {
+      props: { selectedName: undefined },
+      global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
+    })
+
+    await wrapper.findAll('[data-test="collection-row"]')[0].trigger('click')
+
+    expect(wrapper.emitted('select')?.[0]?.[0]).toMatchObject({ name: 'posts' })
   })
 })

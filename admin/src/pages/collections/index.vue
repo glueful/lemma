@@ -1,149 +1,67 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { TableColumn } from '@nuxt/ui'
-import { useCollections, useCollectionMutations, type Collection } from '@/queries/collections'
-import { useNotify } from '@/composables/useNotify'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import type { Collection } from '@/queries/collections'
+import CollectionsListPane from './components/CollectionsListPane.vue'
+import CollectionDataPane from './components/CollectionDataPane.vue'
 
-const { success, error: notifyError } = useNotify()
-const { data, status } = useCollections()
-const { remove } = useCollectionMutations()
+const route = useRoute()
+const router = useRouter()
 
-const columns: TableColumn<Collection>[] = [
-  { accessorKey: 'name', header: 'Name' },
-  { accessorKey: 'label', header: 'Label' },
-  { accessorKey: 'fields', header: 'Fields' },
-  { accessorKey: 'accessPolicy', header: 'Access (r·w·d)' },
-  { id: 'actions', header: '' },
-]
+// The selected collection lives in the URL (?collection=name) so the view is shareable/refreshable.
+const selectedName = computed(() => (route.query.collection as string | undefined) || undefined)
 
-// Hold the pending row so the delete modal can name it (and supply the `confirm` token).
-const pendingDelete = ref<Collection | null>(null)
-
-async function confirmDelete() {
-  const name = pendingDelete.value?.name
-  if (name === undefined) return
-  try {
-    await remove.mutateAsync({ name, confirm: name })
-    success('Collection deleted', `“${name}” was removed.`)
-    pendingDelete.value = null
-  } catch (e) {
-    notifyError(e, 'Couldn’t delete collection')
-  }
+function select(collection: Collection) {
+  router.replace({ query: { ...route.query, collection: collection.name } })
+}
+function clearSelection() {
+  const q = { ...route.query }
+  delete q.collection
+  router.replace({ query: q })
 }
 </script>
 
 <template>
-  <UDashboardPanel id="collections-schema">
-    <template #header>
-      <UDashboardNavbar title="Collections">
-        <template #right>
-          <UButton data-test="new-collection" icon="i-lucide-plus" to="/collections/new">
-            New collection
-          </UButton>
-        </template>
-      </UDashboardNavbar>
-    </template>
-
+  <UDashboardPanel id="collections" :ui="{ body: 'overflow-hidden' }">
     <template #body>
-      <p class="text-sm text-muted">Developer-defined data tables with an auto CRUD/query API.</p>
+      <div class="flex h-full min-h-0 p-1">
+        <!-- List pane: always on lg+; on mobile only when nothing is selected. -->
+        <div
+          class="min-h-0 lg:shrink-0 lg:border-e lg:border-default lg:pe-4"
+          :class="selectedName ? 'hidden lg:block' : 'block w-full'"
+        >
+          <CollectionsListPane class="h-full" :selected-name="selectedName" @select="select" />
+        </div>
 
-      <UTable :data="data ?? []" :columns="columns" :loading="status === 'pending'">
-        <template #name-cell="{ row }">
-          <ULink
-            :to="`/collections/${row.original.name}`"
-            data-test="collection-row"
-            class="font-medium text-default"
-          >
-            {{ row.original.name }}
-          </ULink>
-        </template>
-
-        <template #label-cell="{ row }">
-          <span class="text-sm text-muted">{{ row.original.label }}</span>
-        </template>
-
-        <template #fields-cell="{ row }">
-          <span class="text-sm text-muted">{{ row.original.fields.length }}</span>
-        </template>
-
-        <template #accessPolicy-cell="{ row }">
-          <code class="text-xs text-muted">
-            {{ row.original.accessPolicy.read }} · {{ row.original.accessPolicy.write }} ·
-            {{ row.original.accessPolicy.delete }}
-          </code>
-        </template>
-
-        <template #actions-cell="{ row }">
-          <div class="flex justify-end gap-1">
+        <!-- Data pane: always on lg+; on mobile only when a collection is selected. -->
+        <div
+          class="min-w-0 flex-1 flex-col lg:ps-6"
+          :class="selectedName ? 'flex' : 'hidden lg:flex'"
+        >
+          <div v-if="!selectedName" class="m-auto text-center text-sm text-muted">
+            <UIcon name="i-lucide-mouse-pointer-click" class="mx-auto mb-2 size-6" />
+            Select a collection to view its data
+          </div>
+          <template v-else>
             <UButton
+              class="mb-2 self-start lg:hidden"
               color="neutral"
               variant="ghost"
               size="xs"
-              icon="i-lucide-pencil"
-              aria-label="Edit"
-              :to="`/collections/${row.original.name}`"
+              icon="i-lucide-arrow-left"
+              label="Back"
+              @click="clearSelection"
             />
-            <UButton
-              color="error"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-trash-2"
-              aria-label="Delete"
-              @click="pendingDelete = row.original"
+            <CollectionDataPane
+              :key="selectedName"
+              :collection-name="selectedName"
+              class="min-h-0 flex-1"
             />
-          </div>
-        </template>
-
-        <template #empty>
-          <UEmpty
-            icon="i-lucide-database"
-            title="No collections"
-            description="Create your first collection to start storing data."
-          >
-            <template #actions>
-              <UButton icon="i-lucide-plus" to="/collections/new">New collection</UButton>
-            </template>
-          </UEmpty>
-        </template>
-      </UTable>
-    </template>
-  </UDashboardPanel>
-
-  <UModal
-    :open="pendingDelete !== null"
-    title="Delete collection"
-    @update:open="
-      (v: boolean) => {
-        if (!v) pendingDelete = null
-      }
-    "
-  >
-    <template #body>
-      <p class="text-sm text-muted">
-        Delete <span class="text-default">“{{ pendingDelete?.name }}”</span>? This drops the
-        underlying table and every row in it.
-      </p>
-    </template>
-
-    <template #footer>
-      <div class="flex justify-end gap-2 w-full">
-        <UButton
-          color="neutral"
-          variant="ghost"
-          label="Cancel"
-          :disabled="remove.isLoading.value"
-          @click="pendingDelete = null"
-        />
-        <UButton
-          color="error"
-          icon="i-lucide-trash-2"
-          label="Delete"
-          :loading="remove.isLoading.value"
-          @click="confirmDelete"
-        />
+          </template>
+        </div>
       </div>
     </template>
-  </UModal>
+  </UDashboardPanel>
 </template>
 
 <route lang="yaml">

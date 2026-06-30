@@ -11,10 +11,10 @@ describe('collections admin module gating (lemma.collections capability)', () =>
     expect(main).toEqual([])
   })
 
-  it('includes Collections (Schema + Data) when lemma.collections is enabled', () => {
+  it('includes the Collections nav linking to the split view when enabled', () => {
     registerCollectionsModule()
     const [main] = visibleNav((id) => id === 'lemma.collections')
     expect(main.map((i) => i.label)).toEqual(['Collections'])
-    expect(main[0].children?.map((c) => c.label)).toEqual(['Schema', 'Data'])
+    expect(main[0].to).toBe('/collections')
   })
 })

@@ -174,9 +174,15 @@ export async function dropCollection(name: string, confirm?: string) {
 
 // ── Row fetchers ────────────────────────────────────────────────────────────
 
-export async function fetchRows(name: string): Promise<PaginatedRows> {
+export async function fetchRows(
+  name: string,
+  query: { page?: number; perPage?: number } = {},
+): Promise<PaginatedRows> {
+  const q: Record<string, string> = {}
+  if (query.page !== undefined) q.page = String(query.page)
+  if (query.perPage !== undefined) q.perPage = String(query.perPage)
   const { data, error, response } = await client.GET('/collections/{name}/rows', {
-    params: { path: { name } },
+    params: { path: { name }, query: q as never },
   })
   if (error) throw toApiError(error, response)
   const body = data as
@@ -228,10 +234,14 @@ export function useCollection(name: MaybeRefOrGetter<string>) {
   })
 }
 
-export function useCollectionRows(name: MaybeRefOrGetter<string>) {
+export function useCollectionRows(
+  name: MaybeRefOrGetter<string>,
+  page?: MaybeRefOrGetter<number>,
+  perPage?: MaybeRefOrGetter<number>,
+) {
   return useQuery({
-    key: () => qk.collectionRows(toValue(name)),
-    query: () => fetchRows(toValue(name)),
+    key: () => [...qk.collectionRows(toValue(name)), toValue(page) ?? 1, toValue(perPage) ?? 20],
+    query: () => fetchRows(toValue(name), { page: toValue(page), perPage: toValue(perPage) }),
   })
 }
 

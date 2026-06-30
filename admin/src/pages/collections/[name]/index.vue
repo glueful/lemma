@@ -109,6 +109,14 @@ async function onSaveAccess() {
         </template>
         <template #right>
           <UButton
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-table"
+            :to="`/collections/${name}/data`"
+          >
+            Browse data
+          </UButton>
+          <UButton
             color="error"
             variant="soft"
             icon="i-lucide-trash-2"

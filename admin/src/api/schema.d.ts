@@ -1747,7 +1747,8 @@ export interface operations {
                  *       "name": "Jane",
                  *       "label": "example",
                  *       "fields": "example",
-                 *       "access": "example"
+                 *       "access": "example",
+                 *       "field_order": "example"
                  *     }
                  */
                 "application/json": {
@@ -1759,6 +1760,7 @@ export interface operations {
                         settings?: unknown[];
                     }[];
                     access?: unknown[];
+                    field_order?: unknown[];
                 };
             };
         };

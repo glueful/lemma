@@ -31,7 +31,7 @@ import CollectionsListPane from '@/pages/collections/components/CollectionsListP
 describe('collections list pane', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('renders one row per collection and a create link', () => {
+  it('renders one row per collection and emits create from the + button', async () => {
     const wrapper = mount(CollectionsListPane, {
       props: { selectedName: undefined },
       global: {
@@ -44,7 +44,8 @@ describe('collections list pane', () => {
 
     const newButton = wrapper.find('[data-test="new-collection"]')
     expect(newButton.exists()).toBe(true)
-    expect(wrapper.html()).toContain('/collections/new')
+    await newButton.trigger('click')
+    expect(wrapper.emitted('create')).toBeTruthy()
   })
 
   it('emits select with the collection when a row is clicked', async () => {

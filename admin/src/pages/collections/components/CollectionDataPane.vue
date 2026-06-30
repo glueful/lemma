@@ -22,10 +22,29 @@ const perPage = ref(20)
 const { data: pageData, status } = useCollectionRows(name, page, perPage)
 const { create, update, remove } = useCollectionRowMutations(name)
 
-const columns = computed<TableColumn<CollectionRow>[]>(() => [
-  ...(collection.value?.fields ?? []).map((f) => ({ accessorKey: f.name, header: f.name })),
-  { id: 'actions', header: '' },
-])
+// The data browser shows the system columns (except id) + custom fields, in the definition's
+// display order; columns missing from the stored order are appended (e.g. fields added later).
+const SYSTEM_DISPLAY = ['uuid', 'created_at', 'updated_at']
+const SYSTEM_HEADERS: Record<string, string> = {
+  uuid: 'UUID',
+  created_at: 'Created',
+  updated_at: 'Updated',
+}
+
+const columns = computed<TableColumn<CollectionRow>[]>(() => {
+  const def = collection.value
+  const customNames = (def?.fields ?? []).map((f) => f.name)
+  const displayable = [...SYSTEM_DISPLAY, ...customNames]
+  const valid = new Set(displayable)
+
+  const ordered = (def?.fieldOrder ?? []).filter((n) => n !== 'id' && valid.has(n))
+  for (const n of displayable) if (!ordered.includes(n)) ordered.push(n)
+
+  return [
+    ...ordered.map((n) => ({ accessorKey: n, header: SYSTEM_HEADERS[n] ?? n })),
+    { id: 'actions', header: '' },
+  ]
+})
 
 const drawerOpen = ref(false)
 const editingRow = ref<CollectionRow | null>(null)

@@ -22,6 +22,26 @@ export const COLLECTION_FIELD_TYPES = [
 ] as const
 export type CollectionFieldType = (typeof COLLECTION_FIELD_TYPES)[number]
 
+/** Display label + icon per field type, for the add-field picker and field badges. */
+export const COLLECTION_FIELD_TYPE_META: Record<
+  CollectionFieldType,
+  { label: string; icon: string }
+> = {
+  'collections.text': { label: 'Text', icon: 'i-lucide-type' },
+  'collections.longtext': { label: 'Long text', icon: 'i-lucide-align-left' },
+  'collections.integer': { label: 'Integer', icon: 'i-lucide-hash' },
+  'collections.decimal': { label: 'Decimal', icon: 'i-lucide-calculator' },
+  'collections.boolean': { label: 'Boolean', icon: 'i-lucide-toggle-left' },
+  'collections.date': { label: 'Date', icon: 'i-lucide-calendar' },
+  'collections.datetime': { label: 'Date & time', icon: 'i-lucide-calendar-clock' },
+  'collections.json': { label: 'JSON', icon: 'i-lucide-braces' },
+  'collections.email': { label: 'Email', icon: 'i-lucide-mail' },
+  'collections.url': { label: 'URL', icon: 'i-lucide-link' },
+  'collections.enum': { label: 'Enum', icon: 'i-lucide-list' },
+  'collections.relation': { label: 'Relation', icon: 'i-lucide-link-2' },
+  'collections.asset': { label: 'Asset', icon: 'i-lucide-paperclip' },
+}
+
 export interface CollectionField {
   name: string
   type: string
@@ -45,6 +65,8 @@ export interface Collection {
   schemaVersion?: number
   status?: string
   accessPolicy: AccessPolicy
+  /** Display order of all column names (system + custom); empty = system-first default. */
+  fieldOrder: string[]
 }
 
 /** Payload to create a collection. */
@@ -53,6 +75,8 @@ export interface CollectionInput {
   label?: string
   fields: Array<{ name: string; type: string; settings?: Record<string, unknown> }>
   access?: Partial<AccessPolicy>
+  /** Display order of all column names (system + custom). */
+  field_order?: string[]
 }
 
 export type CollectionRow = Record<string, unknown>
@@ -88,6 +112,7 @@ function normalizeCollection(raw: Record<string, unknown>): Collection {
       write: lvl(r.accessPolicy?.write),
       delete: lvl(r.accessPolicy?.delete),
     },
+    fieldOrder: Array.isArray(r.fieldOrder) ? r.fieldOrder : [],
   }
 }
 

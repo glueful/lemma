@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Collection } from '@/queries/collections'
 import CollectionsListPane from './components/CollectionsListPane.vue'
 import CollectionDataPane from './components/CollectionDataPane.vue'
+import CollectionCreateSlideover from './components/CollectionCreateSlideover.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,6 +20,11 @@ function clearSelection() {
   delete q.collection
   router.replace({ query: q })
 }
+
+const showCreate = ref(false)
+function onCreated(name: string) {
+  router.replace({ query: { ...route.query, collection: name } })
+}
 </script>
 
 <template>
@@ -28,9 +34,14 @@ function clearSelection() {
         <!-- List pane: always on lg+; on mobile only when nothing is selected. -->
         <div
           class="min-h-0 lg:shrink-0 lg:border-e lg:border-default lg:pe-4"
-          :class="selectedName ? 'hidden lg:block' : 'block w-full'"
+          :class="selectedName ? 'hidden lg:block' : 'block'"
         >
-          <CollectionsListPane class="h-full" :selected-name="selectedName" @select="select" />
+          <CollectionsListPane
+            class="h-full"
+            :selected-name="selectedName"
+            @select="select"
+            @create="showCreate = true"
+          />
         </div>
 
         <!-- Data pane: always on lg+; on mobile only when a collection is selected. -->
@@ -62,6 +73,8 @@ function clearSelection() {
       </div>
     </template>
   </UDashboardPanel>
+
+  <CollectionCreateSlideover v-model:open="showCreate" @created="onCreated" />
 </template>
 
 <route lang="yaml">

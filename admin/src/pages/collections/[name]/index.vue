@@ -9,6 +9,7 @@ import {
 } from '@/queries/collections'
 import { useNotify } from '@/composables/useNotify'
 import FieldEditor from '../components/FieldEditor.vue'
+import SystemFieldsSection from '../components/SystemFieldsSection.vue'
 import DropConfirmModal from '../components/DropConfirmModal.vue'
 import ScopesPanel from './components/ScopesPanel.vue'
 
@@ -138,8 +139,10 @@ async function onSaveAccess() {
       <div v-if="status === 'pending'" class="text-sm text-muted">Loading…</div>
 
       <template v-else-if="data">
-        <section class="space-y-3">
-          <h3 class="text-sm font-medium text-default">Fields</h3>
+        <SystemFieldsSection />
+
+        <section class="space-y-3 mt-6">
+          <h3 class="text-sm font-medium text-default">Custom fields</h3>
           <div class="divide-y divide-default rounded-md border border-default">
             <div
               v-for="field in data.fields"

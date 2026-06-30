@@ -1,24 +1,54 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import FieldEditor from '@/pages/collections/components/FieldEditor.vue'
+
+// FieldCard → FieldSettingsPanel pulls the collection list for relation targets; stub the module.
+vi.mock('@/queries/collections', async () => {
+  const { ref } = await import('vue')
+  return {
+    useCollections: () => ({ data: ref([]) }),
+    COLLECTION_FIELD_TYPE_META: {
+      'collections.text': { label: 'Text', icon: 'i-lucide-type' },
+      'collections.integer': { label: 'Integer', icon: 'i-lucide-hash' },
+    },
+  }
+})
+
+import FieldCard from '@/pages/collections/components/FieldCard.vue'
 import DropConfirmModal from '@/pages/collections/components/DropConfirmModal.vue'
 
-describe('collections FieldEditor', () => {
-  it('emits the add-field payload with the typed name and default type', async () => {
-    const wrapper = mount(FieldEditor)
+describe('collections FieldCard', () => {
+  it('draft card emits save and carries the typed name', async () => {
+    const model = { name: '', type: 'collections.text' as const, settings: {}, open: true }
+    const wrapper = mount(FieldCard, { props: { draft: true, modelValue: model } })
 
-    await wrapper.find('input').setValue('title')
-    await wrapper.find('[data-test="add-field"]').trigger('click')
+    await wrapper.find('[data-test="field-name"]').setValue('title')
+    await wrapper.find('[data-test="save-field"]').trigger('click')
 
-    const events = wrapper.emitted('add')
-    expect(events).toHaveLength(1)
-    expect(events![0][0]).toEqual({ name: 'title', type: 'collections.text', settings: {} })
+    expect(wrapper.emitted('save')).toBeTruthy()
+    expect(model.name).toBe('title')
   })
 
-  it('does not emit when the name is empty', async () => {
-    const wrapper = mount(FieldEditor)
-    await wrapper.find('[data-test="add-field"]').trigger('click')
-    expect(wrapper.emitted('add')).toBeUndefined()
+  it('non-draft card emits remove from the trash button', async () => {
+    const model = { name: 'title', type: 'collections.text' as const, settings: {}, open: false }
+    const wrapper = mount(FieldCard, { props: { modelValue: model } })
+
+    await wrapper.find('[aria-label="Remove field"]').trigger('click')
+
+    expect(wrapper.emitted('remove')).toBeTruthy()
+  })
+
+  it('system card shows a System badge and hides the remove button', () => {
+    const model = {
+      name: 'id',
+      type: 'collections.integer' as const,
+      settings: {},
+      open: false,
+      system: true,
+    }
+    const wrapper = mount(FieldCard, { props: { modelValue: model } })
+
+    expect(wrapper.text()).toContain('System')
+    expect(wrapper.find('[aria-label="Remove field"]').exists()).toBe(false)
   })
 })
 

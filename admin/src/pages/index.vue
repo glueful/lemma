@@ -5,6 +5,8 @@ import { useHomeOverview } from '@/queries/home'
 import { useCreateEntry } from '@/queries/entries'
 import { useSessionStore } from '@/stores/session'
 import { useNotify } from '@/composables/useNotify'
+import { useCapabilitiesStore } from '@/stores/capabilities'
+import { rangeFor, useAnalyticsSummary } from '@/queries/analytics'
 
 definePage({ meta: { requiresAuth: true } })
 
@@ -15,6 +17,15 @@ const { data, status } = useHomeOverview()
 const { mutateAsync: createEntry } = useCreateEntry()
 
 const overview = computed(() => data.value)
+
+const caps = useCapabilitiesStore()
+const analyticsOn = computed(() => caps.isEnabled('lemma.analytics'))
+const analyticsRange = computed(() => rangeFor(30))
+// Pass analyticsOn as the `enabled` gate: when the pack is disabled the summary query never fires,
+// so Home never hits the (404'd) /analytics/summary route.
+const { data: analyticsSummary } = useAnalyticsSummary(analyticsRange, analyticsOn)
+const homeKpi = (event: string) => analyticsSummary.value?.totals?.[event] ?? 0
+const homeActiveUsers = computed(() => analyticsSummary.value?.active_users ?? 0)
 
 // First-run target: the seeded Pages type if present, otherwise the first type. A fresh install
 // seeds a Pages type, so first-run is "create your first page" (one click) rather than the
@@ -72,6 +83,37 @@ function fmtTime(v?: string | null): string {
           </h1>
           <p class="text-sm text-muted">Here's a snapshot of your content.</p>
         </header>
+
+        <!-- Analytics KPI strip (only when lemma.analytics is enabled) -->
+        <div
+          v-if="analyticsOn"
+          data-test="home-analytics-strip"
+          class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4"
+        >
+          <RouterLink
+            to="/analytics"
+            class="rounded-lg border border-default p-3 hover:bg-elevated"
+          >
+            <div class="text-xs text-muted">Active users</div>
+            <div class="text-xl font-semibold text-highlighted">{{ homeActiveUsers }}</div>
+          </RouterLink>
+          <RouterLink to="/analytics" class="rounded-lg border border-default p-3 hover:bg-elevated">
+            <div class="text-xs text-muted">Logins</div>
+            <div class="text-xl font-semibold text-highlighted">{{ homeKpi('auth.login') }}</div>
+          </RouterLink>
+          <RouterLink to="/analytics" class="rounded-lg border border-default p-3 hover:bg-elevated">
+            <div class="text-xs text-muted">Entries created</div>
+            <div class="text-xl font-semibold text-highlighted">
+              {{ homeKpi('content.entry.created') }}
+            </div>
+          </RouterLink>
+          <RouterLink to="/analytics" class="rounded-lg border border-default p-3 hover:bg-elevated">
+            <div class="text-xs text-muted">Rows created</div>
+            <div class="text-xl font-semibold text-highlighted">
+              {{ homeKpi('collections.row.created') }}
+            </div>
+          </RouterLink>
+        </div>
 
         <!-- Loading -->
         <div v-if="status === 'pending'" class="space-y-4">

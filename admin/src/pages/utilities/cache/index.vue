@@ -110,7 +110,7 @@ async function clearType() {
             color="neutral"
             variant="ghost"
             :loading="isLoading"
-            @click="refresh()"
+            @click="() => { refresh() }"
           >
             Refresh
           </UButton>
@@ -191,7 +191,7 @@ async function clearType() {
                   color="error"
                   variant="soft"
                   :loading="clear.isLoading.value"
-                  @click="pendingClearAll = true"
+                  @click="() => { pendingClearAll = true }"
                 />
                 <p class="mt-1 text-xs text-muted">
                   Flushes every cache entry across the instance.
@@ -218,7 +218,7 @@ async function clearType() {
           variant="ghost"
           label="Cancel"
           :disabled="clear.isLoading.value"
-          @click="pendingClearAll = false"
+          @click="() => { pendingClearAll = false }"
         />
         <UButton
           color="error"

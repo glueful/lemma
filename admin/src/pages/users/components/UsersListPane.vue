@@ -81,7 +81,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage.va
           size="xs"
           :disabled="page <= 1"
           aria-label="Previous page"
-          @click="page--"
+          @click="() => { page-- }"
         />
         <UButton
           icon="i-lucide-chevron-right"
@@ -90,7 +90,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage.va
           size="xs"
           :disabled="page >= totalPages"
           aria-label="Next page"
-          @click="page++"
+          @click="() => { page++ }"
         />
       </div>
     </div>

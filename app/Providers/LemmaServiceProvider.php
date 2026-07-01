@@ -59,6 +59,7 @@ use App\Content\Http\RequireLemmaPermission;
 use App\Content\Localization\ContentLocaleService;
 use App\Content\Events\AssetAttached;
 use App\Content\Events\AssetDetached;
+use App\Analytics\AnalyticsBridgeListener;
 use App\Collections\Audit\CollectionAuditListener;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
@@ -267,9 +268,8 @@ final class LemmaServiceProvider extends ServiceProvider
                 'autowire' => true,
             ],
             ContentDeliveryReader::class => [
-                'class'    => EngineContentDeliveryReader::class,
-                'shared'   => true,
-                'autowire' => true,
+                'factory' => [self::class, 'makeContentDeliveryReader'],
+                'shared'  => true,
             ],
             LemmaContext::class => [
                 'class'    => EngineLemmaContext::class,
@@ -422,6 +422,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             CollectionAuditListener::class => [
                 'class' => CollectionAuditListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            AnalyticsBridgeListener::class => [
+                'class' => AnalyticsBridgeListener::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -724,6 +729,16 @@ final class LemmaServiceProvider extends ServiceProvider
         );
     }
 
+    public static function makeContentDeliveryReader(ContainerInterface $container): EngineContentDeliveryReader
+    {
+        return new EngineContentDeliveryReader(
+            $container->get(DeliveryRepository::class),
+            $container->get(PathRenderer::class),
+            $container->get(CanonicalProjector::class),
+            $container->get(ContentTypeRepository::class),
+        );
+    }
+
     public static function makeCanonicalProjector(ContainerInterface $container): CanonicalProjector
     {
         return new CanonicalProjector(
@@ -800,6 +815,14 @@ final class LemmaServiceProvider extends ServiceProvider
 
         $events = app($context, EventService::class);
 
+        // `LemmaServiceProvider` (app provider) boots before `LemmaAnalyticsServiceProvider`
+        // (pack provider), so CapabilityRegistry::isEnabled() would return false for
+        // 'lemma.analytics' at this point (the capability is only registered during the pack's
+        // own boot()). Read the capabilities override config directly instead — same semantics as
+        // DefaultCapabilityRegistry::isEnabled() but without the "must be registered" prerequisite.
+        $capOverrides = (array) config($context, 'lemma.capabilities', []);
+        $analyticsOn = ($capOverrides['lemma.analytics'] ?? true) === true;
+
         // event class => list of listener service ids (lazy '@' form).
         //
         // PurgeCdnListener and ReindexSearchListener are CAPABILITY-GATED no-ops in a lean
@@ -861,11 +884,13 @@ final class LemmaServiceProvider extends ServiceProvider
             AssetDetached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
         ];
 
-        // Collection row CRUD → audit log. Gated on the pack being INSTALLED (class_exists), not on
-        // the capability being enabled: removing the pack drops this wiring cleanly with no dangling
-        // reference, while a disabled-but-installed pack still audits any programmatic row mutation.
-        // The pack emits pure CollectionRow* (data) and Collection* (schema) events;
-        // CollectionAuditListener bridges each to an AuditableEvent the Audit extension records.
+        // Collection row CRUD → audit log + analytics facts. Gated on the pack being INSTALLED
+        // (class_exists) so removing the pack drops this wiring cleanly with no dangling reference.
+        // CollectionAuditListener is unconditional (installed-gated only): a disabled-but-installed
+        // analytics pack must still audit programmatic row mutations. AnalyticsBridgeListener is
+        // ENABLED-gated: disabling lemma.analytics hard-stops collection ingestion, consistent with
+        // the pack's auth listeners and the read API — no content or collection facts are written
+        // while the capability is off (spec §7).
         if (class_exists(CollectionRowCreated::class)) {
             $listeners[CollectionRowCreated::class] = [CollectionAuditListener::class];
             $listeners[CollectionRowUpdated::class] = [CollectionAuditListener::class];
@@ -873,6 +898,27 @@ final class LemmaServiceProvider extends ServiceProvider
             $listeners[CollectionCreated::class] = [CollectionAuditListener::class];
             $listeners[CollectionUpdated::class] = [CollectionAuditListener::class];
             $listeners[CollectionDropped::class] = [CollectionAuditListener::class];
+
+            if ($analyticsOn) {
+                $listeners[CollectionRowCreated::class][] = AnalyticsBridgeListener::class;
+                $listeners[CollectionRowUpdated::class][] = AnalyticsBridgeListener::class;
+                $listeners[CollectionRowDeleted::class][] = AnalyticsBridgeListener::class;
+                $listeners[CollectionCreated::class][] = AnalyticsBridgeListener::class;
+                $listeners[CollectionUpdated::class][] = AnalyticsBridgeListener::class;
+                $listeners[CollectionDropped::class][] = AnalyticsBridgeListener::class;
+            }
+        }
+
+        // Content entry events → analytics facts. The analytics bridge is ENABLED-gated: disabling
+        // lemma.analytics hard-stops content ingestion, consistent with the pack's auth listeners,
+        // the collection block above, and the read API (spec §7). The audit bridge (CollectionAuditListener)
+        // remains unconditional/installed-gated and is unaffected by this gate.
+        if ($analyticsOn) {
+            $listeners[EntryCreated::class][]    = AnalyticsBridgeListener::class;
+            $listeners[EntryUpdated::class][]    = AnalyticsBridgeListener::class;
+            $listeners[EntryDeleted::class][]    = AnalyticsBridgeListener::class;
+            $listeners[EntryPublished::class][]  = AnalyticsBridgeListener::class;
+            $listeners[EntryUnpublished::class][] = AnalyticsBridgeListener::class;
         }
 
         foreach ($listeners as $eventClass => $serviceIds) {

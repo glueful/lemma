@@ -27,3 +27,18 @@ class BaseAwareRequest extends OriginalRequest {
 }
 
 globalThis.Request = BaseAwareRequest as unknown as typeof Request
+
+// jsdom implements no SVG layout engine, so @unovis's axis auto-margin pass — which calls
+// SVGGraphicsElement.getBBox()/getComputedTextLength() from inside a requestAnimationFrame —
+// throws `getBBox is not a function`. Because it runs in a rAF callback it fires AFTER the test
+// resolves, surfacing as an *unhandled* error that fails the whole run (exit 1) even though every
+// assertion passed. Provide inert geometry so the chart render path completes silently in tests.
+const svgProto = globalThis.SVGElement?.prototype as unknown as Record<string, unknown> | undefined
+if (svgProto) {
+  if (typeof svgProto.getBBox !== 'function') {
+    svgProto.getBBox = () => ({ x: 0, y: 0, width: 0, height: 0 })
+  }
+  if (typeof svgProto.getComputedTextLength !== 'function') {
+    svgProto.getComputedTextLength = () => 0
+  }
+}

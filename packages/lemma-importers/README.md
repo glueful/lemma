@@ -1,6 +1,6 @@
 # glueful/lemma-importers
 
-Content **format importers** for [Lemma](https://getlemma.com) — CSV, Markdown/MDX, and
+Content **format importers** for [Lemma](https://getlemma.dev) — CSV, Markdown/MDX, and
 WordPress (WXR) ingestion, plus CSV user provisioning — packaged as a **removable capability
 pack**. It writes all content through Lemma's public `ContentWriter` contract and never reaches
 into the application; install it, disable it, or `composer remove` it without touching the core.
@@ -57,12 +57,12 @@ The pack is **bundled by default** in the Lemma create-project template, so a fr
 already. To add it to an existing app (it lives as a path package in this monorepo):
 
 1. `composer require glueful/lemma-importers`
-2. Add its provider to the `config/extensions.php` enabled allow-list:
-   `Glueful\Lemma\Importers\LemmaImportersServiceProvider`
+2. `./lemma extensions:enable lemma-importers` (writes the provider into the
+   `config/extensions.php` allow-list and recompiles the extension cache)
 
 ## Remove
 
-`composer remove glueful/lemma-importers`, then drop its entry from `config/extensions.php`. After
+`./lemma extensions:disable lemma-importers`, then `composer remove glueful/lemma-importers`. After
 removal:
 
 - The headless CMS core boots; content delivery and the admin work unchanged.

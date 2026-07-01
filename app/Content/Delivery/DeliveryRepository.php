@@ -119,6 +119,72 @@ final class DeliveryRepository
     }
 
     /**
+     * One page of published (entry, route) pairs across ALL types/locales, for sitemap
+     * generation. Joins the spine to entry_routes constrained to the publication's own
+     * content type + locale, so an entry published in N locales yields N rows (one URL
+     * each). Ordered stably (published_at DESC, entry_uuid ASC). `total` is the full count.
+     *
+     * Real LIMIT/OFFSET semantics — an arbitrary offset returns exactly that slice (the
+     * sitemap builder pages with offset = (n-1) * PAGE_SIZE, but the contract must not
+     * silently misbehave for a non-multiple offset).
+     *
+     * Fetched in ≤1000-row chunks so each SQL LIMIT stays under the framework query
+     * validator's large-LIMIT guard (it warns above 1000), while still honouring the
+     * sitemap protocol's 50 000-URL page size the caller requests.
+     *
+     * @return array{rows:list<array<string,mixed>>,total:int}
+     */
+    public function enumeratePublishedForSitemap(int $limit, int $offset = 0): array
+    {
+        $limit = max(1, $limit);
+        $offset = max(0, $offset);
+
+        $chunkSize = 1000;
+        $rows = [];
+        $remaining = $limit;
+        $cursor = $offset;
+
+        while ($remaining > 0) {
+            $take = min($chunkSize, $remaining);
+            $batch = $this->db->table('entry_publications as p')
+                ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
+                ->join('entry_routes as r', 'r.entry_uuid', '=', 'p.entry_uuid')
+                ->select(['p.entry_uuid', 'e.content_type_uuid', 'p.locale', 'r.slug', 'p.published_at'])
+                ->where('e.status', '=', 'active')            // never enumerate archived/deleted
+                ->whereRaw('r.content_type_uuid = e.content_type_uuid')
+                ->whereRaw('r.locale = p.locale')
+                ->orderByRaw('p.published_at DESC, p.entry_uuid ASC')
+                ->limit($take)
+                ->offset($cursor)
+                ->get();
+
+            if ($batch === []) {
+                break;
+            }
+            foreach ($batch as $row) {
+                $rows[] = $row;
+            }
+            $got = count($batch);
+            $cursor += $got;
+            $remaining -= $got;
+            if ($got < $take) {
+                break; // exhausted the result set
+            }
+        }
+
+        // Full count under the same joins/filters (a fresh builder — no select/limit/offset).
+        $total = $this->db->table('entry_publications as p')
+            ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
+            ->join('entry_routes as r', 'r.entry_uuid', '=', 'p.entry_uuid')
+            ->where('e.status', '=', 'active')
+            ->whereRaw('r.content_type_uuid = e.content_type_uuid')
+            ->whereRaw('r.locale = p.locale')
+            ->count();
+
+        return ['rows' => $rows, 'total' => $total];
+    }
+
+    /**
      * Build the keyset cursor position for a row under a given order, so the caller
      * (controller) can emit the next-page cursor. Reads the sort value from the same
      * place the keyset predicate compares against: the JSONB field for a field sort,

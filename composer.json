@@ -12,9 +12,11 @@
     }
   ],
   "repositories": [
+    { "type": "path", "url": "packages/lemma-analytics" },
     { "type": "path", "url": "packages/lemma-collections" },
     { "type": "path", "url": "packages/lemma-contracts" },
-    { "type": "path", "url": "packages/lemma-importers" }
+    { "type": "path", "url": "packages/lemma-importers" },
+    { "type": "path", "url": "packages/lemma-seo" }
   ],
   "require": {
     "php": "^8.3",
@@ -24,9 +26,11 @@
     "glueful/framework": "^1.65.0",
     "glueful/i18n": "^1.1.1",
     "glueful/import-export": "^1.1.1",
+    "glueful/lemma-analytics": "*",
     "glueful/lemma-collections": "*",
     "glueful/lemma-contracts": "*",
     "glueful/lemma-importers": "*",
+    "glueful/lemma-seo": "*",
     "glueful/media": "^1.1.0",
     "glueful/users": "^2.3.1",
     "league/commonmark": "^2.8",

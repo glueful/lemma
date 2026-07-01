@@ -15,4 +15,9 @@ export const qk = {
   collections: () => ['collections'] as const,
   collection: (name: string) => ['collection', name] as const,
   collectionRows: (name: string) => ['collection-rows', name] as const,
+  analyticsSummary: (from: string, to: string) => ['analytics', 'summary', from, to] as const,
+  analyticsSeries: (metric: string, from: string, to: string) =>
+    ['analytics', 'series', metric, from, to] as const,
+  analyticsBreakdown: (event: string, from: string, to: string) =>
+    ['analytics', 'breakdown', event, from, to] as const,
 }

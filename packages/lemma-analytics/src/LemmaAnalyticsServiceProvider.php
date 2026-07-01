@@ -7,15 +7,28 @@ namespace Glueful\Lemma\Analytics;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Extensions\ServiceProvider;
+use Glueful\Lemma\Analytics\Facts\ActorHasher;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Psr\Container\ContainerInterface;
 
 final class LemmaAnalyticsServiceProvider extends ServiceProvider
 {
     /** @return array<string, array<string, mixed>> */
     public static function services(): array
     {
-        return [];
+        return [
+            ActorHasher::class => [
+                'shared'  => true,
+                'factory' => [self::class, 'makeActorHasher'],
+            ],
+        ];
+    }
+
+    public static function makeActorHasher(ContainerInterface $container): ActorHasher
+    {
+        $context = $container->get(ApplicationContext::class);
+        return new ActorHasher((string) config($context, 'analytics.hash_key', ''));
     }
 
     public function register(ApplicationContext $context): void

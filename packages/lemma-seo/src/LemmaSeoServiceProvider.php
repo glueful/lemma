@@ -9,11 +9,16 @@ use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Cache\CacheStore;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
+use Glueful\Lemma\Seo\Cache\FrameworkSitemapCache;
+use Glueful\Lemma\Seo\Cache\SitemapCache;
 use Glueful\Lemma\Seo\Http\Controllers\AdminSeoMetaController;
 use Glueful\Lemma\Seo\Http\Controllers\SeoMetaController;
+use Glueful\Lemma\Seo\Http\Controllers\SitemapController;
 use Glueful\Lemma\Seo\Meta\SeoMetaRepository;
 use Glueful\Lemma\Seo\Meta\SeoMetaResolver;
+use Glueful\Lemma\Seo\Sitemap\SitemapBuilder;
 use Psr\Container\ContainerInterface;
 
 final class LemmaSeoServiceProvider extends ServiceProvider
@@ -34,7 +39,31 @@ final class LemmaSeoServiceProvider extends ServiceProvider
             AdminSeoMetaController::class => [
                 'class' => AdminSeoMetaController::class, 'shared' => true, 'autowire' => true,
             ],
+            SitemapCache::class => [
+                'shared' => true, 'factory' => [self::class, 'makeSitemapCache'],
+            ],
+            SitemapBuilder::class => [
+                'shared' => true, 'factory' => [self::class, 'makeSitemapBuilder'],
+            ],
+            SitemapController::class => [
+                'class' => SitemapController::class, 'shared' => true, 'autowire' => true,
+            ],
         ];
+    }
+
+    public static function makeSitemapCache(ContainerInterface $container): SitemapCache
+    {
+        return new FrameworkSitemapCache($container->get(CacheStore::class));
+    }
+
+    public static function makeSitemapBuilder(ContainerInterface $container): SitemapBuilder
+    {
+        $context = $container->get(ApplicationContext::class);
+        return new SitemapBuilder(
+            $container->get(ContentDeliveryReader::class),
+            $container->get(SitemapCache::class),
+            (string) config($context, 'lemma.seo.public_url_base', ''),
+        );
     }
 
     public static function makeSeoMetaResolver(ContainerInterface $container): SeoMetaResolver

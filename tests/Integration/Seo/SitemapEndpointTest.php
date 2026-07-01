@@ -17,6 +17,14 @@ final class SitemapEndpointTest extends LemmaTestCase
 {
     use SeedsPublishedContent;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The array CacheStore is a shared singleton across test methods; start each test
+        // with an empty sitemap cache so the builder renders fresh, not a polluted entry.
+        $this->container()->get(SitemapCache::class)->forgetAll();
+    }
+
     public function testSitemapServesUrlsetWhenOriginConfigured(): void
     {
         $this->seedBilingualPublishedEntry(); // origin from LEMMA_PUBLIC_URL_BASE=https://site.test

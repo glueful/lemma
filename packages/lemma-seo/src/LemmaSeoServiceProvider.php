@@ -10,13 +10,16 @@ use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Cache\CacheStore;
+use Glueful\Events\EventService;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
+use Glueful\Lemma\Contracts\Events\ContentLifecycleEvent;
 use Glueful\Lemma\Seo\Cache\FrameworkSitemapCache;
 use Glueful\Lemma\Seo\Cache\SitemapCache;
 use Glueful\Lemma\Seo\Http\Controllers\AdminSeoMetaController;
 use Glueful\Lemma\Seo\Http\Controllers\SeoMetaController;
 use Glueful\Lemma\Seo\Http\Controllers\RobotsController;
 use Glueful\Lemma\Seo\Http\Controllers\SitemapController;
+use Glueful\Lemma\Seo\Listeners\SitemapCacheInvalidator;
 use Glueful\Lemma\Seo\Meta\SeoMetaRepository;
 use Glueful\Lemma\Seo\Meta\SeoMetaResolver;
 use Glueful\Lemma\Seo\Sitemap\RobotsBuilder;
@@ -55,6 +58,9 @@ final class LemmaSeoServiceProvider extends ServiceProvider
             ],
             RobotsController::class => [
                 'class' => RobotsController::class, 'shared' => true, 'autowire' => true,
+            ],
+            SitemapCacheInvalidator::class => [
+                'class' => SitemapCacheInvalidator::class, 'shared' => true, 'autowire' => true,
             ],
         ];
     }
@@ -126,6 +132,13 @@ final class LemmaSeoServiceProvider extends ServiceProvider
         if ($registry->isEnabled('lemma.seo')) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/public-routes.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
+
+            // Any content lifecycle change can alter the published-URL set — drop the sitemap
+            // cache. BaseContentEvent implements ContentLifecycleEvent, and the framework
+            // dispatches concrete events to interface-typed listeners (getEventTypes()).
+            $events = app($context, EventService::class);
+            $invalidator = app($context, SitemapCacheInvalidator::class);
+            $events->addListener(ContentLifecycleEvent::class, [$invalidator, 'onContentChanged']);
         }
     }
 }

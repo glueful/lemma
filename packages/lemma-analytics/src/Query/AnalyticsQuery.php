@@ -87,6 +87,31 @@ final class AnalyticsQuery
     }
 
     /**
+     * Top subjects for one event over [from, to], ordered by total count desc. The '__total__'
+     * sentinel row is excluded so only real subjects (collection names, content-type slugs) rank.
+     *
+     * @return list<array{subject: string, count: int}>
+     */
+    public function breakdown(string $event, string $from, string $to, int $limit = 10): array
+    {
+        $limit = max(1, min($limit, 50));
+
+        $pdo = $this->connection->getPDO();
+        $stmt = $pdo->prepare(
+            'SELECT subject, SUM(count) AS count FROM analytics_daily'
+            . " WHERE event = ? AND subject <> '__total__' AND day >= ? AND day <= ?"
+            . ' GROUP BY subject ORDER BY count DESC, subject ASC LIMIT ' . $limit
+        );
+        $stmt->execute([$event, $from, $to]);
+
+        $out = [];
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $out[] = ['subject' => (string) $row['subject'], 'count' => (int) $row['count']];
+        }
+        return $out;
+    }
+
+    /**
      * @return array{from: string, to: string, totals: array<string, int>, active_users: int}
      */
     public function summary(string $from, string $to): array

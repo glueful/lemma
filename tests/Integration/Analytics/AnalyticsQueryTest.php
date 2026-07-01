@@ -86,4 +86,53 @@ final class AnalyticsQueryTest extends LemmaTestCase
             $series,
         );
     }
+
+    private function recordSubject(string $event, float $ts, string $actorId, string $subject): void
+    {
+        $this->container()->get(AnalyticsRecorder::class)->record(new AnalyticsFact(
+            event: $event,
+            category: 'collections',
+            subjectType: 'collection',
+            subjectId: $subject,
+            actorType: 'user',
+            actorId: $actorId,
+            occurredAt: $ts,
+        ));
+    }
+
+    public function testBreakdownRanksSubjectsDescendingAndExcludesTotalSentinel(): void
+    {
+        // 'posts' gets 2 row-creates, 'authors' gets 1, on 2025-06-10.
+        $this->recordSubject('collections.row.created', 1749556800.0, 'u-1', 'posts');
+        $this->recordSubject('collections.row.created', 1749556800.0, 'u-2', 'posts');
+        $this->recordSubject('collections.row.created', 1749556800.0, 'u-1', 'authors');
+
+        $q = $this->container()->get(AnalyticsQuery::class);
+        $breakdown = $q->breakdown('collections.row.created', '2025-06-10', '2025-06-10');
+
+        self::assertSame(
+            [
+                ['subject' => 'posts', 'count' => 2],
+                ['subject' => 'authors', 'count' => 1],
+            ],
+            $breakdown,
+        );
+    }
+
+    public function testBreakdownClampsLimitToFiftyAndMinimumOne(): void
+    {
+        // Seed 60 distinct subjects so an unclamped limit would return >50.
+        for ($i = 0; $i < 60; $i++) {
+            $this->recordSubject('collections.row.created', 1749556800.0, "u-$i", "subj-$i");
+        }
+        $q = $this->container()->get(AnalyticsQuery::class);
+
+        // limit above the ceiling is clamped to 50.
+        $clamped = $q->breakdown('collections.row.created', '2025-06-10', '2025-06-10', 9999);
+        self::assertCount(50, $clamped, 'limit must clamp to a max of 50');
+
+        // limit below 1 is clamped up to 1 (never 0/negative rows).
+        $floored = $q->breakdown('collections.row.created', '2025-06-10', '2025-06-10', 0);
+        self::assertCount(1, $floored, 'limit must clamp to a min of 1 when data exists');
+    }
 }

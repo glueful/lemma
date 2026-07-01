@@ -50,4 +50,23 @@ final class AnalyticsController
         }
         return Response::success($this->query->summary($from, $to));
     }
+
+    #[ApiOperation(summary: 'Analytics breakdown: top subjects for one event', tags: ['Analytics'])]
+    public function breakdown(Request $request): Response
+    {
+        $event = (string) $request->query->get('event', '');
+        $from = (string) $request->query->get('from', '');
+        $to = (string) $request->query->get('to', '');
+        if ($event === '' || $from === '' || $to === '') {
+            return Response::error('event, from and to are required.', 422);
+        }
+        $limit = (int) $request->query->get('limit', 10);
+
+        return Response::success([
+            'event' => $event,
+            'from' => $from,
+            'to' => $to,
+            'breakdown' => $this->query->breakdown($event, $from, $to, $limit),
+        ]);
+    }
 }

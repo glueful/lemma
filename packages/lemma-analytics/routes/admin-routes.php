@@ -20,5 +20,7 @@ $router->group(
             ->middleware('lemma_permission:analytics.read');
         $router->get('/analytics/summary', [AnalyticsController::class, 'summary'])
             ->middleware('lemma_permission:analytics.read');
+        $router->get('/analytics/breakdown', [AnalyticsController::class, 'breakdown'])
+            ->middleware('lemma_permission:analytics.read');
     },
 );

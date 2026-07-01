@@ -6,9 +6,14 @@ namespace Glueful\Lemma\Analytics;
 
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Migrations\MigrationPriority;
+use Glueful\Events\Auth\AuthenticationFailedEvent;
+use Glueful\Events\Auth\SessionCreatedEvent;
+use Glueful\Events\Auth\SessionDestroyedEvent;
+use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Analytics\Facts\ActorHasher;
 use Glueful\Lemma\Analytics\Facts\AnalyticsRecorder;
+use Glueful\Lemma\Analytics\Listeners\AuthAnalyticsListener;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Psr\Container\ContainerInterface;
@@ -25,6 +30,11 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
             ],
             AnalyticsRecorder::class => [
                 'class'    => AnalyticsRecorder::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            AuthAnalyticsListener::class => [
+                'class'    => AuthAnalyticsListener::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
@@ -57,5 +67,13 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
             MigrationPriority::DEPENDENT,
             'lemma-analytics',
         );
+
+        if (app($context, CapabilityRegistry::class)->isEnabled('lemma.analytics')) {
+            $events = app($context, EventService::class);
+            $listener = app($context, AuthAnalyticsListener::class);
+            $events->addListener(SessionCreatedEvent::class, [$listener, 'onLogin']);
+            $events->addListener(SessionDestroyedEvent::class, [$listener, 'onLogout']);
+            $events->addListener(AuthenticationFailedEvent::class, [$listener, 'onLoginFailed']);
+        }
     }
 }

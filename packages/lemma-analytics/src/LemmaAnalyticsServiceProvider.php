@@ -13,6 +13,7 @@ use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Analytics\Facts\ActorHasher;
 use Glueful\Lemma\Analytics\Facts\AnalyticsRecorder;
+use Glueful\Lemma\Analytics\Http\Controllers\AnalyticsController;
 use Glueful\Lemma\Analytics\Listeners\AuthAnalyticsListener;
 use Glueful\Lemma\Analytics\Query\AnalyticsQuery;
 use Glueful\Lemma\Contracts\Capability\Capability;
@@ -41,6 +42,11 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
             ],
             AnalyticsQuery::class => [
                 'class'    => AnalyticsQuery::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            AnalyticsController::class => [
+                'class'    => AnalyticsController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
@@ -80,6 +86,8 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
             $events->addListener(SessionCreatedEvent::class, [$listener, 'onLogin']);
             $events->addListener(SessionDestroyedEvent::class, [$listener, 'onLogout']);
             $events->addListener(AuthenticationFailedEvent::class, [$listener, 'onLoginFailed']);
+
+            $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
         }
     }
 }

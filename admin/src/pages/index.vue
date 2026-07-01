@@ -24,8 +24,11 @@ const analyticsRange = computed(() => rangeFor(30))
 // Pass analyticsOn as the `enabled` gate: when the pack is disabled the summary query never fires,
 // so Home never hits the (404'd) /analytics/summary route.
 const { data: analyticsSummary } = useAnalyticsSummary(analyticsRange, analyticsOn)
-const homeKpi = (event: string) => analyticsSummary.value?.totals?.[event] ?? 0
-const homeActiveUsers = computed(() => analyticsSummary.value?.active_users ?? 0)
+// Format KPI counts the same way the /analytics page does (Intl grouping), so 1,200 reads
+// consistently across Home and the dashboard.
+const fmtCount = (n: number): string => new Intl.NumberFormat().format(n)
+const homeKpi = (event: string): string => fmtCount(analyticsSummary.value?.totals?.[event] ?? 0)
+const homeActiveUsers = computed(() => fmtCount(analyticsSummary.value?.active_users ?? 0))
 
 // First-run target: the seeded Pages type if present, otherwise the first type. A fresh install
 // seeds a Pages type, so first-run is "create your first page" (one click) rather than the

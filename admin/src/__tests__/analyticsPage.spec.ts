@@ -31,10 +31,6 @@ vi.mock('@/queries/analytics', () => ({
   },
 }))
 
-vi.mock('@/composables/useNotify', () => ({
-  useNotify: () => ({ success: vi.fn(), error: vi.fn() }),
-}))
-
 import AnalyticsPage from '@/pages/analytics/index.vue'
 
 const stubs = {

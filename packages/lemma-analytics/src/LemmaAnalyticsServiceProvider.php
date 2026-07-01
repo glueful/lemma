@@ -74,7 +74,9 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
 
     public function boot(ApplicationContext $context): void
     {
-        app($context, CapabilityRegistry::class)->register(new Capability(
+        $registry = app($context, CapabilityRegistry::class);
+
+        $registry->register(new Capability(
             'lemma.analytics',
             label: 'Analytics',
             description: 'Product-analytics fact store fed by lifecycle events.',
@@ -86,7 +88,7 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
             'lemma-analytics',
         );
 
-        if (app($context, CapabilityRegistry::class)->isEnabled('lemma.analytics')) {
+        if ($registry->isEnabled('lemma.analytics')) {
             $events = app($context, EventService::class);
             $listener = app($context, AuthAnalyticsListener::class);
             $events->addListener(SessionCreatedEvent::class, [$listener, 'onLogin']);

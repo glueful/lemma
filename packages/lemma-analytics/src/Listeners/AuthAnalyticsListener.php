@@ -38,6 +38,20 @@ final class AuthAnalyticsListener
     public function onLogout(SessionDestroyedEvent $event): void
     {
         $uuid = $event->getUserUuid();
+
+        if ($uuid === null) {
+            $this->recorder->record(new AnalyticsFact(
+                event: 'auth.logout',
+                category: 'auth',
+                subjectType: null,
+                subjectId: null,
+                actorType: null,
+                actorId: null,
+                occurredAt: $event->getTimestamp(),
+            ));
+            return;
+        }
+
         $this->recorder->record(new AnalyticsFact(
             event: 'auth.logout',
             category: 'auth',

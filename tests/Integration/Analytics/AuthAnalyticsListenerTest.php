@@ -50,8 +50,39 @@ final class AuthAnalyticsListenerTest extends LemmaTestCase
         $fact = $this->connection()->table('analytics_facts')->where('event', 'auth.login_failed')->first();
         self::assertNotNull($fact);
         self::assertNull($fact['actor_id']);
+        self::assertNull($fact['actor_type']);
         self::assertNull($fact['subject_id']); // attempted username NOT stored
+        self::assertNull($fact['subject_type']);
         $serialized = json_encode($fact);
         self::assertStringNotContainsString('victim@example.com', (string) $serialized);
+    }
+
+    public function testLogoutRecordsFactWithUuidAndNullCase(): void
+    {
+        $events = $this->container()->get(EventService::class);
+
+        // Case 1: logout with known uuid — full 'user'-typed fact.
+        $events->dispatch(new SessionDestroyedEvent('TOKEN', 'u-1', 'logout'));
+
+        $fact = $this->connection()->table('analytics_facts')->where('event', 'auth.logout')->first();
+        self::assertNotNull($fact);
+        self::assertSame('u-1', $fact['actor_id']);
+        $serialized = json_encode($fact);
+        self::assertStringNotContainsString('TOKEN', (string) $serialized);
+
+        $pdo = $this->connection()->getPDO();
+        $pdo->exec('DELETE FROM analytics_facts');
+        $pdo->exec('DELETE FROM analytics_daily');
+        $pdo->exec('DELETE FROM analytics_active_actors');
+
+        // Case 2: logout with no uuid — count-only fact (all identity fields null).
+        $events->dispatch(new SessionDestroyedEvent('TOKEN', null, 'logout'));
+
+        $fact = $this->connection()->table('analytics_facts')->where('event', 'auth.logout')->first();
+        self::assertNotNull($fact);
+        self::assertNull($fact['actor_id']);
+        self::assertNull($fact['actor_type']);
+        self::assertNull($fact['subject_id']);
+        self::assertNull($fact['subject_type']);
     }
 }

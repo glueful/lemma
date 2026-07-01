@@ -7,7 +7,10 @@ namespace App\Tests\Integration\Analytics;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Application;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Database\Connection;
+use Glueful\Events\EventService;
 use Glueful\Framework;
+use Glueful\Lemma\Collections\Events\CollectionCreated;
 use Glueful\Routing\RouteManifest;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -75,6 +78,25 @@ final class AnalyticsRemovabilityTest extends LemmaTestCase
             $response->getStatusCode(),
             'Disabled-boot GET /v1/admin/analytics/summary must be 404 (route unregistered), got: '
             . $response->getStatusCode() . ' body: ' . $response->getContent()
+        );
+    }
+
+    public function testDisabledBootSuppressesCollectionIngestion(): void
+    {
+        $container = self::$disabledApp->getContainer();
+        $events = $container->get(EventService::class);
+        $events->dispatch(new CollectionCreated('disabled_probe', 'admin', 'u-x'));
+
+        $connection = $container->get(Connection::class);
+        $count = (int) $connection->table('analytics_facts')
+            ->where('event', 'collections.collection.created')
+            ->where('subject_id', 'disabled_probe')
+            ->count();
+
+        self::assertSame(
+            0,
+            $count,
+            'Disabled analytics must not ingest collection events — zero rows expected for this dispatch.'
         );
     }
 }

@@ -35,7 +35,7 @@ final class AnalyticsRecorderTest extends LemmaTestCase
             subjectId: $o['subjectId'] ?? 'posts',
             actorType: $o['actorType'] ?? 'admin',
             actorId: $o['actorId'] ?? 'u-1',
-            occurredAt: $o['occurredAt'] ?? 1751299200.0, // 2025-06-30 12:00 UTC, fixed
+            occurredAt: $o['occurredAt'] ?? 1751299200.0, // 2025-06-30 16:00:00 UTC, fixed
             metadata: $o['metadata'] ?? [],
         );
     }

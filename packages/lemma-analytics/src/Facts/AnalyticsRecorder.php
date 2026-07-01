@@ -51,7 +51,11 @@ final class AnalyticsRecorder
             }
         } catch (Throwable $e) {
             // Best-effort: analytics never breaks the request that triggered the event.
-            $this->logger->warning('analytics record failed', ['error' => $e->getMessage()]);
+            $this->logger->warning('analytics record failed', [
+                'event' => $fact->event,
+                'exception' => get_class($e),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

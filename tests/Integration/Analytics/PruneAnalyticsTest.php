@@ -35,11 +35,23 @@ final class PruneAnalyticsTest extends LemmaTestCase
             'subject' => '__total__', 'count' => 5,
         ]);
 
+        $this->connection()->table('analytics_active_actors')->insert([
+            'day' => gmdate('Y-m-d', time() - 1 * 86400),
+            'metric' => 'active_users',
+            'actor_type' => 'user',
+            'actor_id_hash' => 'probe-hash',
+        ]);
+
         $command = $this->container()->get(PruneAnalyticsCommand::class);
         $deleted = $command->prune(90); // retention days
 
         self::assertSame(1, $deleted);
         self::assertSame(1, (int) $this->connection()->table('analytics_facts')->count());
         self::assertSame(1, (int) $this->connection()->table('analytics_daily')->count(), 'rollups kept');
+        self::assertSame(
+            1,
+            (int) $this->connection()->table('analytics_active_actors')->count(),
+            'active_actors row preserved'
+        );
     }
 }

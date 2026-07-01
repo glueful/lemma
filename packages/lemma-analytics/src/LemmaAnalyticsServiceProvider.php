@@ -14,6 +14,7 @@ use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Analytics\Facts\ActorHasher;
 use Glueful\Lemma\Analytics\Facts\AnalyticsRecorder;
 use Glueful\Lemma\Analytics\Http\Controllers\AnalyticsController;
+use Glueful\Lemma\Analytics\Console\PruneAnalyticsCommand;
 use Glueful\Lemma\Analytics\Listeners\AuthAnalyticsListener;
 use Glueful\Lemma\Analytics\Query\AnalyticsQuery;
 use Glueful\Lemma\Contracts\Capability\Capability;
@@ -47,6 +48,11 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
             ],
             AnalyticsController::class => [
                 'class'    => AnalyticsController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            PruneAnalyticsCommand::class => [
+                'class'    => PruneAnalyticsCommand::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
@@ -89,5 +95,7 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
 
             $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
         }
+
+        $this->commands([PruneAnalyticsCommand::class]);
     }
 }

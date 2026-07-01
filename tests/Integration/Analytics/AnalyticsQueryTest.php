@@ -66,4 +66,24 @@ final class AnalyticsQueryTest extends LemmaTestCase
         // Distinct users over the range — u-1's two active days count ONCE (not user-days).
         self::assertSame(2, $summary['active_users']);
     }
+
+    public function testActiveUsersSeriesIsDailyDistinctAndZeroFilled(): void
+    {
+        // u-1 and u-2 active on 2025-06-10; u-1 again on 2025-06-12. Day 06-11 has nobody.
+        $this->record('collections.row.created', 1749556800.0, 'u-1'); // 2025-06-10
+        $this->record('collections.row.created', 1749556800.0, 'u-2'); // 2025-06-10
+        $this->record('collections.row.created', 1749729600.0, 'u-1'); // 2025-06-12
+
+        $q = $this->container()->get(AnalyticsQuery::class);
+        $series = $q->series('active_users', '2025-06-10', '2025-06-12');
+
+        self::assertSame(
+            [
+                ['day' => '2025-06-10', 'count' => 2], // u-1, u-2 distinct
+                ['day' => '2025-06-11', 'count' => 0], // zero-filled
+                ['day' => '2025-06-12', 'count' => 1], // u-1
+            ],
+            $series,
+        );
+    }
 }

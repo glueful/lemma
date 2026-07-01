@@ -18,9 +18,36 @@ final class AnalyticsQuery
     }
 
     /**
+     * Daily count series for one metric, zero-filled across [from, to].
+     *
+     * `active_users` is special: it is not an event in analytics_daily but a distinct-actor count
+     * over analytics_active_actors, so callers get one uniform series shape for every chart.
+     *
      * @return list<array{day: string, count: int}>
      */
     public function series(string $event, string $from, string $to, ?string $subject = null): array
+    {
+        $byDay = $event === 'active_users'
+            ? $this->activeUsersByDay($from, $to)
+            : $this->countsByDay($event, $subject, $from, $to);
+
+        $out = [];
+        $cursor = new DateTimeImmutable($from);
+        $end = new DateTimeImmutable($to);
+        while ($cursor <= $end) {
+            $day = $cursor->format('Y-m-d');
+            $out[] = ['day' => $day, 'count' => $byDay[$day] ?? 0];
+            $cursor = $cursor->modify('+1 day');
+        }
+        return $out;
+    }
+
+    /**
+     * event/subject daily counts from analytics_daily.
+     *
+     * @return array<string, int> day (Y-m-d) => count
+     */
+    private function countsByDay(string $event, ?string $subject, string $from, string $to): array
     {
         $rows = $this->connection->table('analytics_daily')
             ->select(['day', 'count'])
@@ -34,16 +61,29 @@ final class AnalyticsQuery
         foreach ($rows as $row) {
             $byDay[substr((string) $row['day'], 0, 10)] = (int) $row['count'];
         }
+        return $byDay;
+    }
 
-        $out = [];
-        $cursor = new DateTimeImmutable($from);
-        $end = new DateTimeImmutable($to);
-        while ($cursor <= $end) {
-            $day = $cursor->format('Y-m-d');
-            $out[] = ['day' => $day, 'count' => $byDay[$day] ?? 0];
-            $cursor = $cursor->modify('+1 day');
+    /**
+     * Daily distinct active users from analytics_active_actors (raw SQL: the builder's count() is
+     * COUNT(*), and we need COUNT(DISTINCT actor_id_hash) per day).
+     *
+     * @return array<string, int> day (Y-m-d) => distinct count
+     */
+    private function activeUsersByDay(string $from, string $to): array
+    {
+        $pdo = $this->connection->getPDO();
+        $stmt = $pdo->prepare(
+            'SELECT day, COUNT(DISTINCT actor_id_hash) AS count FROM analytics_active_actors'
+            . " WHERE metric = 'active_users' AND day >= ? AND day <= ? GROUP BY day"
+        );
+        $stmt->execute([$from, $to]);
+
+        $byDay = [];
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $byDay[substr((string) $row['day'], 0, 10)] = (int) $row['count'];
         }
-        return $out;
+        return $byDay;
     }
 
     /**

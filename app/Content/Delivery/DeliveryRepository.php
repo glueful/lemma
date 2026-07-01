@@ -185,6 +185,75 @@ final class DeliveryRepository
     }
 
     /**
+     * One page of published (entry, route, type, fields) rows across all/selected
+     * types+locales, for search indexing. Joins the publication spine to the pinned
+     * version, the entry (active guard), the entry_route (href slug), and the content
+     * type (slug + public_delivery). Ordered stably (published_at DESC, entry_uuid ASC).
+     *
+     * @return array{rows:list<array<string,mixed>>,total:int}
+     */
+    public function enumerateIndexable(
+        int $limit,
+        int $offset = 0,
+        ?string $typeSlug = null,
+        ?string $locale = null,
+    ): array {
+        $limit = max(1, $limit);
+        $offset = max(0, $offset);
+
+        $apply = function (QueryBuilder $q) use ($typeSlug, $locale): QueryBuilder {
+            $q->join('entry_versions as v', 'v.uuid', '=', 'p.version_uuid')
+                ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
+                ->join('entry_routes as r', 'r.entry_uuid', '=', 'p.entry_uuid')
+                ->join('content_types as ct', 'ct.uuid', '=', 'e.content_type_uuid')
+                ->where('e.status', '=', 'active')
+                ->where('ct.status', '!=', 'deleted')
+                ->whereRaw('r.content_type_uuid = e.content_type_uuid')
+                ->whereRaw('r.locale = p.locale');
+            if ($typeSlug !== null) {
+                $q->where('ct.slug', '=', $typeSlug);
+            }
+            if ($locale !== null) {
+                $q->where('p.locale', '=', $locale);
+            }
+            return $q;
+        };
+
+        $chunkSize = 1000;
+        $rows = [];
+        $remaining = $limit;
+        $cursor = $offset;
+        while ($remaining > 0) {
+            $take = min($chunkSize, $remaining);
+            $q = $apply($this->db->table('entry_publications as p'))
+                ->select([
+                    'p.entry_uuid', 'e.content_type_uuid', 'ct.slug as content_type_slug',
+                    'ct.public_delivery', 'p.locale', 'r.slug', 'v.fields', 'p.published_at',
+                ])
+                ->orderByRaw('p.published_at DESC, p.entry_uuid ASC')
+                ->limit($take)
+                ->offset($cursor);
+            $batch = $q->get();
+            if ($batch === []) {
+                break;
+            }
+            foreach ($batch as $row) {
+                $rows[] = $row;
+            }
+            $got = count($batch);
+            $cursor += $got;
+            $remaining -= $got;
+            if ($got < $take) {
+                break;
+            }
+        }
+
+        $total = $apply($this->db->table('entry_publications as p'))->count();
+
+        return ['rows' => $rows, 'total' => $total];
+    }
+
+    /**
      * Build the keyset cursor position for a row under a given order, so the caller
      * (controller) can emit the next-page cursor. Reads the sort value from the same
      * place the keyset predicate compares against: the JSONB field for a field sort,

@@ -15,4 +15,7 @@ interface ContentTypeReader
 
     /** The schema for a content type uuid, or null if the type does not exist. */
     public function schemaFor(string $uuid): ?ContentSchemaReader;
+
+    /** True when the content type opts into anonymous public delivery. */
+    public function isPublicDelivery(string $uuid): bool;
 }

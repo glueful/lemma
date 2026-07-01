@@ -14,10 +14,12 @@ use Glueful\Lemma\Contracts\Search\IndexableContentReader;
 use Glueful\Lemma\Search\Engine\LiveMeilisearchIndex;
 use Glueful\Lemma\Search\Engine\MeilisearchBackend;
 use Glueful\Lemma\Search\Engine\SearchBackend;
+use Glueful\Lemma\Search\Http\SearchController;
 use Glueful\Lemma\Search\Index\DocumentBuilder;
 use Glueful\Lemma\Search\Index\NullContentReindexer;
 use Glueful\Lemma\Search\Index\ResilientContentReindexer;
 use Glueful\Lemma\Search\Index\SearchContentReindexer;
+use Glueful\Lemma\Search\Query\VisibilityResolver;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 
@@ -39,7 +41,25 @@ final class LemmaSearchServiceProvider extends ServiceProvider
             ContentReindexer::class => [
                 'shared' => true, 'factory' => [self::class, 'makeContentReindexer'],
             ],
+            VisibilityResolver::class => [
+                'class' => VisibilityResolver::class, 'shared' => true, 'autowire' => true,
+            ],
+            SearchController::class => [
+                'shared' => true, 'factory' => [self::class, 'makeSearchController'],
+            ],
         ];
+    }
+
+    public static function makeSearchController(ContainerInterface $container): SearchController
+    {
+        $context = $container->get(ApplicationContext::class);
+        return new SearchController(
+            $container->get(SearchBackend::class),
+            $container->get(VisibilityResolver::class),
+            $container->get(ContentTypeReader::class),
+            (int) config($context, 'lemma_search.default_limit', 20),
+            (int) config($context, 'lemma_search.max_limit', 50),
+        );
     }
 
     public static function makeSearchBackend(ContainerInterface $container): MeilisearchBackend
@@ -97,5 +117,9 @@ final class LemmaSearchServiceProvider extends ServiceProvider
             label: 'Search',
             description: 'Public, delivery-parity content search backed by Meilisearch.',
         ));
+
+        if ($registry->isEnabled('lemma.search')) {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/public-routes.php');
+        }
     }
 }

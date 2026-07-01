@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { ref, toValue } from 'vue'
 
 const saveMock = vi.fn().mockResolvedValue(undefined)
@@ -24,6 +24,14 @@ import SeoPanel from '@/pages/content/[type]/[uuid]/components/SeoPanel.vue'
 const val = (wrapper: ReturnType<typeof mount>, hook: string) =>
   (wrapper.find(`[data-test="${hook}"]`).element as HTMLInputElement).value
 
+// The form lives inside a default-closed UCollapsible (#content, unmountOnHide), so the
+// fields are absent from the DOM until the panel is expanded. When closed, the only button
+// is the collapsible trigger — click it to mount the content, then flush the render.
+const openPanel = async (wrapper: ReturnType<typeof mount>) => {
+  await wrapper.get('button').trigger('click')
+  await flushPromises()
+}
+
 describe('SeoPanel', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -35,6 +43,7 @@ describe('SeoPanel', () => {
   it('hydrates from the override and saves only the 7 writable fields, empties → null', async () => {
     seoData.value = { title: 'Existing', description: '', robots: 'noindex' }
     const wrapper = mount(SeoPanel, { props: { uuid: 'e-1', locale: 'en', enabled: true } })
+    await openPanel(wrapper)
     expect(val(wrapper, 'seo-title')).toBe('Existing')
 
     await wrapper.find('[data-test="seo-save"]').trigger('click')
@@ -54,6 +63,7 @@ describe('SeoPanel', () => {
   it('clearing a previously-set field sends null, not empty string', async () => {
     seoData.value = { title: 'Set', robots: 'index' }
     const wrapper = mount(SeoPanel, { props: { uuid: 'e-1', locale: 'en', enabled: true } })
+    await openPanel(wrapper)
     await wrapper.find('[data-test="seo-title"]').setValue('')
     await wrapper.find('[data-test="seo-save"]').trigger('click')
     expect((saveMock.mock.calls[0][0] as { title: unknown }).title).toBeNull()
@@ -67,6 +77,7 @@ describe('SeoPanel', () => {
   it('a background refetch does not clobber unsaved edits (hydrate once per key)', async () => {
     seoData.value = { title: 'First', robots: 'index' }
     const wrapper = mount(SeoPanel, { props: { uuid: 'e-1', locale: 'en', enabled: true } })
+    await openPanel(wrapper)
     await wrapper.find('[data-test="seo-title"]').setValue('My edit')
     seoData.value = { title: 'Server changed', robots: 'index' } // simulate background refetch
     await wrapper.vm.$nextTick()

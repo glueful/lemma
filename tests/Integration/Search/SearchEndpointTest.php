@@ -65,9 +65,12 @@ final class SearchEndpointTest extends LemmaTestCase
         return Request::create('/v1/search', 'GET', $query, [], [], ['HTTP_ACCEPT' => 'application/json']);
     }
 
-    public function testSearchRouteIsRegistered(): void
+    public function testRouteAbsentByDefaultBecausePackIsOptIn(): void
     {
-        self::assertNotNull($this->findRoute('GET', '/v1/search'), '/v1/search must be registered');
+        // lemma-search is opt-in (not in the default config/extensions.php allow-list), so the
+        // route is NOT registered in the standard boot. Enablement wires it up — see
+        // SearchEnablementTest, which boots with the provider added.
+        self::assertNull($this->findRoute('GET', '/v1/search'), '/v1/search must be opt-in, not default');
     }
 
     public function testHappyPathMapsHitsToDataEnvelope(): void

@@ -8,10 +8,10 @@ use Glueful\Lemma\Contracts\Search\ContentReindexer;
 
 final class RecordingContentReindexer implements ContentReindexer
 {
-    /** @var list<array{entry: string, locale: string}> */
+    /** @var list<array{entry: string, locale: ?string}> */
     public array $requests = [];
 
-    public function reindexEntry(string $entryUuid, string $locale): void
+    public function reindexEntry(string $entryUuid, ?string $locale): void
     {
         $this->requests[] = [
             'entry' => $entryUuid,

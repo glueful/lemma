@@ -10,18 +10,26 @@ port — so a Postgres FTS backend could plug in later without touching anything
 
 ## Install & enable
 
-The pack ships as a path package. It is active only when its provider is listed in
-`config/extensions.php` **and** the `lemma.search` capability is not disabled in the host
-`lemma.capabilities` switchboard (capabilities are default-on once installed).
+Unlike Lemma's infra-free packs (seo, analytics, collections, importers), lemma-search is
+**opt-in, not bundled-on by default** — it needs a running Meilisearch, so a lean install ships it
+**off** (no search reindexer is bound, `/v1/search` is not registered). It is still fully
+discoverable: `php glueful extensions:list` shows it under **Available (off)** (`○`), and
+`php glueful extensions:info lemma-search` shows its details.
 
-```php
-// config/extensions.php
-'Glueful\Lemma\Search\LemmaSearchServiceProvider',
-```
+To add it to an existing app (it lives as a path package in this monorepo):
 
-Requires a reachable Meilisearch instance (configured via the `glueful/meilisearch` extension).
-When Meilisearch is missing or unhealthy, the endpoint fails closed (503) and live reindexing
-no-ops without ever breaking a publish.
+1. `composer require glueful/lemma-search`
+2. Ensure Meilisearch is reachable (configure the `glueful/meilisearch` extension).
+3. `php glueful extensions:enable lemma-search` — writes the provider into the
+   `config/extensions.php` allow-list and recompiles the extension cache (or add the FQCN
+   `Glueful\Lemma\Search\LemmaSearchServiceProvider` to that list by hand).
+4. `php glueful search:reindex` — backfill the index from published content.
+
+The pack registers **no migrations** (Meilisearch owns storage). Once enabled, the `lemma.search`
+capability is on; disable it without removing the extension by setting `'lemma.search' => false` in
+`config/lemma.php`'s `capabilities` switchboard (routes then `404` and the reindexer resolves to a
+no-op). When Meilisearch is missing or unhealthy, the endpoint fails closed (503) and live
+reindexing no-ops without ever breaking a publish.
 
 ## Endpoint
 

@@ -8,6 +8,7 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Analytics\Facts\ActorHasher;
+use Glueful\Lemma\Analytics\Facts\AnalyticsRecorder;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Psr\Container\ContainerInterface;
@@ -21,6 +22,11 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
             ActorHasher::class => [
                 'shared'  => true,
                 'factory' => [self::class, 'makeActorHasher'],
+            ],
+            AnalyticsRecorder::class => [
+                'class'    => AnalyticsRecorder::class,
+                'shared'   => true,
+                'autowire' => true,
             ],
         ];
     }

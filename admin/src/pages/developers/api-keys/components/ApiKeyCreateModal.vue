@@ -165,7 +165,7 @@ async function submit() {
           variant="ghost"
           label="Cancel"
           :disabled="create.isLoading.value"
-          @click="open = false"
+          @click="() => { open = false }"
         />
         <UButton
           label="Create key"

@@ -240,7 +240,7 @@ async function onSave() {
             color="neutral"
             icon="i-lucide-signpost"
             aria-label="Manage routes by locale"
-            @click="showRoutes = true"
+            @click="() => { showRoutes = true }"
           />
           <BulkLocaleMenu
             v-if="multiLocale"
@@ -321,7 +321,7 @@ async function onSave() {
           variant="ghost"
           label="Cancel"
           :disabled="createLocale.isLoading.value"
-          @click="pendingLocale = ''"
+          @click="() => { pendingLocale = '' }"
         />
         <UButton
           icon="i-lucide-plus"
@@ -357,7 +357,7 @@ async function onSave() {
           variant="ghost"
           label="Cancel"
           :disabled="createLocale.isLoading.value"
-          @click="copySource = ''"
+          @click="() => { copySource = '' }"
         />
         <UButton
           icon="i-lucide-copy"

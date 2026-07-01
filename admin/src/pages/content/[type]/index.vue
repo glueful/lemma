@@ -157,7 +157,7 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
               size="xs"
               icon="i-lucide-trash-2"
               aria-label="Delete"
-              @click="pendingDelete = row.original"
+              @click="() => { pendingDelete = row.original }"
             />
           </div>
         </template>
@@ -196,7 +196,7 @@ function statusColor(s: string): 'success' | 'warning' | 'neutral' {
           variant="ghost"
           label="Cancel"
           :disabled="deleting"
-          @click="pendingDelete = null"
+          @click="() => { pendingDelete = null }"
         />
         <UButton
           color="error"

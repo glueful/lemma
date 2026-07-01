@@ -121,7 +121,7 @@ function fmtDate(v?: string | null): string {
   <div class="flex h-full min-h-0 w-full flex-col gap-3 lg:w-85 lg:shrink-0">
     <div class="flex items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-highlighted">Media Library</h2>
-      <UButton icon="i-lucide-plus" size="sm" class="rounded-xl px-3" @click="showUpload = true" />
+      <UButton icon="i-lucide-plus" size="sm" class="rounded-xl px-3" @click="() => { showUpload = true }" />
     </div>
 
     <UInput v-model="search" icon="i-lucide-search" placeholder="Search media…" />
@@ -135,7 +135,7 @@ function fmtDate(v?: string | null): string {
         class="rounded-lg"
         :color="type === f.value ? 'primary' : 'neutral'"
         :variant="type === f.value ? 'solid' : 'soft'"
-        @click="type = f.value"
+        @click="() => { type = f.value }"
       />
     </div>
 
@@ -193,7 +193,7 @@ function fmtDate(v?: string | null): string {
           variant="ghost"
           size="xs"
           :disabled="page <= 1"
-          @click="page--"
+          @click="() => { page-- }"
         />
         <UButton
           icon="i-lucide-chevron-right"
@@ -201,7 +201,7 @@ function fmtDate(v?: string | null): string {
           variant="ghost"
           size="xs"
           :disabled="page >= totalPages"
-          @click="page++"
+          @click="() => { page++ }"
         />
       </div>
     </div>
@@ -267,7 +267,7 @@ function fmtDate(v?: string | null): string {
             variant="ghost"
             label="Cancel"
             :disabled="uploading"
-            @click="showUpload = false"
+            @click="() => { showUpload = false }"
           />
           <UButton
             :label="fileCount ? `Upload ${fileCount} file${fileCount === 1 ? '' : 's'}` : 'Upload'"

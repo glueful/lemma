@@ -45,6 +45,7 @@ final class SeedLemmaRolesAndPermissions implements MigrationInterface
             // own migration; this grants them to administrator. Aegis seeds the role before this runs.
             'collections.manage', 'collections.schema.manage', 'collections.data.manage',
             'analytics.read',
+            'seo.manage',
         ],
     ];
 

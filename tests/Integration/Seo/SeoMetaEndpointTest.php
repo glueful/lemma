@@ -21,4 +21,15 @@ final class SeoMetaEndpointTest extends LemmaTestCase
             ->query("SELECT to_regclass('public.seo_meta')")->fetchColumn();
         self::assertNotNull($table, 'seo_meta table exists after migrations');
     }
+
+    public function testAdministratorIsGrantedSeoManage(): void
+    {
+        $granted = $this->connection()->getPDO()->query(
+            "SELECT COUNT(*) FROM role_permissions rp
+               JOIN roles r ON r.uuid = rp.role_uuid
+               JOIN permissions p ON p.uuid = rp.permission_uuid
+              WHERE r.slug = 'administrator' AND p.slug = 'seo.manage'"
+        )->fetchColumn();
+        self::assertSame(1, (int) $granted, 'administrator holds seo.manage');
+    }
 }

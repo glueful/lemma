@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c82d9aa1b01be417a0fe6306999e9389",
+    "content-hash": "811e9b38ee50ef31d63b08977b371db1",
     "packages": [
         {
             "name": "composer/semver",
@@ -910,6 +910,38 @@
                 "source": "https://github.com/glueful/import-export/tree/v1.1.1"
             },
             "time": "2026-06-16T07:05:28+00:00"
+        },
+        {
+            "name": "glueful/lemma-analytics",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-analytics",
+                "reference": "f18551ce711bb29c3e77dcccb93a73cf1bd873de"
+            },
+            "require": {
+                "glueful/framework": "^1.65.0",
+                "glueful/lemma-contracts": "*",
+                "php": "^8.3"
+            },
+            "type": "glueful-extension",
+            "extra": {
+                "glueful": {
+                    "provider": "Glueful\\Lemma\\Analytics\\LemmaAnalyticsServiceProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Analytics\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Product-analytics fact store for Lemma: consumes lifecycle events, owns its own facts, as a removable capability pack.",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "glueful/lemma-collections",

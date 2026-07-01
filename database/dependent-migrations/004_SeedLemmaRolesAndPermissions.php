@@ -44,6 +44,7 @@ final class SeedLemmaRolesAndPermissions implements MigrationInterface
             // Collections admin permissions: the rows are declared by the lemma-collections pack's
             // own migration; this grants them to administrator. Aegis seeds the role before this runs.
             'collections.manage', 'collections.schema.manage', 'collections.data.manage',
+            'analytics.read',
         ],
     ];
 

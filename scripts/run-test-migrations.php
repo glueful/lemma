@@ -102,6 +102,11 @@ $manager->addMigrationPath(
     'glueful/aegis'
 );
 $manager->addMigrationPath(
+    $root . '/packages/lemma-analytics/migrations',
+    MigrationPriority::DEPENDENT,
+    'lemma-analytics'
+);
+$manager->addMigrationPath(
     $root . '/packages/lemma-collections/migrations',
     MigrationPriority::DEPENDENT,
     'lemma-collections'

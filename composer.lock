@@ -917,7 +917,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/lemma-analytics",
-                "reference": "f18551ce711bb29c3e77dcccb93a73cf1bd873de"
+                "reference": "c4d60ba1b85921e76d9fc30877cc7e90d92d913d"
             },
             "require": {
                 "glueful/framework": "^1.65.0",
@@ -938,6 +938,12 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
+            ],
             "description": "Product-analytics fact store for Lemma: consumes lifecycle events, owns its own facts, as a removable capability pack.",
             "transport-options": {
                 "relative": true
@@ -949,7 +955,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/lemma-collections",
-                "reference": "21c99165d4f5ebfabea2648c83f5ad12d8644bb4"
+                "reference": "b4b55cc62d19609b84d5b8811f3f46d7343b4d6e"
             },
             "require": {
                 "glueful/framework": "^1.64.0",
@@ -970,6 +976,12 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
+            ],
             "description": "Developer-defined data collections with a public CRUD/query API, as a removable Lemma capability pack.",
             "transport-options": {
                 "relative": true
@@ -981,7 +993,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/lemma-contracts",
-                "reference": "3b2173c410e2e90953967b6b8054e9c6761ac312"
+                "reference": "9ae9bdda37ef2b4ee9738e923de6cd01d02856cd"
             },
             "require": {
                 "php": "^8.3"
@@ -995,6 +1007,12 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
+            ],
             "description": "Thin, stable contracts (interfaces, DTOs, events, VOs) that Lemma capability packs compile against.",
             "transport-options": {
                 "relative": true
@@ -1006,7 +1024,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/lemma-importers",
-                "reference": "2bc62ed439d73d03daef3dc98dd22eaf0d3c035e"
+                "reference": "c34d55fe691efa736cd388adbc8a5f83dbf5190b"
             },
             "require": {
                 "glueful/aegis": "^1.13.1",
@@ -1030,6 +1048,12 @@
             },
             "license": [
                 "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
             ],
             "description": "Lemma content format importers (CSV / Markdown / WordPress) as a removable capability pack.",
             "transport-options": {

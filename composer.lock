@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "811e9b38ee50ef31d63b08977b371db1",
+    "content-hash": "2525a51b2a603af2f6d19308c815619f",
     "packages": [
         {
             "name": "composer/semver",
@@ -1056,6 +1056,44 @@
                 }
             ],
             "description": "Lemma content format importers (CSV / Markdown / WordPress) as a removable capability pack.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "glueful/lemma-seo",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-seo",
+                "reference": "542c57e4250cdf8bc6474b2712e5dc00693d8b5b"
+            },
+            "require": {
+                "glueful/framework": "^1.65.0",
+                "glueful/lemma-contracts": "*",
+                "php": "^8.3"
+            },
+            "type": "glueful-extension",
+            "extra": {
+                "glueful": {
+                    "provider": "Glueful\\Lemma\\Seo\\LemmaSeoServiceProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Seo\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
+            ],
+            "description": "SEO for Lemma: sitemaps, per-entry meta, and robots.txt as a removable capability pack.",
             "transport-options": {
                 "relative": true
             }

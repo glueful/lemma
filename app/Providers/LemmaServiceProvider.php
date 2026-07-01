@@ -882,9 +882,14 @@ final class LemmaServiceProvider extends ServiceProvider
             $listeners[CollectionDropped::class] = [CollectionAuditListener::class, AnalyticsBridgeListener::class];
         }
 
-        // Content entry events → analytics facts. The bridge listener is always registered (the
-        // capability guard lives inside AnalyticsRecorder's best-effort try/catch); adding it here
-        // means analytics facts appear for any entry lifecycle event when the pack is installed.
+        // Content entry events → analytics facts. Like the audit/collection bridge above, the analytics
+        // bridge is INSTALLED-gated (an App-side listener registered whenever the pack is present), NOT
+        // gated on the lemma.analytics capability being enabled — there is no capability check inside
+        // AnalyticsRecorder. A disabled-but-installed pack therefore still records content + collection
+        // facts (ingestion continuity, mirroring the audit bridge); the capability's enabled gate covers
+        // only the pack's own auth listeners and the read API/routes. If disabling should instead
+        // hard-stop all ingestion (a strict reading of spec §7), gate this registration + the collection
+        // block above on isEnabled('lemma.analytics').
         $listeners[EntryCreated::class][]    = AnalyticsBridgeListener::class;
         $listeners[EntryUpdated::class][]    = AnalyticsBridgeListener::class;
         $listeners[EntryDeleted::class][]    = AnalyticsBridgeListener::class;

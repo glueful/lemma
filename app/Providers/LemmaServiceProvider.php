@@ -59,6 +59,7 @@ use App\Content\Http\RequireLemmaPermission;
 use App\Content\Localization\ContentLocaleService;
 use App\Content\Events\AssetAttached;
 use App\Content\Events\AssetDetached;
+use App\Analytics\AnalyticsBridgeListener;
 use App\Collections\Audit\CollectionAuditListener;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
@@ -422,6 +423,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             CollectionAuditListener::class => [
                 'class' => CollectionAuditListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            AnalyticsBridgeListener::class => [
+                'class' => AnalyticsBridgeListener::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -861,19 +867,29 @@ final class LemmaServiceProvider extends ServiceProvider
             AssetDetached::class => [DispatchWebhookListener::class, MediaUsageProjector::class],
         ];
 
-        // Collection row CRUD → audit log. Gated on the pack being INSTALLED (class_exists), not on
-        // the capability being enabled: removing the pack drops this wiring cleanly with no dangling
-        // reference, while a disabled-but-installed pack still audits any programmatic row mutation.
-        // The pack emits pure CollectionRow* (data) and Collection* (schema) events;
-        // CollectionAuditListener bridges each to an AuditableEvent the Audit extension records.
+        // Collection row CRUD → audit log + analytics facts. Gated on the pack being INSTALLED
+        // (class_exists), not on the capability being enabled: removing the pack drops this wiring
+        // cleanly with no dangling reference, while a disabled-but-installed pack still audits any
+        // programmatic row mutation. The pack emits pure CollectionRow* (data) and Collection*
+        // (schema) events; CollectionAuditListener bridges each to an AuditableEvent the Audit
+        // extension records; AnalyticsBridgeListener maps each to an AnalyticsFact.
         if (class_exists(CollectionRowCreated::class)) {
-            $listeners[CollectionRowCreated::class] = [CollectionAuditListener::class];
-            $listeners[CollectionRowUpdated::class] = [CollectionAuditListener::class];
-            $listeners[CollectionRowDeleted::class] = [CollectionAuditListener::class];
-            $listeners[CollectionCreated::class] = [CollectionAuditListener::class];
-            $listeners[CollectionUpdated::class] = [CollectionAuditListener::class];
-            $listeners[CollectionDropped::class] = [CollectionAuditListener::class];
+            $listeners[CollectionRowCreated::class] = [CollectionAuditListener::class, AnalyticsBridgeListener::class];
+            $listeners[CollectionRowUpdated::class] = [CollectionAuditListener::class, AnalyticsBridgeListener::class];
+            $listeners[CollectionRowDeleted::class] = [CollectionAuditListener::class, AnalyticsBridgeListener::class];
+            $listeners[CollectionCreated::class] = [CollectionAuditListener::class, AnalyticsBridgeListener::class];
+            $listeners[CollectionUpdated::class] = [CollectionAuditListener::class, AnalyticsBridgeListener::class];
+            $listeners[CollectionDropped::class] = [CollectionAuditListener::class, AnalyticsBridgeListener::class];
         }
+
+        // Content entry events → analytics facts. The bridge listener is always registered (the
+        // capability guard lives inside AnalyticsRecorder's best-effort try/catch); adding it here
+        // means analytics facts appear for any entry lifecycle event when the pack is installed.
+        $listeners[EntryCreated::class][]    = AnalyticsBridgeListener::class;
+        $listeners[EntryUpdated::class][]    = AnalyticsBridgeListener::class;
+        $listeners[EntryDeleted::class][]    = AnalyticsBridgeListener::class;
+        $listeners[EntryPublished::class][]  = AnalyticsBridgeListener::class;
+        $listeners[EntryUnpublished::class][] = AnalyticsBridgeListener::class;
 
         foreach ($listeners as $eventClass => $serviceIds) {
             foreach ($serviceIds as $serviceId) {

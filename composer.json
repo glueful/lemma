@@ -16,6 +16,7 @@
     { "type": "path", "url": "packages/lemma-collections" },
     { "type": "path", "url": "packages/lemma-contracts" },
     { "type": "path", "url": "packages/lemma-importers" },
+    { "type": "path", "url": "packages/lemma-search" },
     { "type": "path", "url": "packages/lemma-seo" }
   ],
   "require": {
@@ -30,6 +31,7 @@
     "glueful/lemma-collections": "*",
     "glueful/lemma-contracts": "*",
     "glueful/lemma-importers": "*",
+    "glueful/lemma-search": "*",
     "glueful/lemma-seo": "*",
     "glueful/media": "^1.1.0",
     "glueful/meilisearch": "^1.6",

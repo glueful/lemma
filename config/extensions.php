@@ -28,6 +28,7 @@ return [
         'Glueful\Lemma\Analytics\LemmaAnalyticsServiceProvider',
         'Glueful\Lemma\Collections\LemmaCollectionsServiceProvider',
         'Glueful\Lemma\Importers\LemmaImportersServiceProvider',
+        'Glueful\Lemma\Search\LemmaSearchServiceProvider',
         'Glueful\Lemma\Seo\LemmaSeoServiceProvider',
     ],
 ];

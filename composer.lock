@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "623b4c8650b5d8e8e9922cb46701ad82",
+    "content-hash": "f0ab81d7fb76e4a7be5479b02eb0dbe3",
     "packages": [
         {
             "name": "composer/semver",
@@ -1056,6 +1056,45 @@
                 }
             ],
             "description": "Lemma content format importers (CSV / Markdown / WordPress) as a removable capability pack.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "glueful/lemma-search",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-search",
+                "reference": "2e6079c039e58c52b4382e2aa01e1fd4a7e0804d"
+            },
+            "require": {
+                "glueful/framework": "^1.65.0",
+                "glueful/lemma-contracts": "*",
+                "glueful/meilisearch": "*",
+                "php": "^8.3"
+            },
+            "type": "glueful-extension",
+            "extra": {
+                "glueful": {
+                    "provider": "Glueful\\Lemma\\Search\\LemmaSearchServiceProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Search\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
+            ],
+            "description": "Search for Lemma: a public, delivery-parity content search API backed by Meilisearch, as a removable capability pack.",
             "transport-options": {
                 "relative": true
             }

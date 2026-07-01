@@ -14,6 +14,7 @@ use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Analytics\Facts\ActorHasher;
 use Glueful\Lemma\Analytics\Facts\AnalyticsRecorder;
 use Glueful\Lemma\Analytics\Listeners\AuthAnalyticsListener;
+use Glueful\Lemma\Analytics\Query\AnalyticsQuery;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Psr\Container\ContainerInterface;
@@ -35,6 +36,11 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
             ],
             AuthAnalyticsListener::class => [
                 'class'    => AuthAnalyticsListener::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            AnalyticsQuery::class => [
+                'class'    => AnalyticsQuery::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

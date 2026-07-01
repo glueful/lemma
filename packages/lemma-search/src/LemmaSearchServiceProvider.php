@@ -11,6 +11,8 @@ use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
 use Glueful\Lemma\Contracts\Search\ContentReindexer;
 use Glueful\Lemma\Contracts\Search\IndexableContentReader;
+use Glueful\Lemma\Search\Console\ReindexCommand;
+use Glueful\Lemma\Search\Console\StatusCommand;
 use Glueful\Lemma\Search\Engine\LiveMeilisearchIndex;
 use Glueful\Lemma\Search\Engine\MeilisearchBackend;
 use Glueful\Lemma\Search\Engine\SearchBackend;
@@ -46,6 +48,12 @@ final class LemmaSearchServiceProvider extends ServiceProvider
             ],
             SearchController::class => [
                 'shared' => true, 'factory' => [self::class, 'makeSearchController'],
+            ],
+            ReindexCommand::class => [
+                'class' => ReindexCommand::class, 'shared' => true, 'autowire' => true,
+            ],
+            StatusCommand::class => [
+                'class' => StatusCommand::class, 'shared' => true, 'autowire' => true,
             ],
         ];
     }
@@ -120,6 +128,11 @@ final class LemmaSearchServiceProvider extends ServiceProvider
 
         if ($registry->isEnabled('lemma.search')) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/public-routes.php');
+
+            $this->commands([
+                ReindexCommand::class,
+                StatusCommand::class,
+            ]);
         }
     }
 }

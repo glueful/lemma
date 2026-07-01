@@ -32,6 +32,7 @@
     "glueful/lemma-importers": "*",
     "glueful/lemma-seo": "*",
     "glueful/media": "^1.1.0",
+    "glueful/meilisearch": "^1.6",
     "glueful/users": "^2.3.1",
     "league/commonmark": "^2.8",
     "symfony/brevo-mailer": "^8.1"

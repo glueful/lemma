@@ -77,17 +77,18 @@ async function onSave() {
 </script>
 
 <template>
-  <UCard :ui="{ root: 'ring-0' }" data-test="seo-panel">
-    <UCollapsible :default-open="true" class="w-full">
+  <UCard :ui="{ body: 'p-0' }" data-test="seo-panel">
+    <UCollapsible class="w-full">
       <UButton
-        class="w-full justify-between"
+        class="w-full justify-between p-0"
         color="neutral"
-        variant="ghost"
+        variant="link"
         label="SEO"
         trailing-icon="i-lucide-chevron-down"
         :ui="{ trailingIcon: 'group-data-[state=open]:rotate-180 transition-transform' }"
       />
       <template #content>
+        <USeparator  class="mt-4"/>
         <div class="space-y-4 pt-4">
           <UFormField label="Title">
             <UInput v-model="form.title" data-test="seo-title" class="w-full" />

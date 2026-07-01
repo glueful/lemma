@@ -268,9 +268,8 @@ final class LemmaServiceProvider extends ServiceProvider
                 'autowire' => true,
             ],
             ContentDeliveryReader::class => [
-                'class'    => EngineContentDeliveryReader::class,
-                'shared'   => true,
-                'autowire' => true,
+                'factory' => [self::class, 'makeContentDeliveryReader'],
+                'shared'  => true,
             ],
             LemmaContext::class => [
                 'class'    => EngineLemmaContext::class,
@@ -727,6 +726,16 @@ final class LemmaServiceProvider extends ServiceProvider
                 ? null
                 : (string) config($context, 'lemma.seo.public_url_base'),
             (string) config($context, 'i18n.default_locale', 'en')
+        );
+    }
+
+    public static function makeContentDeliveryReader(ContainerInterface $container): EngineContentDeliveryReader
+    {
+        return new EngineContentDeliveryReader(
+            $container->get(DeliveryRepository::class),
+            $container->get(PathRenderer::class),
+            $container->get(CanonicalProjector::class),
+            $container->get(ContentTypeRepository::class),
         );
     }
 

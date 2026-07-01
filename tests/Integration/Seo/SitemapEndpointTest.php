@@ -8,6 +8,7 @@ use App\Tests\Integration\Seo\Concerns\SeedsPublishedContent;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
 use Glueful\Lemma\Seo\Cache\SitemapCache;
+use Glueful\Lemma\Seo\Http\Controllers\RobotsController;
 use Glueful\Lemma\Seo\Http\Controllers\SitemapController;
 use Glueful\Lemma\Seo\Sitemap\SitemapBuilder;
 use Symfony\Component\HttpFoundation\Request;
@@ -45,5 +46,21 @@ final class SitemapEndpointTest extends LemmaTestCase
     {
         self::assertNotNull($this->findRoute('GET', '/sitemap.xml'), '/sitemap.xml must be registered');
         self::assertNotNull($this->findRoute('GET', '/sitemap/{n}.xml'), 'page route must be registered');
+    }
+
+    public function testRobotsServesGroupsAndSitemapLine(): void
+    {
+        $resp = $this->container()->get(RobotsController::class)->show();
+
+        self::assertSame(200, $resp->getStatusCode());
+        self::assertSame('text/plain; charset=UTF-8', $resp->headers->get('Content-Type'));
+        $body = (string) $resp->getContent();
+        self::assertStringContainsString('User-agent: *', $body);
+        self::assertStringContainsString('Sitemap: https://site.test/sitemap.xml', $body);
+    }
+
+    public function testRobotsRouteIsRegistered(): void
+    {
+        self::assertNotNull($this->findRoute('GET', '/robots.txt'), '/robots.txt must be registered');
     }
 }

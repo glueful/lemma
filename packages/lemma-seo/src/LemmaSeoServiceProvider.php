@@ -15,9 +15,11 @@ use Glueful\Lemma\Seo\Cache\FrameworkSitemapCache;
 use Glueful\Lemma\Seo\Cache\SitemapCache;
 use Glueful\Lemma\Seo\Http\Controllers\AdminSeoMetaController;
 use Glueful\Lemma\Seo\Http\Controllers\SeoMetaController;
+use Glueful\Lemma\Seo\Http\Controllers\RobotsController;
 use Glueful\Lemma\Seo\Http\Controllers\SitemapController;
 use Glueful\Lemma\Seo\Meta\SeoMetaRepository;
 use Glueful\Lemma\Seo\Meta\SeoMetaResolver;
+use Glueful\Lemma\Seo\Sitemap\RobotsBuilder;
 use Glueful\Lemma\Seo\Sitemap\SitemapBuilder;
 use Psr\Container\ContainerInterface;
 
@@ -48,7 +50,22 @@ final class LemmaSeoServiceProvider extends ServiceProvider
             SitemapController::class => [
                 'class' => SitemapController::class, 'shared' => true, 'autowire' => true,
             ],
+            RobotsBuilder::class => [
+                'shared' => true, 'factory' => [self::class, 'makeRobotsBuilder'],
+            ],
+            RobotsController::class => [
+                'class' => RobotsController::class, 'shared' => true, 'autowire' => true,
+            ],
         ];
+    }
+
+    public static function makeRobotsBuilder(ContainerInterface $container): RobotsBuilder
+    {
+        $context = $container->get(ApplicationContext::class);
+        return new RobotsBuilder(
+            (array) config($context, 'lemma_seo.robots', []),
+            (string) config($context, 'lemma.seo.public_url_base', ''),
+        );
     }
 
     public static function makeSitemapCache(ContainerInterface $container): SitemapCache

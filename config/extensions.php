@@ -23,10 +23,12 @@ return [
         'Glueful\Extensions\I18n\I18nServiceProvider',
         'Glueful\Extensions\ImportExport\ImportExportServiceProvider',
         'Glueful\Extensions\Media\MediaServiceProvider',
+        'Glueful\Extensions\Meilisearch\MeilisearchProvider',
         'Glueful\Extensions\Users\UsersServiceProvider',
         'Glueful\Lemma\Analytics\LemmaAnalyticsServiceProvider',
         'Glueful\Lemma\Collections\LemmaCollectionsServiceProvider',
         'Glueful\Lemma\Importers\LemmaImportersServiceProvider',
         'Glueful\Lemma\Seo\LemmaSeoServiceProvider',
+    
     ],
 ];

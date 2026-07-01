@@ -152,7 +152,7 @@ watch(open, (v) => {
           variant="ghost"
           label="Cancel"
           :disabled="submitting"
-          @click="open = false"
+          @click="() => { open = false }"
         />
         <UButton
           icon="i-lucide-upload"

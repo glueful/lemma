@@ -102,7 +102,7 @@ async function onSubmit(e: FormSubmitEvent<Schema>) {
                 variant="link"
                 size="xs"
                 aria-label="Toggle password visibility"
-                @click="reveal = !reveal"
+                @click="() => { reveal = !reveal }"
               />
               <UButton
                 icon="i-lucide-refresh-cw"
@@ -137,7 +137,7 @@ async function onSubmit(e: FormSubmitEvent<Schema>) {
     </template>
     <template #footer>
       <div class="flex w-full justify-end gap-2">
-        <UButton color="neutral" variant="ghost" @click="open = false">Cancel</UButton>
+        <UButton color="neutral" variant="ghost" @click="() => { open = false }">Cancel</UButton>
         <UButton type="submit" form="user-create" :loading="create.isLoading.value">
           Create User
         </UButton>

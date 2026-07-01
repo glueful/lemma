@@ -75,7 +75,7 @@ async function onCreate() {
     <template #header>
       <UDashboardNavbar title="Redirects">
         <template #right>
-          <UButton icon="i-lucide-plus" @click="showAdd = true">Add redirect</UButton>
+          <UButton icon="i-lucide-plus" @click="() => { showAdd = true }">Add redirect</UButton>
         </template>
       </UDashboardNavbar>
     </template>
@@ -122,12 +122,13 @@ async function onCreate() {
 
         <template #empty>
           <UEmpty
+            variant="naked"
             icon="i-lucide-signpost"
             title="No redirects"
             description="Add a redirect to forward an old slug to a new target."
           >
             <template #actions>
-              <UButton icon="i-lucide-plus" @click="showAdd = true">Add redirect</UButton>
+              <UButton icon="i-lucide-plus" @click="() => { showAdd = true }">Add redirect</UButton>
             </template>
           </UEmpty>
         </template>
@@ -160,7 +161,7 @@ async function onCreate() {
 
     <template #footer>
       <div class="flex justify-end gap-2 w-full">
-        <UButton color="neutral" variant="ghost" @click="showAdd = false">Cancel</UButton>
+        <UButton color="neutral" variant="ghost" @click="() => { showAdd = false }">Cancel</UButton>
         <UButton
           :loading="create.isLoading.value"
           :disabled="form.type === '' || form.source_slug === '' || form.url === ''"

@@ -1,0 +1,109 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Unit\Search;
+
+use Glueful\Lemma\Contracts\Schema\ContentSchemaReader;
+use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
+use Glueful\Lemma\Contracts\Schema\FieldDescriptor;
+use Glueful\Lemma\Contracts\Search\IndexableContent;
+use Glueful\Lemma\Contracts\Search\IndexableContentReader;
+use Glueful\Lemma\Contracts\Search\IndexablePage;
+use Glueful\Lemma\Search\Console\ReindexCommand;
+use Glueful\Lemma\Search\Engine\SearchBackend;
+use Glueful\Lemma\Search\Index\DocumentBuilder;
+use Glueful\Lemma\Search\Query\SearchRequest;
+use Glueful\Lemma\Search\Query\SearchResults;
+use PHPUnit\Framework\TestCase;
+
+final class ReindexCommandTest extends TestCase
+{
+    public function testBackfillEnsuresIndexPagesAndUpsertsAllRecords(): void
+    {
+        $records = [
+            new IndexableContent('e-1', 'en', 'ct-1', 'blog', true, '/en/blog/a', 'a', ['title' => 'A']),
+            new IndexableContent('e-2', 'en', 'ct-1', 'blog', true, '/en/blog/b', 'b', ['title' => 'B']),
+            new IndexableContent('e-3', 'en', 'ct-1', 'blog', true, '/en/blog/c', 'c', ['title' => 'C']),
+        ];
+
+        // Reader pages the records (limit/offset); total 3.
+        $reader = new class ($records) implements IndexableContentReader {
+            /** @param list<IndexableContent> $records */
+            public function __construct(private array $records)
+            {
+            }
+            public function getIndexablePublished(string $e, string $l): ?IndexableContent
+            {
+                return null;
+            }
+            public function enumerateIndexablePublished(
+                int $limit,
+                int $offset = 0,
+                ?string $t = null,
+                ?string $l = null
+            ): IndexablePage {
+                $slice = array_slice($this->records, $offset, $limit);
+                return new IndexablePage(array_values($slice), count($this->records), $limit, $offset);
+            }
+        };
+
+        $backend = new class implements SearchBackend {
+            public bool $ensured = false;
+            /** @var list<array<string,mixed>> */
+            public array $upserted = [];
+            public function ensureIndex(): void
+            {
+                $this->ensured = true;
+            }
+            public function upsert(iterable $documents): void
+            {
+                foreach ($documents as $d) {
+                    $this->upserted[] = $d;
+                }
+            }
+            public function deleteEntry(string $e, ?string $l = null): void
+            {
+            }
+            public function search(SearchRequest $r): SearchResults
+            {
+                return new SearchResults([], 0, 20, 0);
+            }
+            public function health(): bool
+            {
+                return true;
+            }
+        };
+
+        $types = new class implements ContentTypeReader {
+            public function findUuidBySlug(string $slug): ?string
+            {
+                return 'ct-1';
+            }
+            public function isPublicDelivery(string $uuid): bool
+            {
+                return true;
+            }
+            public function schemaFor(string $uuid): ?ContentSchemaReader
+            {
+                return new class implements ContentSchemaReader {
+                    public function fields(): array
+                    {
+                        return [];
+                    }
+                    public function field(string $name): ?FieldDescriptor
+                    {
+                        return null;
+                    }
+                };
+            }
+        };
+
+        $cmd = new ReindexCommand($reader, new DocumentBuilder([]), $backend, $types);
+        $count = $cmd->backfill(type: null, locale: null, pageSize: 2);
+
+        self::assertTrue($backend->ensured);
+        self::assertSame(3, $count);
+        self::assertCount(3, $backend->upserted);
+    }
+}

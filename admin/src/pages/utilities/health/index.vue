@@ -26,7 +26,7 @@ function fmtTime(v?: string | null): string {
             color="neutral"
             variant="ghost"
             :loading="isLoading"
-            @click="refresh()"
+            @click="() => { refresh() }"
           >
             Refresh
           </UButton>

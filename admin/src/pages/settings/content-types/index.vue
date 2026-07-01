@@ -98,13 +98,14 @@ async function confirmDelete() {
               size="xs"
               icon="i-lucide-trash-2"
               aria-label="Delete"
-              @click="pendingDelete = row.original"
+              @click="() => { pendingDelete = row.original }"
             />
           </div>
         </template>
 
         <template #empty>
           <UEmpty
+            variant="naked"
             icon="i-lucide-shapes"
             title="No content types"
             description="Create your first content type to start authoring."
@@ -143,7 +144,7 @@ async function confirmDelete() {
           variant="ghost"
           label="Cancel"
           :disabled="remove.isLoading.value"
-          @click="pendingDelete = null"
+          @click="() => { pendingDelete = null }"
         />
         <UButton
           color="error"

@@ -11,6 +11,8 @@ import FieldEditor from '@/components/FieldEditor.vue'
 import { ApiError } from '@/api/errors'
 import { useNotify } from '@/composables/useNotify'
 import PublishPanel from './components/PublishPanel.vue'
+import SeoPanel from './components/SeoPanel.vue'
+import { useCapabilitiesStore } from '@/stores/capabilities'
 import LocaleSwitcher from './components/LocaleSwitcher.vue'
 import LocaleRoutesModal from './components/LocaleRoutesModal.vue'
 import BulkLocaleMenu from './components/BulkLocaleMenu.vue'
@@ -20,6 +22,9 @@ definePage({ meta: { requiresAuth: true } })
 const route = useRoute()
 const type = computed(() => String(route.params.type))
 const uuid = computed(() => String(route.params.uuid))
+
+const caps = useCapabilitiesStore()
+const seoEnabled = computed(() => caps.isEnabled('lemma.seo'))
 
 const { success, warning, error: notifyError } = useNotify()
 
@@ -240,7 +245,7 @@ async function onSave() {
             color="neutral"
             icon="i-lucide-signpost"
             aria-label="Manage routes by locale"
-            @click="showRoutes = true"
+            @click="() => { showRoutes = true }"
           />
           <BulkLocaleMenu
             v-if="multiLocale"
@@ -284,6 +289,14 @@ async function onSave() {
              Keyed by locale so the panel re-seeds its slug/publish state on a locale switch. -->
         <div class="lg:min-h-0 lg:w-96 lg:shrink-0 lg:overflow-y-auto lg:p-1">
           <PublishPanel :key="`${uuid}-${locale}`" :uuid="uuid" :locale="locale" :type="type" />
+          <SeoPanel
+            v-if="seoEnabled"
+            :key="`seo-${uuid}-${locale}`"
+            class="mt-6"
+            :uuid="uuid"
+            :locale="locale"
+            :enabled="seoEnabled"
+          />
         </div>
       </div>
     </template>
@@ -321,7 +334,7 @@ async function onSave() {
           variant="ghost"
           label="Cancel"
           :disabled="createLocale.isLoading.value"
-          @click="pendingLocale = ''"
+          @click="() => { pendingLocale = '' }"
         />
         <UButton
           icon="i-lucide-plus"
@@ -357,7 +370,7 @@ async function onSave() {
           variant="ghost"
           label="Cancel"
           :disabled="createLocale.isLoading.value"
-          @click="copySource = ''"
+          @click="() => { copySource = '' }"
         />
         <UButton
           icon="i-lucide-copy"

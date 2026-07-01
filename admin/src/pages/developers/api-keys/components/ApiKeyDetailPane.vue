@@ -134,7 +134,7 @@ async function confirmRevoke() {
         variant="outline"
         block
         :disabled="item.status === 'revoked'"
-        @click="((graceHours = 24), (showRotate = true))"
+        @click="() => { graceHours = 24; showRotate = true }"
       />
       <UButton
         label="Revoke key"
@@ -143,7 +143,7 @@ async function confirmRevoke() {
         variant="soft"
         block
         :disabled="item.status === 'revoked'"
-        @click="pendingRevoke = true"
+        @click="() => { pendingRevoke = true }"
       />
     </div>
 
@@ -193,7 +193,7 @@ async function confirmRevoke() {
             variant="ghost"
             label="Cancel"
             :disabled="rotate.isLoading.value"
-            @click="showRotate = false"
+            @click="() => { showRotate = false }"
           />
           <UButton
             label="Rotate"
@@ -220,7 +220,7 @@ async function confirmRevoke() {
             variant="ghost"
             label="Cancel"
             :disabled="revoke.isLoading.value"
-            @click="pendingRevoke = false"
+            @click="() => { pendingRevoke = false }"
           />
           <UButton
             color="error"

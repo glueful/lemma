@@ -87,6 +87,7 @@ use App\Content\Services\MigrationService;
 use App\Content\Authoring\EngineContentWriter;
 use App\Content\Context\EngineLemmaContext;
 use App\Content\Delivery\EngineContentDeliveryReader;
+use App\Content\Delivery\EngineIndexableContentReader;
 use App\Content\Schema\FieldTypes\DefaultFieldTypeRegistry;
 use App\Content\Schema\FieldTypes\EditorialFieldTypes;
 use App\Content\Services\PublishService;
@@ -97,6 +98,7 @@ use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Context\LemmaContext;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
 use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
+use Glueful\Lemma\Contracts\Search\IndexableContentReader;
 use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
 use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
@@ -269,6 +271,10 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             ContentDeliveryReader::class => [
                 'factory' => [self::class, 'makeContentDeliveryReader'],
+                'shared'  => true,
+            ],
+            IndexableContentReader::class => [
+                'factory' => [self::class, 'makeIndexableContentReader'],
                 'shared'  => true,
             ],
             LemmaContext::class => [
@@ -736,6 +742,16 @@ final class LemmaServiceProvider extends ServiceProvider
             $container->get(PathRenderer::class),
             $container->get(CanonicalProjector::class),
             $container->get(ContentTypeRepository::class),
+        );
+    }
+
+    public static function makeIndexableContentReader(ContainerInterface $container): EngineIndexableContentReader
+    {
+        return new EngineIndexableContentReader(
+            $container->get(DeliveryRepository::class),
+            $container->get(ContentTypeRepository::class),
+            $container->get(RouteRepository::class),
+            $container->get(PathRenderer::class),
         );
     }
 

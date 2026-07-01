@@ -529,7 +529,7 @@ function fmtTime(v?: string | null): string {
                   variant="ghost"
                   size="xs"
                   icon="i-lucide-triangle-alert"
-                  @click="errorsJob = job"
+                  @click="() => { errorsJob = job }"
                 />
                 <UButton
                   v-if="job.type === 'export' && job.status === 'completed'"

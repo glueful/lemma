@@ -9,6 +9,7 @@ export const qk = {
   entry: (uuid: string) => ['entry', uuid] as const,
   draft: (uuid: string, locale: string) => ['draft', uuid, locale] as const,
   routes: (uuid: string) => ['routes', uuid] as const,
+  seoMeta: (uuid: string, locale: string) => ['seo-meta', uuid, locale] as const,
   schedules: (uuid: string) => ['schedules', uuid] as const,
   versions: (uuid: string) => ['versions', uuid] as const,
   redirects: (type: string) => ['redirects', type] as const,

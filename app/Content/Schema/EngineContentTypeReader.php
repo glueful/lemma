@@ -25,4 +25,10 @@ final class EngineContentTypeReader implements ContentTypeReader
         $row = $this->types->findByUuid($uuid);
         return $row === null ? null : ContentTypeSchema::fromArray($row['schema']);
     }
+
+    public function isPublicDelivery(string $uuid): bool
+    {
+        $row = $this->types->findByUuid($uuid);
+        return $row !== null && (bool) ($row['public_delivery'] ?? false);
+    }
 }

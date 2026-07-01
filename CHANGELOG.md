@@ -18,6 +18,29 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 
 ### Added
 
+#### Content Search (`/v1/search`) — `glueful/lemma-search`
+- Public, delivery-parity **content search** over published content, backed by Meilisearch via the
+  `glueful/meilisearch` extension. `GET /v1/search?q=&locale=&type=&limit=&offset=` returns ranked
+  hits with `<mark>`-highlighted, HTML-escaped snippets (payload under the standard `data`
+  envelope).
+- **Delivery-parity visibility**, enforced inside the Meilisearch filter (so `total`/pagination
+  stay correct): `read:content` ⇒ all types, `read:content:{slug}` ⇒ those types, anonymous ⇒
+  `public_delivery` types only. `type` omitted → inaccessible types silently excluded; `type`
+  provided but inaccessible → 403; unknown `type` → 404.
+- Live index maintenance through Lemma's existing `ContentReindexer` seam (identity-only,
+  after-commit, wrapped so a search-backend failure logs and never breaks a publish); a whole-entry
+  delete (`locale = null`) purges every locale document.
+- Engine-neutral `SearchBackend` port with a single Meilisearch-confined adapter
+  (`LiveMeilisearchIndex`), a `DocumentBuilder` (index string/text fields by convention, with a
+  per-type `title_field`/`body_fields`/`exclude_fields`/`weights` override), and operator commands
+  `search:reindex` / `search:status`.
+- Fail-closed: Meilisearch missing/unhealthy ⇒ `/v1/search` returns 503. **Opt-in** capability
+  (`lemma.search`) — not enabled by default (it requires external Meilisearch); enable via
+  `extensions:enable lemma-search`. No migrations (Meilisearch owns storage).
+- Contract additions in `glueful/lemma-contracts`: `IndexableContentReader`
+  (`IndexableContent`/`IndexablePage`), `ContentTypeReader::isPublicDelivery()`, and
+  `ContentReindexer::reindexEntry()` locale widened to `?string` for whole-entry deletes.
+
 #### Data Collections (`/v1/collections`) — `glueful/lemma-collections`
 - Developer-defined **data collections**: a JSON collection definition drives runtime DDL to
   materialize a real per-collection table (`collection_<hash>`), PocketBase-style — not a shared

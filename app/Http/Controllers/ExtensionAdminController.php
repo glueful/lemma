@@ -216,7 +216,12 @@ final class ExtensionAdminController
             );
         }
 
-        $name = is_string($request->request->get('name')) ? trim((string) $request->request->get('name')) : '';
+        // Read `name` from the JSON body (the app convention — see ContentTypeController/
+        // MediaAdminController); fall back to a form-encoded field. Symfony leaves
+        // $request->request empty for an application/json body, so reading it alone yields ''.
+        $body = json_decode((string) $request->getContent(), true);
+        $raw = (is_array($body) ? ($body['name'] ?? null) : null) ?? $request->request->get('name');
+        $name = is_string($raw) ? trim($raw) : '';
         $candidate = (new PackageManifest($this->context))->getCandidates()[$name] ?? null;
         if ($candidate === null) {
             return Response::notFound("No installed extension named “{$name}”.");

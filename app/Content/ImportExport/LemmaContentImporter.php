@@ -9,6 +9,7 @@ use Glueful\Database\Connection;
 use Glueful\Extensions\ImportExport\Contracts\ImporterInterface;
 use Glueful\Extensions\ImportExport\Contracts\RetryableAdapterInterface;
 use Glueful\Extensions\ImportExport\Files\NdjsonReader;
+use Glueful\Helpers\Utils;
 use Glueful\Extensions\ImportExport\Support\ImportBatch;
 use Glueful\Extensions\ImportExport\Support\ImportBatchResult;
 use Glueful\Extensions\ImportExport\Support\ImportContext;
@@ -66,7 +67,7 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
         $batches = [];
         for ($offset = 0, $sequence = 1; $offset < $total; $offset += $batchSize, $sequence++) {
             $batches[] = new ImportBatch(
-                uuid: $this->batchUuid($sequence, $offset),
+                uuid: $this->batchUuid(),
                 jobUuid: 'pending',
                 sequence: $sequence,
                 offset: $offset,
@@ -267,8 +268,11 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
         return strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
     }
 
-    private function batchUuid(int $sequence, int $offset): string
+    private function batchUuid(): string
     {
-        return substr(hash('sha256', "lemma.content.import:{$sequence}:{$offset}"), 0, 12);
+        // Random, not derived from sequence/offset: import_export_batches.uuid is globally
+        // UNIQUE and rows outlive the job, so a deterministic uuid made the SECOND snapshot
+        // import collide on its first batch.
+        return Utils::generateNanoID(12);
     }
 }

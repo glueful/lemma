@@ -10,6 +10,7 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Extensions\ImportExport\Contracts\ExporterInterface;
 use Glueful\Extensions\ImportExport\Files\NdjsonWriter;
+use Glueful\Helpers\Utils;
 use Glueful\Extensions\ImportExport\Support\ExportBatch;
 use Glueful\Extensions\ImportExport\Support\ExportBatchResult;
 use Glueful\Extensions\ImportExport\Support\ExportContext;
@@ -51,7 +52,7 @@ final class LemmaContentExporter implements ExporterInterface
         $batches = [];
         for ($offset = 0, $sequence = 1; $offset < $total; $offset += $batchSize, $sequence++) {
             $batches[] = new ExportBatch(
-                uuid: $this->batchUuid($sequence, $offset),
+                uuid: $this->batchUuid(),
                 jobUuid: 'pending',
                 sequence: $sequence,
                 offset: $offset,
@@ -254,9 +255,12 @@ final class LemmaContentExporter implements ExporterInterface
         return $row;
     }
 
-    private function batchUuid(int $sequence, int $offset): string
+    private function batchUuid(): string
     {
-        return substr(hash('sha256', "lemma.content:{$sequence}:{$offset}"), 0, 12);
+        // Random, not derived from sequence/offset: import_export_batches.uuid is globally
+        // UNIQUE and rows outlive the job, so a deterministic uuid made the SECOND snapshot
+        // export collide on its first batch.
+        return Utils::generateNanoID(12);
     }
 
     private function resultPath(string $jobUuid, int $sequence): string

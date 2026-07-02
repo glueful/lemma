@@ -65,10 +65,26 @@ final class CsvContentImporter extends AbstractCsvImporter
         if ($mapping === []) {
             throw new \InvalidArgumentException('A column mapping is required.');
         }
-        if ($this->types->findUuidBySlug($slug) === null) {
+        $typeUuid = $this->types->findUuidBySlug($slug);
+        if ($typeUuid === null) {
             throw new \InvalidArgumentException(sprintf('Unknown content type "%s".', $slug));
         }
+        $schema = $this->types->schemaFor($typeUuid);
+        if ($schema === null) {
+            throw new \InvalidArgumentException(sprintf('Schema for content type "%s" could not be loaded.', $slug));
+        }
+        $fieldNames = [];
+        foreach ($schema->fields() as $field) {
+            $fieldNames[$field->name()] = true;
+        }
         foreach ($mapping as $field => $column) {
+            // A typo'd field name was silently skipped at import time — that column's data was
+            // dropped from every row with zero errors. Reject at plan like unknown columns.
+            if (!isset($fieldNames[$field])) {
+                throw new \InvalidArgumentException(
+                    sprintf('Content type "%s" has no field "%s" (mapped to column "%s").', $slug, $field, $column),
+                );
+            }
             if (!in_array($column, $header, true)) {
                 throw new \InvalidArgumentException(
                     sprintf('CSV has no column "%s" (mapped to field "%s").', $column, $field),

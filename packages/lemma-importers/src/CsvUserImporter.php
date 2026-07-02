@@ -23,7 +23,14 @@ use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
  * password is hashed here; a missing one is randomly generated so the account exists but the user
  * must reset), profile fields (`first_name`, `last_name`) through `updateProfile()`, and `roles`
  * (a comma-separated list of slugs) are assigned via Aegis. `username` + `email` are required and
- * checked for uniqueness; `dry_run` validates (format + duplicates) without writing. Create-only.
+ * checked for uniqueness — against the database AND within the file (both rows of an intra-file
+ * duplicate are rejected, so dry-run and commit report identically); `dry_run` validates without
+ * writing. Create-only.
+ *
+ * DELIBERATE: imported accounts are stamped email-verified (`email_verified_at` = import time).
+ * This is bulk *provisioning* by an admin who vouches for the addresses — without the stamp every
+ * imported user would be walked through a verification flow for an email nobody sent. Don't import
+ * unvetted address lists.
  */
 final class CsvUserImporter extends AbstractCsvImporter
 {
@@ -32,6 +39,8 @@ final class CsvUserImporter extends AbstractCsvImporter
     /** Mappable fields (account + profile + roles). */
     public const FIELDS = ['username', 'email', 'password', 'status', 'first_name', 'last_name', 'roles'];
     private const REQUIRED = ['username', 'email'];
+    /** The status vocabulary the users pack + admin SPA use. */
+    private const STATUSES = ['active', 'inactive'];
 
     public function __construct(
         ApplicationContext $context,
@@ -86,7 +95,30 @@ final class CsvUserImporter extends AbstractCsvImporter
 
     protected function prepare(ImportContext $context): array
     {
-        return ['mapping' => $this->mappingOption($context->options)];
+        $mapping = $this->mappingOption($context->options);
+
+        // Intra-file duplicates: the per-row DB uniqueness checks can't see them, so two rows
+        // sharing an email both passed dry-run and then one failed on commit. Collect the
+        // duplicated values across the WHOLE file; every row carrying one is rejected (which of
+        // the conflicting rows is right is ambiguous), keeping dry-run and commit identical.
+        $emails = [];
+        $usernames = [];
+        foreach ($this->recordsForJob($context->jobUuid) as $row) {
+            $email = strtolower($this->value($row, $mapping, 'email'));
+            $username = $this->value($row, $mapping, 'username');
+            if ($email !== '') {
+                $emails[$email] = ($emails[$email] ?? 0) + 1;
+            }
+            if ($username !== '') {
+                $usernames[$username] = ($usernames[$username] ?? 0) + 1;
+            }
+        }
+
+        return [
+            'mapping' => $mapping,
+            'dupEmails' => array_filter($emails, static fn(int $n): bool => $n > 1),
+            'dupUsernames' => array_filter($usernames, static fn(int $n): bool => $n > 1),
+        ];
     }
 
     protected function importRow(array $row, array $prepared, ImportContext $context): void
@@ -100,6 +132,22 @@ final class CsvUserImporter extends AbstractCsvImporter
         }
         if (!Utils::isValidEmail($email)) {
             throw new \InvalidArgumentException(sprintf('Invalid email "%s".', $email));
+        }
+        if (isset($prepared['dupEmails'][strtolower($email)])) {
+            throw new \InvalidArgumentException(sprintf('Email "%s" appears more than once in the file.', $email));
+        }
+        if (isset($prepared['dupUsernames'][$username])) {
+            throw new \InvalidArgumentException(
+                sprintf('Username "%s" appears more than once in the file.', $username),
+            );
+        }
+        $status = $this->value($row, $mapping, 'status');
+        if ($status !== '' && !in_array($status, self::STATUSES, true)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Invalid status "%s"; valid values: %s.',
+                $status,
+                implode(', ', self::STATUSES),
+            ));
         }
         if ($this->users->emailExists($email)) {
             throw new \InvalidArgumentException(sprintf('A user with email "%s" already exists.', $email));
@@ -117,9 +165,8 @@ final class CsvUserImporter extends AbstractCsvImporter
         // write error, or an unknown role slug) left an orphaned `active` account that the uniqueness
         // pre-checks above then made permanently un-retryable. A rollback lets the row be re-imported
         // cleanly.
-        $this->db->transaction(function () use ($row, $mapping, $username, $email): void {
+        $this->db->transaction(function () use ($row, $mapping, $username, $email, $status): void {
             $password = $this->value($row, $mapping, 'password');
-            $status = $this->value($row, $mapping, 'status');
             $uuid = $this->users->create([
                 'username' => $username,
                 'email' => $email,

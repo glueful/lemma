@@ -60,7 +60,7 @@ final class EngineContentDeliveryReader implements ContentDeliveryReader
 
             $items[] = [
                 'href' => $this->paths->render($typeSlug, $locale, $slug),
-                'lastmod' => $this->iso($row['published_at'] ?? null),
+                'lastmod' => Timestamps::iso($row['published_at'] ?? null),
                 'alternates' => $alternates,
             ];
         }
@@ -78,14 +78,5 @@ final class EngineContentDeliveryReader implements ContentDeliveryReader
             }
         }
         return $this->typeSlugs;
-    }
-
-    private function iso(mixed $publishedAt): ?string
-    {
-        if (!is_string($publishedAt) || $publishedAt === '') {
-            return null;
-        }
-        $ts = strtotime($publishedAt);
-        return $ts === false ? null : date('c', $ts);
     }
 }

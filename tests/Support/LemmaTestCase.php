@@ -7,6 +7,8 @@ namespace App\Tests\Support;
 use Glueful\Application;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
+use Glueful\Framework;
+use Glueful\Routing\RouteManifest;
 use Glueful\Routing\Router;
 use Psr\Container\ContainerInterface;
 use PHPUnit\Framework\TestCase;
@@ -74,6 +76,47 @@ abstract class LemmaTestCase extends TestCase
     protected function appContext(): ApplicationContext
     {
         return self::$app;
+    }
+
+    /**
+     * Boot a SECOND app with a temporary `config/testing/{$file}.php` override — the
+     * capability/extension enable-disable tests' shared choreography. The override file
+     * is removed (and the process-global RouteManifest latch + compiled route caches
+     * reset) in a finally, so the shared boot other test classes rely on is never
+     * poisoned even when the boot itself throws. Callers cache the returned context in
+     * their own static — a per-class boot is expensive.
+     *
+     * @param array<string,mixed> $config the override config tree to write
+     */
+    protected static function bootAppWithConfigOverride(string $file, array $config): ApplicationContext
+    {
+        $root = dirname(__DIR__, 2);
+        $overrideDir = $root . '/config/testing';
+        $overrideFile = $overrideDir . '/' . $file . '.php';
+
+        if (!is_dir($overrideDir)) {
+            mkdir($overrideDir, 0755, true);
+        }
+        file_put_contents($overrideFile, "<?php\nreturn " . var_export($config, true) . ";\n");
+
+        RouteManifest::reset();
+        foreach (glob($root . '/storage/cache/routes_*.php') ?: [] as $f) {
+            @unlink($f);
+        }
+
+        try {
+            return Framework::create($root)
+                ->withConfigDir($root . '/config')
+                ->withEnvironment('testing')
+                ->boot()
+                ->getContext();
+        } finally {
+            @unlink($overrideFile);
+            if (is_dir($overrideDir) && count((array) scandir($overrideDir)) === 2) {
+                @rmdir($overrideDir);
+            }
+            RouteManifest::reset();
+        }
     }
 
     protected function connection(): Connection

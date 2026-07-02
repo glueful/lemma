@@ -10,7 +10,6 @@ use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
 use Glueful\Lemma\Contracts\Search\ContentReindexer;
-use Glueful\Lemma\Contracts\Search\IndexableContentReader;
 use Glueful\Lemma\Search\Console\ReindexCommand;
 use Glueful\Lemma\Search\Console\StatusCommand;
 use Glueful\Lemma\Search\Engine\LiveMeilisearchIndex;
@@ -27,6 +26,8 @@ use Psr\Log\LoggerInterface;
 
 final class LemmaSearchServiceProvider extends ServiceProvider
 {
+    private const CAPABILITY = 'lemma.search';
+
     /** @return array<string, array<string, mixed>> */
     public static function services(): array
     {
@@ -92,22 +93,23 @@ final class LemmaSearchServiceProvider extends ServiceProvider
 
     public static function makeContentReindexer(ContainerInterface $container): ContentReindexer
     {
-        $context = $container->get(ApplicationContext::class);
-        $registry = app($context, CapabilityRegistry::class);
-
         // Disabled ⇒ no-op reindexer (the App listener resolves this and does nothing).
-        if (!$registry->isEnabled('lemma.search')) {
+        if (!self::enabled($container->get(ApplicationContext::class))) {
             return new NullContentReindexer();
         }
 
-        $inner = new SearchContentReindexer(
-            $container->get(IndexableContentReader::class),
-            $container->get(DocumentBuilder::class),
-            $container->get(SearchBackend::class),
-            $container->get(ContentTypeReader::class),
+        return new ResilientContentReindexer(
+            // The container owns SearchContentReindexer's wiring (registered autowired above)
+            // — never duplicate its dependency list here.
+            $container->get(SearchContentReindexer::class),
+            $container->get(LoggerInterface::class),
         );
+    }
 
-        return new ResilientContentReindexer($inner, $container->get(LoggerInterface::class));
+    /** The single capability gate — every gated surface (bindings, routes, commands) uses this. */
+    private static function enabled(ApplicationContext $context): bool
+    {
+        return app($context, CapabilityRegistry::class)->isEnabled(self::CAPABILITY);
     }
 
     public function register(ApplicationContext $context): void
@@ -118,15 +120,13 @@ final class LemmaSearchServiceProvider extends ServiceProvider
 
     public function boot(ApplicationContext $context): void
     {
-        $registry = app($context, CapabilityRegistry::class);
-
-        $registry->register(new Capability(
-            'lemma.search',
+        app($context, CapabilityRegistry::class)->register(new Capability(
+            self::CAPABILITY,
             label: 'Search',
             description: 'Public, delivery-parity content search backed by Meilisearch.',
         ));
 
-        if ($registry->isEnabled('lemma.search')) {
+        if (self::enabled($context)) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/public-routes.php');
 
             $this->commands([

@@ -44,7 +44,7 @@ final class ReindexCommandTest extends TestCase
                 ?string $l = null
             ): IndexablePage {
                 $slice = array_slice($this->records, $offset, $limit);
-                return new IndexablePage(array_values($slice), count($this->records), $limit, $offset);
+                return new IndexablePage(array_values($slice), $limit, $offset);
             }
         };
 

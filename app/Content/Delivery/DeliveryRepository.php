@@ -136,17 +136,8 @@ final class DeliveryRepository
      */
     public function enumeratePublishedForSitemap(int $limit, int $offset = 0): array
     {
-        $limit = max(1, $limit);
-        $offset = max(0, $offset);
-
-        $chunkSize = 1000;
-        $rows = [];
-        $remaining = $limit;
-        $cursor = $offset;
-
-        while ($remaining > 0) {
-            $take = min($chunkSize, $remaining);
-            $batch = $this->db->table('entry_publications as p')
+        $rows = $this->fetchChunked(
+            fn (int $take, int $cursor): array => $this->db->table('entry_publications as p')
                 ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
                 ->join('entry_routes as r', 'r.entry_uuid', '=', 'p.entry_uuid')
                 ->select(['p.entry_uuid', 'e.content_type_uuid', 'p.locale', 'r.slug', 'p.published_at'])
@@ -156,21 +147,10 @@ final class DeliveryRepository
                 ->orderByRaw('p.published_at DESC, p.entry_uuid ASC, p.locale ASC')
                 ->limit($take)
                 ->offset($cursor)
-                ->get();
-
-            if ($batch === []) {
-                break;
-            }
-            foreach ($batch as $row) {
-                $rows[] = $row;
-            }
-            $got = count($batch);
-            $cursor += $got;
-            $remaining -= $got;
-            if ($got < $take) {
-                break; // exhausted the result set
-            }
-        }
+                ->get(),
+            $limit,
+            $offset,
+        );
 
         // Full count under the same joins/filters (a fresh builder — no select/limit/offset).
         $total = $this->db->table('entry_publications as p')
@@ -190,9 +170,10 @@ final class DeliveryRepository
      * version, the entry (active guard), the entry_route (href slug), and the content
      * type (slug + public_delivery). Ordered by a TOTAL order (published_at DESC,
      * entry_uuid ASC, locale ASC) so LIMIT/OFFSET paging never skips or duplicates a
-     * multi-locale entry's rows across page boundaries.
+     * multi-locale entry's rows across page boundaries. No total count — callers page
+     * until a short page, so a backfill costs zero COUNT queries.
      *
-     * @return array{rows:list<array<string,mixed>>,total:int}
+     * @return list<array<string,mixed>>
      */
     public function enumerateIndexable(
         int $limit,
@@ -200,42 +181,91 @@ final class DeliveryRepository
         ?string $typeSlug = null,
         ?string $locale = null,
     ): array {
-        $limit = max(1, $limit);
-        $offset = max(0, $offset);
-
-        $apply = function (QueryBuilder $q) use ($typeSlug, $locale): QueryBuilder {
-            $q->join('entry_versions as v', 'v.uuid', '=', 'p.version_uuid')
-                ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
-                ->join('entry_routes as r', 'r.entry_uuid', '=', 'p.entry_uuid')
-                ->join('content_types as ct', 'ct.uuid', '=', 'e.content_type_uuid')
-                ->where('e.status', '=', 'active')
-                ->where('ct.status', '!=', 'deleted')
-                ->whereRaw('r.content_type_uuid = e.content_type_uuid')
-                ->whereRaw('r.locale = p.locale');
-            if ($typeSlug !== null) {
-                $q->where('ct.slug', '=', $typeSlug);
-            }
-            if ($locale !== null) {
-                $q->where('p.locale', '=', $locale);
-            }
-            return $q;
-        };
-
-        $chunkSize = 1000;
-        $rows = [];
-        $remaining = $limit;
-        $cursor = $offset;
-        while ($remaining > 0) {
-            $take = min($chunkSize, $remaining);
-            $q = $apply($this->db->table('entry_publications as p'))
-                ->select([
-                    'p.entry_uuid', 'e.content_type_uuid', 'ct.slug as content_type_slug',
-                    'ct.public_delivery', 'p.locale', 'r.slug', 'v.fields', 'p.published_at',
-                ])
+        return $this->fetchChunked(
+            fn (int $take, int $cursor): array => $this
+                ->applyIndexableJoins($this->db->table('entry_publications as p'), $typeSlug, $locale)
+                ->select(self::INDEXABLE_SELECT)
                 ->orderByRaw('p.published_at DESC, p.entry_uuid ASC, p.locale ASC')
                 ->limit($take)
-                ->offset($cursor);
-            $batch = $q->get();
+                ->offset($cursor)
+                ->get(),
+            $limit,
+            $offset,
+        );
+    }
+
+    /**
+     * The single indexable row for one entry+locale (or null when not published, not
+     * routed, archived, or its type is deleted) — the same join `enumerateIndexable()`
+     * pages over, filtered to one publication pin. One query, delivery-parity guards.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function findIndexableRow(string $entryUuid, string $locale): ?array
+    {
+        $rows = $this->applyIndexableJoins(
+            $this->db->table('entry_publications as p'),
+            typeSlug: null,
+            locale: $locale,
+            entryUuid: $entryUuid,
+        )
+            ->select(self::INDEXABLE_SELECT)
+            ->limit(1)
+            ->get();
+
+        return $rows[0] ?? null;
+    }
+
+    private const INDEXABLE_SELECT = [
+        'p.entry_uuid', 'e.content_type_uuid', 'ct.slug as content_type_slug',
+        'ct.public_delivery', 'p.locale', 'r.slug', 'v.fields', 'p.published_at',
+    ];
+
+    /** The shared indexable join spine: publication → version, entry, route, content type. */
+    private function applyIndexableJoins(
+        QueryBuilder $q,
+        ?string $typeSlug,
+        ?string $locale,
+        ?string $entryUuid = null,
+    ): QueryBuilder {
+        $q->join('entry_versions as v', 'v.uuid', '=', 'p.version_uuid')
+            ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
+            ->join('entry_routes as r', 'r.entry_uuid', '=', 'p.entry_uuid')
+            ->join('content_types as ct', 'ct.uuid', '=', 'e.content_type_uuid')
+            ->where('e.status', '=', 'active')
+            ->where('ct.status', '!=', 'deleted')
+            ->whereRaw('r.content_type_uuid = e.content_type_uuid')
+            ->whereRaw('r.locale = p.locale');
+        if ($typeSlug !== null) {
+            $q->where('ct.slug', '=', $typeSlug);
+        }
+        if ($locale !== null) {
+            $q->where('p.locale', '=', $locale);
+        }
+        if ($entryUuid !== null) {
+            $q->where('p.entry_uuid', '=', $entryUuid);
+        }
+        return $q;
+    }
+
+    /**
+     * Fetch up to $limit rows in ≤1000-row chunks so each SQL LIMIT stays under the
+     * framework query validator's large-LIMIT guard, while keeping real LIMIT/OFFSET
+     * semantics for the caller. $fetch(take, cursor) returns one batch.
+     *
+     * @param callable(int,int):list<array<string,mixed>> $fetch
+     * @return list<array<string,mixed>>
+     */
+    private function fetchChunked(callable $fetch, int $limit, int $offset): array
+    {
+        $chunkSize = 1000;
+        $rows = [];
+        $remaining = max(1, $limit);
+        $cursor = max(0, $offset);
+
+        while ($remaining > 0) {
+            $take = min($chunkSize, $remaining);
+            $batch = $fetch($take, $cursor);
             if ($batch === []) {
                 break;
             }
@@ -246,13 +276,11 @@ final class DeliveryRepository
             $cursor += $got;
             $remaining -= $got;
             if ($got < $take) {
-                break;
+                break; // exhausted the result set
             }
         }
 
-        $total = $apply($this->db->table('entry_publications as p'))->count();
-
-        return ['rows' => $rows, 'total' => $total];
+        return $rows;
     }
 
     /**

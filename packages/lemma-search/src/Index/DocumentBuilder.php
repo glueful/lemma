@@ -93,6 +93,17 @@ final class DocumentBuilder
         ];
     }
 
+    /**
+     * The type slugs with per-type config — the single source for `search:status`'s
+     * validation sweep (never re-read the config tree this builder was constructed from).
+     *
+     * @return list<string>
+     */
+    public function configuredTypeSlugs(): array
+    {
+        return array_map('strval', array_keys($this->typeConfig));
+    }
+
     /** @return list<string> Non-fatal config warnings for `search:status`. */
     public function validate(string $typeSlug, ContentSchemaReader $schema): array
     {
@@ -147,16 +158,12 @@ final class DocumentBuilder
         if ($weights === []) {
             return $fields;
         }
-        $keyed = array_values($fields);
-        usort($keyed, function (string $a, string $b) use ($weights, $fields): int {
-            $wa = (int) ($weights[$a] ?? 0);
-            $wb = (int) ($weights[$b] ?? 0);
-            if ($wa === $wb) {
-                return array_search($a, $fields, true) <=> array_search($b, $fields, true);
-            }
-            return $wb <=> $wa; // higher weight first
-        });
-        return $keyed;
+        // usort is stable (PHP ≥ 8.0), so equal-weight fields keep their input order.
+        usort(
+            $fields,
+            fn (string $a, string $b): int => ((int) ($weights[$b] ?? 0)) <=> ((int) ($weights[$a] ?? 0)),
+        );
+        return $fields;
     }
 
     /** @param array<string,mixed> $fields */

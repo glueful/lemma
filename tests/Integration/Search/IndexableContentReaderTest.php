@@ -44,13 +44,12 @@ final class IndexableContentReaderTest extends LemmaTestCase
 
         $page = $this->reader()->enumerateIndexablePublished(limit: 10, offset: 0, typeSlug: 'blog');
 
-        self::assertGreaterThanOrEqual(1, $page->total);
+        // IndexablePage carries no total — callers page until a short page.
         self::assertNotSame([], $page->items);
         self::assertSame('blog', $page->items[0]->contentTypeSlug);
 
-        // Unknown type slug yields an empty page (total 0), never an error.
+        // Unknown type slug yields an empty page, never an error.
         $empty = $this->reader()->enumerateIndexablePublished(limit: 10, offset: 0, typeSlug: 'no-such-type');
-        self::assertSame(0, $empty->total);
         self::assertSame([], $empty->items);
     }
 }

@@ -60,7 +60,9 @@ final class ReindexCommand extends BaseCommand
                 $indexed += count($docs);
             }
             $offset += $pageSize;
-        } while ($offset < $page->total && $page->items !== []);
+            // A short page means the result set is exhausted (IndexablePage carries no
+            // total — paging this way costs zero COUNT queries).
+        } while (count($page->items) === $pageSize);
 
         return $indexed;
     }

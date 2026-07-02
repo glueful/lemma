@@ -76,7 +76,7 @@ final class SearchContentReindexerTest extends TestCase
                 ?string $t = null,
                 ?string $l = null
             ): IndexablePage {
-                return new IndexablePage([], 0, $limit, $offset);
+                return new IndexablePage([], $limit, $offset);
             }
         };
     }

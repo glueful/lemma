@@ -749,8 +749,6 @@ final class LemmaServiceProvider extends ServiceProvider
     {
         return new EngineIndexableContentReader(
             $container->get(DeliveryRepository::class),
-            $container->get(ContentTypeRepository::class),
-            $container->get(RouteRepository::class),
             $container->get(PathRenderer::class),
         );
     }

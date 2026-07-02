@@ -54,10 +54,6 @@ final class MeilisearchBackendTest extends TestCase
                 $this->lastParams = $params;
                 return $this->searchResult;
             }
-            public function stats(): array
-            {
-                return ['numberOfDocuments' => count($this->added)];
-            }
             public function reachable(): bool
             {
                 return $this->up;

@@ -68,11 +68,6 @@ final class LiveMeilisearchIndex implements MeilisearchIndex
         return $this->handle ??= $this->manager->getOrCreateIndex($this->indexName);
     }
 
-    public function stats(): array
-    {
-        return $this->manager->getStats($this->indexName);
-    }
-
     public function reachable(): bool
     {
         try {

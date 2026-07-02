@@ -60,6 +60,7 @@ locale: ?string, type: ?string, content: ?array, redirect: ?array,
 listing: ?{items: list<array>, page: int, per_page: int, total: int, total_pages: int},
                    // total_pages = max(1, ceil(total / per_page)) — never 0 (§1 pin)
 term: ?array,      // archive kind: the shaped term entry (show shape, seo included)
+term_type: ?string, // archive kind: the term's content-type slug (drives its cache tag)
 field: ?string     // archive kind: the source field name
 ```
 

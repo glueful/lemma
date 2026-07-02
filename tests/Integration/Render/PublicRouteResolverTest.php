@@ -75,7 +75,9 @@ final class PublicRouteResolverTest extends LemmaTestCase
     public function testArityAndLocaleEdges(): void
     {
         $this->seedBilingualPublishedEntry();
-        self::assertSame('not_found', $this->resolver()->resolvePath('/en/blog')['kind']);
+        // /en/blog was not_found before the listing grammar; with `blog` allowlisted in
+        // the suite env it is now a locale-prefixed LISTING (listing spec §1).
+        self::assertSame('listing', $this->resolver()->resolvePath('/en/blog')['kind']);
         self::assertSame('not_found', $this->resolver()->resolvePath('/only-one')['kind']);
         self::assertSame('not_found', $this->resolver()->resolvePath('/a/b/c/d')['kind']);
     }
@@ -141,5 +143,137 @@ final class PublicRouteResolverTest extends LemmaTestCase
         ]);
 
         self::assertSame('gone', $this->resolver()->resolvePath('/blog/moved-away')['kind']);
+    }
+
+    // ---- listing grammar + resolution (listing spec §1–§3) ---------------------------
+
+    public function testBareTypePathResolvesListingPageOne(): void
+    {
+        $this->seedBilingualPublishedEntry();
+        $r = $this->resolver()->resolvePath('/blog');
+        self::assertSame('listing', $r['kind']);
+        self::assertSame('blog', $r['type']);
+        self::assertSame('en', $r['locale']);
+        self::assertSame(1, $r['listing']['page']);
+        self::assertSame(1, $r['listing']['total']);
+        self::assertSame(1, $r['listing']['total_pages']); // max(1, ceil) pin
+        self::assertCount(1, $r['listing']['items']);
+        $item = $r['listing']['items'][0];
+        // hrefs are whatever PathRenderer returns — absolute here because the suite
+        // sets LEMMA_PUBLIC_URL_BASE (matching path()/canonicals); default-locale
+        // collapse (no /en/ segment) is the assertion that matters.
+        self::assertSame('https://site.test/blog/hello', $item['href']);
+        self::assertArrayNotHasKey('seo', $item);             // LIST shape, not shapePublic
+    }
+
+    public function testLocalePrefixedListing(): void
+    {
+        $this->seedBilingualPublishedEntry();
+        $r = $this->resolver()->resolvePath('/fr/blog');
+        self::assertSame('listing', $r['kind']);
+        self::assertSame('fr', $r['locale']);
+        self::assertSame('https://site.test/fr/blog/bonjour', $r['listing']['items'][0]['href']);
+    }
+
+    public function testListingPaginationGrammar(): void
+    {
+        $this->seedBilingualPublishedEntry();
+        // /page/1 → 301 to the bare path (canonical).
+        $r = $this->resolver()->resolvePath('/blog/page/1');
+        self::assertSame('redirect', $r['kind']);
+        self::assertSame('/blog', $r['redirect']['location']);
+        self::assertSame(301, $r['redirect']['status']);
+        // page 0 / non-numeric / beyond total_pages → not_found.
+        self::assertSame('not_found', $this->resolver()->resolvePath('/blog/page/0')['kind']);
+        self::assertSame('not_found', $this->resolver()->resolvePath('/blog/page/abc')['kind']);
+        self::assertSame('not_found', $this->resolver()->resolvePath('/blog/page/9')['kind']);
+    }
+
+    public function testListingPageTwoWithPerPageTwo(): void
+    {
+        // Suite env pins listing_per_page=2; three published entries → 2 pages.
+        $this->seedBilingualPublishedEntry();
+        $this->seedExtraPublishedPost('extra0000001', 'vextra000001', 'second-post', 'Second');
+        $this->seedExtraPublishedPost('extra0000002', 'vextra000002', 'third-post', 'Third');
+
+        $r = $this->resolver()->resolvePath('/blog/page/2');
+        self::assertSame('listing', $r['kind']);
+        self::assertSame(2, $r['listing']['page']);
+        self::assertSame(3, $r['listing']['total']);
+        self::assertSame(2, $r['listing']['total_pages']);
+        self::assertCount(1, $r['listing']['items']);
+    }
+
+    public function testUnlistedTypeStaysNotFound(): void
+    {
+        // 'category' is not in RENDER_LISTING_TYPES — the grammar is dormant for it.
+        $this->connection()->table('content_types')->insert([
+            'uuid' => 'cattypelist0', 'slug' => 'category', 'name' => 'Category',
+            'description' => null, 'cache_ttl' => null, 'public_delivery' => true,
+            'status' => 'active',
+            'schema' => json_encode([['name' => 'slug', 'type' => 'string']], JSON_THROW_ON_ERROR),
+            'schema_version' => 1, 'created_by' => null,
+            'created_at' => '2026-06-01 00:00:00', 'updated_at' => '2026-06-01 00:00:00',
+        ]);
+        self::assertSame('not_found', $this->resolver()->resolvePath('/category')['kind']);
+    }
+
+    public function testRoutelessItemHasNullHref(): void
+    {
+        $this->seedBilingualPublishedEntry();
+        // A published entry with NO entry_routes row (seeded directly, skipping assign()).
+        $this->seedExtraPublishedPost('norel0000001', 'vnorel000001', null, 'No route');
+        $r = $this->resolver()->resolvePath('/blog');
+        $hrefs = array_column($r['listing']['items'], 'href');
+        self::assertContains(null, $hrefs);
+        self::assertContains('https://site.test/blog/hello', $hrefs);
+    }
+
+    public function testHrefIgnoresStaleRouteRowsOfOtherTypes(): void
+    {
+        // Regression (review P2): entry_routes' identity is (content_type_uuid, locale,
+        // slug) and entry_uuid is only indexed — a stale row for the same entry+locale
+        // under ANOTHER type uuid must never leak into the listing href.
+        $entry = $this->seedBilingualPublishedEntry();
+        $this->connection()->table('entry_routes')->insert([
+            'entry_uuid' => $entry,
+            'content_type_uuid' => 'staletype001', // not the blog type
+            'locale' => 'en',
+            'slug' => 'stale-slug',
+        ]);
+
+        $r = $this->resolver()->resolvePath('/blog');
+        $hrefs = array_column($r['listing']['items'], 'href');
+        self::assertContains('https://site.test/blog/hello', $hrefs);
+        self::assertNotContains('https://site.test/blog/stale-slug', $hrefs);
+    }
+
+    /** Seed a published blog entry directly; $slug null = no route row. */
+    private function seedExtraPublishedPost(
+        string $entryUuid,
+        string $versionUuid,
+        ?string $slug,
+        string $title,
+    ): void {
+        $db = $this->connection();
+        $typeUuid = (string) $db->table('content_types')
+            ->select(['uuid'])->where('slug', '=', 'blog')->first()['uuid'];
+        $db->table('entries')->insert([
+            'uuid' => $entryUuid, 'content_type_uuid' => $typeUuid, 'status' => 'active',
+            'created_at' => '2026-06-01 00:00:00', 'updated_at' => '2026-06-01 00:00:00',
+        ]);
+        $db->table('entry_versions')->insert([
+            'uuid' => $versionUuid, 'entry_uuid' => $entryUuid, 'locale' => 'en', 'version' => 1,
+            'fields' => json_encode(['title' => $title], JSON_THROW_ON_ERROR),
+            'schema_version' => 1, 'created_at' => '2026-06-01 00:00:00',
+        ]);
+        $db->table('entry_publications')->insert([
+            'entry_uuid' => $entryUuid, 'locale' => 'en', 'version_uuid' => $versionUuid,
+            'published_at' => '2026-06-02 01:00:00',
+        ]);
+        if ($slug !== null) {
+            (new \App\Content\Repositories\RouteRepository($db))
+                ->assign($entryUuid, $typeUuid, 'en', $slug);
+        }
     }
 }

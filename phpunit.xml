@@ -30,6 +30,8 @@
         <env name="DB_PGSQL_PASSWORD" value="postgres"/>
         <env name="DB_PGSQL_SCHEMA" value="public"/>
         <env name="CACHE_DRIVER" value="array"/>
+        <env name="RENDER_LISTING_TYPES" value="blog,post"/>
+        <env name="RENDER_LISTING_PER_PAGE" value="2"/>
         <env name="CACHE_TAGS" value="false"/>
         <env name="QUERY_CACHE_ENABLED" value="false"/>
         <env name="QUERY_CACHE_STORE" value="array"/>

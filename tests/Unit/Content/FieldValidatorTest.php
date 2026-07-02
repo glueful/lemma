@@ -88,4 +88,54 @@ final class FieldValidatorTest extends TestCase
             'published_at' => 'not-a-date',
         ]);
     }
+
+    public function testTimezonelessDatetimeIsParsedAsUtcNotServerLocal(): void
+    {
+        // Regression: a bare (offset-less) datetime must be read as UTC, not the server's zone, so
+        // the stored wall-clock is unchanged. This assertion is timezone-independent.
+        self::assertSame('2020-01-13T09:00:00Z', FieldValidator::normalizeDatetime('2020-01-13T09:00:00'));
+        self::assertSame('2020-01-13T09:00:00Z', FieldValidator::normalizeDatetime('2020-01-13 09:00:00'));
+    }
+
+    public function testPermissiveModeAllowsEmptyRequiredString(): void
+    {
+        // Draft-save (permissive) behaviour is unchanged: a present-but-empty required field saves.
+        $clean = (new FieldValidator())->validate($this->schema(), ['title' => '']);
+        self::assertSame(['title' => ''], $clean);
+    }
+
+    public function testStrictModeRejectsEmptyRequiredString(): void
+    {
+        try {
+            (new FieldValidator())->validate($this->schema(), ['title' => ''], true);
+            self::fail('expected ValidationException in strict mode');
+        } catch (ValidationException $e) {
+            self::assertArrayHasKey('title', $e->errors());
+        }
+    }
+
+    public function testStrictModeRejectsEmptyArrayForRequiredJson(): void
+    {
+        $schema = ContentTypeSchema::fromArray([
+            ['name' => 'meta', 'type' => 'json', 'required' => true],
+        ]);
+
+        // Permissive: [] passes (current behaviour).
+        self::assertSame(['meta' => []], (new FieldValidator())->validate($schema, ['meta' => []]));
+
+        // Strict (publish): an empty required json/array is rejected.
+        $this->expectException(ValidationException::class);
+        (new FieldValidator())->validate($schema, ['meta' => []], true);
+    }
+
+    public function testStrictModeWithoutDbDoesNotBlockReferences(): void
+    {
+        // referenceExists fails open when no DB is wired, so a reference still validates in strict
+        // mode from a unit context (existence is enforced only where the container injects a DB).
+        $schema = ContentTypeSchema::fromArray([
+            ['name' => 'author', 'type' => 'reference', 'reference_type' => 'people'],
+        ]);
+        $clean = (new FieldValidator())->validate($schema, ['author' => 'entry0000001'], true);
+        self::assertSame(['author' => 'entry0000001'], $clean);
+    }
 }

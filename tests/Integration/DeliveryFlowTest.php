@@ -204,6 +204,32 @@ final class DeliveryFlowTest extends LemmaTestCase
         self::assertSame('', (string) $conditional->getContent());
     }
 
+    public function testScopedResponseIsPrivateAndVariesFromAnonymous(): void
+    {
+        // A public type: readable both anonymously and with a key. The keyed response can
+        // expand references an anonymous caller can't see, so it must be Cache-Control:
+        // private + Vary: X-API-Key, and carry a DIFFERENT validator than the anonymous one.
+        $this->setPublicDelivery('post', true);
+        $this->publish(['title' => 'Cacheable'], 'cacheable');
+
+        $anon = $this->handle(Request::create('/v1/content/post/cacheable', 'GET', [], [], [], [
+            'HTTP_ACCEPT' => 'application/json',
+        ]));
+        self::assertSame(200, $anon->getStatusCode(), $anon->getContent());
+        self::assertStringContainsString('public', (string) $anon->headers->get('Cache-Control'));
+
+        $scoped = $this->handle($this->scopedGet('/v1/content/post/cacheable'));
+        self::assertSame(200, $scoped->getStatusCode(), $scoped->getContent());
+        self::assertStringContainsString('private', (string) $scoped->headers->get('Cache-Control'));
+        self::assertStringContainsString('X-API-Key', (string) $scoped->headers->get('Vary'));
+
+        self::assertNotSame(
+            $anon->headers->get('ETag'),
+            $scoped->headers->get('ETag'),
+            'a scoped response must not share an ETag with the anonymous one (would 304 across access levels)'
+        );
+    }
+
     // ── 5. CARRY-FORWARD: unpublish-after-publish drops the entry ─────────────
 
     public function testUnpublishAfterPublishRemovesEntryFromListing(): void

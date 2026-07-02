@@ -32,6 +32,9 @@ trait SeedsPublishedContent
         $this->seedType = $this->seedTypes->create([
             'slug' => 'blog',
             'name' => 'Blog',
+            // Blog is publicly delivered — the realistic case for a type that appears in the
+            // sitemap and exposes public SEO meta (both are anonymous surfaces).
+            'public_delivery' => true,
             'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
         ]);
 
@@ -55,6 +58,40 @@ trait SeedsPublishedContent
         $this->seedEntries->saveDraft($entry, $locale, ['title' => $title], 1, 0, 'user00000001');
         $this->seedRoutes->assign($entry, $this->seedType, $locale, $slug);
         $this->publishSvc()->publish($entry, $locale, 'user00000001');
+    }
+
+    /**
+     * Seed a content type with the given public_delivery flag and one published entry, returning
+     * the entry uuid. Used to exercise visibility gating (public vs non-public) on the anonymous
+     * sitemap and SEO-meta surfaces.
+     */
+    protected function seedPublishedEntryInType(
+        string $typeSlug,
+        bool $publicDelivery,
+        string $locale,
+        string $routeSlug,
+        string $title,
+    ): string {
+        $types = new ContentTypeRepository($this->connection());
+        $entries = new EntryRepository($this->connection(), $this->appContext(), $types);
+        $type = $types->create([
+            'slug' => $typeSlug,
+            'name' => ucfirst($typeSlug),
+            'public_delivery' => $publicDelivery,
+            'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
+        ]);
+        $entry = $entries->createEntry($type, $locale, 1, 'user00000001');
+        $entries->saveDraft($entry, $locale, ['title' => $title], 1, 0, 'user00000001');
+        (new RouteRepository($this->connection()))->assign($entry, $type, $locale, $routeSlug);
+        (new PublishService(
+            $this->appContext(),
+            $entries,
+            new VersionRepository($this->connection()),
+            $types,
+            new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
+        ))->publish($entry, $locale, 'user00000001');
+        return $entry;
     }
 
     private function publishSvc(): PublishService

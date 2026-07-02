@@ -8,14 +8,12 @@ use App\Tests\Support\LemmaTestCase;
 use Glueful\Application;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Schema\Interfaces\SchemaBuilderInterface;
-use Glueful\Framework;
 use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Schema\CollectionDefinition;
 use Glueful\Lemma\Contracts\Authoring\ContentWriter;
 use Glueful\Lemma\Contracts\Context\LemmaContext;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
 use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
-use Glueful\Routing\RouteManifest;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -62,55 +60,12 @@ final class RemovabilityTest extends LemmaTestCase
         // Boot (or reuse) the shared ENABLED app.
         parent::setUpBeforeClass();
 
-        if (self::$disabledApp !== null) {
-            return;
-        }
-
-        $root        = dirname(__DIR__, 3);
-        $overrideDir = $root . '/config/testing';
-        $overrideFile = $overrideDir . '/lemma.php';
-
-        // Create the env-specific config override that disables lemma.collections.
-        // ConfigurationLoader::loadEnvironmentConfig() merges $configPath/$env/lemma.php
-        // on top of config/lemma.php via array_replace_recursive, so returning only the
-        // capabilities key is enough to shadow that subtree.
-        if (!is_dir($overrideDir)) {
-            mkdir($overrideDir, 0755, true);
-        }
-        file_put_contents(
-            $overrideFile,
-            "<?php\nreturn ['capabilities' => ['lemma.collections' => false]];\n",
-        );
-
-        // Reset process-global route state so the second boot starts clean.
-        RouteManifest::reset();
-        foreach (glob($root . '/storage/cache/routes_*.php') ?: [] as $f) {
-            @unlink($f);
-        }
-
-        // Boot the disabled app. ConfigurationLoader picks up the testing/lemma.php
-        // override; DefaultCapabilityRegistry is constructed with lemma.collections=>false;
-        // LemmaCollectionsServiceProvider::boot() skips loadRoutesFrom().
-        try {
-            self::$disabledApp = Framework::create($root)
-                ->withConfigDir($root . '/config')
-                ->withEnvironment('testing')
-                ->boot()
-                ->getContext();
-        } finally {
-            // Always remove the override — even if the boot throws — otherwise the next test
-            // class's shared enabled boot would pick up lemma.collections=false and collapse
-            // the whole suite with mysterious route/service failures.
-            @unlink($overrideFile);
-            if (is_dir($overrideDir) && count((array) scandir($overrideDir)) === 2) {
-                @rmdir($overrideDir);
-            }
-        }
-
-        // Reset the manifest again: subsequent test classes whose setUpBeforeClass calls
-        // RouteManifest::reset() will find it already clean, and since LemmaTestCase::$app
-        // is non-null they skip re-booting — so they keep the shared enabled context.
-        RouteManifest::reset();
+        // Boot the disabled app: ConfigurationLoader merges config/testing/lemma.php on
+        // top of config/lemma.php, so DefaultCapabilityRegistry sees lemma.collections=>false
+        // and LemmaCollectionsServiceProvider::boot() skips loadRoutesFrom().
+        self::$disabledApp ??= self::bootAppWithConfigOverride('lemma', [
+            'capabilities' => ['lemma.collections' => false],
+        ]);
     }
 
     // ── Per-test setup ────────────────────────────────────────────────────────

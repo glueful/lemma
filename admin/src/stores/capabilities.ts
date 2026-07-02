@@ -42,5 +42,13 @@ export const useCapabilitiesStore = defineStore('capabilities', () => {
     return inflight
   }
 
-  return { enabledIds, loaded, isEnabled, load, ensureLoaded }
+  // Clear the cached set so the next ensureLoaded() reloads. Called on login/logout so a second
+  // account in the same tab (SPA nav, no reload) never inherits the previous user's capabilities.
+  function reset(): void {
+    enabledIds.value = new Set()
+    loaded.value = false
+    inflight = null
+  }
+
+  return { enabledIds, loaded, isEnabled, load, ensureLoaded, reset }
 })

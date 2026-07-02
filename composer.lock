@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f0ab81d7fb76e4a7be5479b02eb0dbe3",
+    "content-hash": "d1cb7d786c47d4487becd3e17a1b6ed0",
     "packages": [
         {
             "name": "composer/semver",
@@ -651,16 +651,16 @@
         },
         {
             "name": "glueful/framework",
-            "version": "v1.65.0",
+            "version": "v1.65.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/framework.git",
-                "reference": "af3525ebf24a78992b82f439da6333d5cf5ae66d"
+                "reference": "43bdaaac2d228c9c72f35ee00ef0a29e08439562"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/framework/zipball/af3525ebf24a78992b82f439da6333d5cf5ae66d",
-                "reference": "af3525ebf24a78992b82f439da6333d5cf5ae66d",
+                "url": "https://api.github.com/repos/glueful/framework/zipball/43bdaaac2d228c9c72f35ee00ef0a29e08439562",
+                "reference": "43bdaaac2d228c9c72f35ee00ef0a29e08439562",
                 "shasum": ""
             },
             "require": {
@@ -755,7 +755,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-06-30T05:58:41+00:00"
+            "time": "2026-07-02T09:59:29+00:00"
         },
         {
             "name": "glueful/i18n",
@@ -1288,16 +1288,16 @@
         },
         {
             "name": "glueful/users",
-            "version": "v2.3.1",
+            "version": "v2.3.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/glueful/users.git",
-                "reference": "4779e62d529f2a827f29d83e4ace53a47234d516"
+                "reference": "9fdcf36d71d1ddcb1bad3fb845679fd716ca13b1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/glueful/users/zipball/4779e62d529f2a827f29d83e4ace53a47234d516",
-                "reference": "4779e62d529f2a827f29d83e4ace53a47234d516",
+                "url": "https://api.github.com/repos/glueful/users/zipball/9fdcf36d71d1ddcb1bad3fb845679fd716ca13b1",
+                "reference": "9fdcf36d71d1ddcb1bad3fb845679fd716ca13b1",
                 "shasum": ""
             },
             "require": {
@@ -1315,7 +1315,7 @@
             "extra": {
                 "glueful": {
                     "name": "Users",
-                    "version": "2.3.1",
+                    "version": "2.3.2",
                     "provider": "Glueful\\Extensions\\Users\\UsersServiceProvider",
                     "requires": {
                         "glueful": ">=1.62.0",
@@ -1347,9 +1347,9 @@
             "description": "Users: first-party identity store + account lifecycle for Glueful",
             "support": {
                 "issues": "https://github.com/glueful/users/issues",
-                "source": "https://github.com/glueful/users/tree/v2.3.1"
+                "source": "https://github.com/glueful/users/tree/v2.3.2"
             },
-            "time": "2026-06-30T06:06:13+00:00"
+            "time": "2026-07-01T23:37:15+00:00"
         },
         {
             "name": "graham-campbell/result-type",

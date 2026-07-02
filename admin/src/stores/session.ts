@@ -22,6 +22,17 @@ export interface SessionUser {
 // short token lifetimes + rotation are the real defense. The router guard always re-checks
 // isAuthenticated, so restore is best-effort.
 //
+// SECURITY DECISION (accepted risk, v1). localStorage tokens mean an XSS can steal credentials,
+// including the durable refresh token.
+//   Reason:     Lemma admin uses Glueful's cookieless token flow (tokens returned in the JSON body,
+//               refresh sent in the request body). A real fix needs framework-level httpOnly
+//               refresh-cookie support — it cannot be done as a SPA-only patch, and half-measures
+//               (encrypting localStorage "harder", or moving only the access token to memory while
+//               the refresh token stays persisted) do not change the threat model, so we don't.
+//   Mitigation: prioritize XSS prevention, keep access-token lifetime short, rotate refresh tokens,
+//               and never log tokens.
+//   Future:     design a framework auth mode for an httpOnly refresh cookie + in-memory access token.
+//
 // Declared as a named const (not a fresh object literal at the defineStore call site) so the
 // `persist` key — contributed by the pinia-persist-plugin module augmentation — passes the
 // options type structurally without tripping an excess-property check.
@@ -77,6 +88,9 @@ export const useSessionStore = defineStore(
       accessToken.value = null
       refreshToken.value = null
       user.value = null
+      // Drop the previous user's capability set so the next account reloads its own (lazy import
+      // avoids a store<->store cycle). NOT called on token refresh — only on identity changes.
+      void import('@/stores/capabilities').then((m) => m.useCapabilitiesStore().reset())
     }
 
     async function login(email: string, password: string): Promise<void> {
@@ -90,6 +104,9 @@ export const useSessionStore = defineStore(
       const { access, refresh, user: u } = readAuthBody(data)
       if (access === null || u === null) throw new Error('Malformed login response.')
       setSession(access, refresh, u)
+      // New identity → force the capability set to reload for this user on the next guard check.
+      const { useCapabilitiesStore } = await import('@/stores/capabilities')
+      useCapabilitiesStore().reset()
     }
 
     // Mint a fresh access token by POSTing the stored refresh token in the body (no cookie). Refresh

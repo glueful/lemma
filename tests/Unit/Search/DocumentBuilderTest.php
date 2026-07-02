@@ -86,12 +86,15 @@ final class DocumentBuilderTest extends TestCase
             $this->schema(['title' => 'string', 'body' => 'text', 'views' => 'number']),
         );
 
-        self::assertSame('e-1:en', $doc['id']);
+        // Meilisearch document ids allow only alphanumerics, `-` and `_` — never `:`.
+        self::assertSame('e-1_en', $doc['id']);
+        self::assertSame($doc['id'], DocumentBuilder::documentId('e-1', 'en'));
         self::assertSame('e-1', $doc['entry_uuid']);
         self::assertSame('en', $doc['locale']);
         self::assertSame('blog', $doc['content_type_slug']);
         self::assertSame('ct-1', $doc['content_type_uuid']);
-        self::assertTrue($doc['public_delivery']);
+        // Visibility is resolved live at query time — never denormalized into documents.
+        self::assertArrayNotHasKey('public_delivery', $doc);
         self::assertSame('Hello', $doc['title']);
         self::assertStringContainsString('World', $doc['body']);
         self::assertStringNotContainsString('5', $doc['body']); // number field skipped
@@ -114,6 +117,17 @@ final class DocumentBuilderTest extends TestCase
             $this->schema(['headline' => 'string', 'body' => 'text']),
         );
         self::assertSame('First', $doc2['title']);
+    }
+
+    public function testEmptyStringTitleFallsBackLikeMissingTitle(): void
+    {
+        // A present-but-empty title field must not defeat the fallback chain.
+        $builder = new DocumentBuilder([]);
+        $doc = $builder->build(
+            $this->content(['title' => '', 'body' => 'text'], label: 'the-label'),
+            $this->schema(['title' => 'string', 'body' => 'text']),
+        );
+        self::assertSame('the-label', $doc['title']);
     }
 
     public function testPerTypeOverrideTitleBodyExcludeAndWeightOrder(): void

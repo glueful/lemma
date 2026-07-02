@@ -76,6 +76,36 @@ final class MarkdownContentImporterTest extends LemmaTestCase
         self::assertStringContainsString('<strong>bold</strong>', $fields['body']);
     }
 
+    public function testCommitStripsUnsafeHtmlAndLinksFromBody(): void
+    {
+        $this->seedType();
+        $doc = "---\ntitle: XSS Test\n---\n# Safe Heading\n\n"
+            . "<script>alert('xss')</script>\n\n"
+            . "<a href=\"javascript:alert(1)\" onclick=\"steal()\">bad</a>\n\n"
+            . "[evil link](javascript:alert('x'))\n";
+        $this->seedJob($this->writeMarkdown($doc));
+
+        $result = $this->importer()->process(
+            new ImportBatch('batchmd00001', 'jobmd000001', 1, 0, 1),
+            new ImportContext($this->appContext(), 'jobmd000001', 'commit', null, self::OPTIONS),
+        );
+
+        self::assertSame(1, $result->processedRecords, json_encode($result->errors));
+        $fields = json_decode(
+            (string) $this->connection()->table('entry_drafts')->first()['fields'],
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $body = (string) $fields['body'];
+
+        // Legit markdown still renders.
+        self::assertStringContainsString('<h1>Safe Heading</h1>', $body);
+        // Raw HTML and unsafe link schemes are neutralized — no stored XSS.
+        self::assertStringNotContainsString('<script', $body);
+        self::assertStringNotContainsString('onclick', $body);
+        self::assertStringNotContainsString('javascript:', $body);
+    }
+
     public function testMissingRequiredFrontMatterIsReported(): void
     {
         $this->seedType();

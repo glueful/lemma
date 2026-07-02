@@ -44,6 +44,12 @@ final class SeoMetaController
         if ($typeUuid === null) {
             return Response::error('Unknown content type.', 404);
         }
+        // Anonymous endpoint: expose meta only for publicly-delivered types. A non-public type
+        // returns the same 404 as an unknown one, so its existence isn't disclosed. (To later
+        // allow scoped API-key access, add optional_api_key + a DeliveryVisibility check here.)
+        if (!$this->types->isPublicDelivery($typeUuid)) {
+            return Response::error('Unknown content type.', 404);
+        }
         $meta = $this->resolver->resolve($typeUuid, $type, $slug, $locale);
         if ($meta === null) {
             return Response::error('No published entry for this route.', 404);

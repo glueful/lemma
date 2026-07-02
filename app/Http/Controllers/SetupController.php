@@ -52,6 +52,13 @@ final class SetupController
             return Response::error('Setup has already been completed.', 409);
         }
 
+        // Guard the unauthenticated first-run endpoint so a random first caller can't claim the
+        // instance on a public deploy (see config lemma.setup.token).
+        $denied = $this->assertSetupAllowed($request);
+        if ($denied !== null) {
+            return $denied;
+        }
+
         try {
             $this->setup->install(
                 $input->site_name,
@@ -73,6 +80,40 @@ final class SetupController
         }
 
         return Response::success(['installed' => true], 'Setup complete.');
+    }
+
+    /**
+     * Authorize a first-run setup attempt. Returns a 403 Response when denied, or null when allowed.
+     *
+     *   - CLI/direct invocation ($request === null) is trusted — always allowed.
+     *   - When a setup token is configured, the request MUST present it in the X-Setup-Token header
+     *     (constant-time compare); a missing/wrong token is refused.
+     *   - With no token configured, setup is allowed only outside production; in production it is
+     *     refused so the operator must set LEMMA_SETUP_TOKEN (or use the CLI) to provision.
+     */
+    private function assertSetupAllowed(?Request $request): ?Response
+    {
+        if ($request === null) {
+            return null; // CLI/trusted path — no HTTP caller to gate.
+        }
+
+        $expected = (string) config($this->context, 'lemma.setup.token', '');
+        if ($expected !== '') {
+            $provided = (string) ($request->headers->get('X-Setup-Token') ?? '');
+            if (!hash_equals($expected, $provided)) {
+                return Response::error('Invalid or missing setup token.', 403);
+            }
+            return null;
+        }
+
+        if (env('APP_ENV') === 'production') {
+            return Response::error(
+                'First-run setup is disabled. Set LEMMA_SETUP_TOKEN (or provision via the CLI).',
+                403,
+            );
+        }
+
+        return null; // no token configured, non-production — zero-config local setup stays open.
     }
 
     /**

@@ -31,4 +31,16 @@ final class EngineContentTypeReader implements ContentTypeReader
         $row = $this->types->findByUuid($uuid);
         return $row !== null && (bool) ($row['public_delivery'] ?? false);
     }
+
+    public function deliveryTypes(): array
+    {
+        $types = [];
+        foreach ($this->types->all() as $row) {
+            $types[(string) $row['uuid']] = [
+                'slug' => (string) $row['slug'],
+                'public_delivery' => (bool) ($row['public_delivery'] ?? false),
+            ];
+        }
+        return $types;
+    }
 }

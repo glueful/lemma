@@ -8,8 +8,12 @@ use Glueful\Auth\ApiKey\ApiKeyService;
 use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
 
 /**
- * Mirrors DeliveryAccessMiddleware for search: read:content ⇒ all-access; else explicit
- * read:content:{slug} scopes → scoped type uuids; anonymous (null scopes) ⇒ public-only.
+ * Mirrors DeliveryAccessMiddleware for search: for each live content type, the request may
+ * see it when the type opts into public delivery or a granted scope satisfies
+ * `read:content:{slug}` (fnmatch semantics — wildcards like `read:content:*` behave exactly
+ * as delivery treats them). Resolved from the live schema store per request, never from
+ * values denormalized into the index, so a type flipped private drops out of search
+ * immediately.
  */
 final class VisibilityResolver
 {
@@ -20,38 +24,27 @@ final class VisibilityResolver
     /** @param list<string>|null $grantedScopes null = anonymous (no api_key_scopes attribute). */
     public function resolve(?array $grantedScopes): VisibilityContext
     {
-        if ($grantedScopes === null) {
-            return new VisibilityContext(false, []);
-        }
-
-        if (ApiKeyService::scopeSatisfies($grantedScopes, 'read:content')) {
+        // An authenticated key with an empty scope list has full access (framework convention).
+        if ($grantedScopes !== null && ApiKeyService::scopeSatisfies($grantedScopes, 'read:content')) {
             return new VisibilityContext(true, []);
         }
 
-        $scoped = [];
-        foreach ($grantedScopes as $scope) {
-            if (!is_string($scope) || !str_starts_with($scope, 'read:content:')) {
-                continue;
-            }
-            $slug = substr($scope, strlen('read:content:'));
-            // Only explicit slugs (no wildcard) resolve to a scoped uuid.
-            if ($slug === '' || str_contains($slug, '*')) {
-                continue;
-            }
-            $uuid = $this->types->findUuidBySlug($slug);
-            if ($uuid !== null && !in_array($uuid, $scoped, true)) {
-                $scoped[] = $uuid;
+        $visible = [];
+        foreach ($this->types->deliveryTypes() as $uuid => $type) {
+            $accessible = $type['public_delivery']
+                || ($grantedScopes !== null
+                    && ApiKeyService::scopeSatisfies($grantedScopes, 'read:content:' . $type['slug']));
+            if ($accessible) {
+                $visible[] = $uuid;
             }
         }
 
-        return new VisibilityContext(false, $scoped);
+        return new VisibilityContext(false, $visible);
     }
 
-    /** Delivery-parity accessibility for a PROVIDED type: all-access, scoped, or public. */
+    /** Delivery-parity accessibility for a PROVIDED type: all-access or in the visible set. */
     public function isTypeAccessible(VisibilityContext $ctx, string $typeUuid): bool
     {
-        return $ctx->allAccess
-            || in_array($typeUuid, $ctx->scopedTypeUuids, true)
-            || $this->types->isPublicDelivery($typeUuid);
+        return $ctx->allAccess || in_array($typeUuid, $ctx->visibleTypeUuids, true);
     }
 }

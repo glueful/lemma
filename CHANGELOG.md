@@ -7,6 +7,21 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 ## [Unreleased]
 
 ### Fixed
+- Search (pre-release hardening of the unreleased `/v1/search` feature, from the branch review):
+  Meilisearch-safe document ids (`{uuid}_{locale}` — colons are invalid Meilisearch ids, so
+  nothing could ever be indexed against a real server); `entry_uuid` added to the filterable
+  attributes so whole-entry purges work; the event-driven reindexer now ensures the index (with
+  settings) before its first upsert, so a fresh install's first publish no longer creates a
+  settings-less index that rejects every filtered search; visibility is resolved from the live
+  content-type store per request instead of `public_delivery` denormalized into documents —
+  flipping a type private now drops it from search immediately, and wildcard API-key scopes
+  (`read:content:*`) now match types exactly as delivery does; an empty-string `title` field
+  falls back to the entry label like a missing one; the search backfill orders by a total order
+  (`+ locale`) so multi-locale entries can't be skipped/duplicated across pages, and memoizes
+  per-type schema lookups.
+- API-key requests through `optional_api_key` now set the post-auth `user` request attribute, so
+  `rateLimit(..., by: 'user')` actually keys per user instead of silently degrading to per-IP
+  (which made keyed clients behind one NAT share a single bucket).
 - Audit log now shows the acting user's email/username (not a bare uuid) for content
   create/update/delete/publish actions. Content events dispatch after-commit, so the audit layer
   has no request to resolve a display label from; `PublishEventEmitter` now resolves the actor

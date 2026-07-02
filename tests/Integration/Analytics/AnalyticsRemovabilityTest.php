@@ -9,9 +9,7 @@ use Glueful\Application;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Events\EventService;
-use Glueful\Framework;
 use Glueful\Lemma\Collections\Events\CollectionCreated;
-use Glueful\Routing\RouteManifest;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -27,41 +25,9 @@ final class AnalyticsRemovabilityTest extends LemmaTestCase
     {
         parent::setUpBeforeClass(); // shared ENABLED app
 
-        if (self::$disabledApp !== null) {
-            return;
-        }
-
-        $root = dirname(__DIR__, 3);
-        $overrideDir = $root . '/config/testing';
-        $overrideFile = $overrideDir . '/lemma.php';
-
-        if (!is_dir($overrideDir)) {
-            mkdir($overrideDir, 0755, true);
-        }
-        file_put_contents(
-            $overrideFile,
-            "<?php\nreturn ['capabilities' => ['lemma.analytics' => false]];\n",
-        );
-
-        RouteManifest::reset();
-        foreach (glob($root . '/storage/cache/routes_*.php') ?: [] as $f) {
-            @unlink($f);
-        }
-
-        try {
-            self::$disabledApp = Framework::create($root)
-                ->withConfigDir($root . '/config')
-                ->withEnvironment('testing')
-                ->boot()
-                ->getContext();
-        } finally {
-            @unlink($overrideFile);
-            if (is_dir($overrideDir) && count((array) scandir($overrideDir)) === 2) {
-                @rmdir($overrideDir);
-            }
-        }
-
-        RouteManifest::reset();
+        self::$disabledApp ??= self::bootAppWithConfigOverride('lemma', [
+            'capabilities' => ['lemma.analytics' => false],
+        ]);
     }
 
     public function testDisabledBootAnalyticsRouteReturns404(): void

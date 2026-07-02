@@ -43,6 +43,11 @@ final class SearchEndpointTest extends LemmaTestCase
             }
             public function search(SearchRequest $r): SearchResults
             {
+                // An unreachable/misconfigured Meilisearch surfaces as a thrown SDK
+                // exception from search() — the controller maps it to 503.
+                if (!$this->healthy) {
+                    throw new \RuntimeException('connection refused');
+                }
                 return new SearchResults($this->hits, $this->total, $r->limit, $r->offset);
             }
             public function health(): bool
@@ -134,5 +139,39 @@ final class SearchEndpointTest extends LemmaTestCase
         $resp = $this->controller($this->fakeBackend(healthy: false))
             ->search($this->request(['q' => 'hi', 'locale' => 'en']));
         self::assertSame(503, $resp->getStatusCode());
+    }
+
+    public function testArrayValuedQueryParamsDoNotThrow500(): void
+    {
+        // ?q[]=a&locale[]=en&limit[]=1 — this route is public (optional_api_key). Reading these via
+        // InputBag::get() would throw a BadRequestException (→ unhandled 500); array params must be
+        // treated as absent, so a missing/array `q` lands on the normal 422, never a 500.
+        $resp = $this->controller($this->fakeBackend())->search($this->request([
+            'q' => ['climate'],
+            'locale' => ['en'],
+            'type' => ['blog'],
+            'limit' => ['5'],
+            'offset' => ['2'],
+        ]));
+
+        self::assertSame(422, $resp->getStatusCode());
+    }
+
+    public function testArrayValuedLimitOffsetFallBackToDefaultsWithScalarQuery(): void
+    {
+        // Scalar q/locale but array limit/offset: the request still succeeds (limit/offset fall back
+        // to their defaults) rather than 500ing on the InputBag guard.
+        $resp = $this->controller($this->fakeBackend(hits: [], total: 0))->search($this->request([
+            'q' => 'climate',
+            'locale' => 'en',
+            'limit' => ['999'],
+            'offset' => ['bad'],
+        ]));
+
+        self::assertSame(200, $resp->getStatusCode());
+        $body = json_decode((string) $resp->getContent(), true);
+        // limit defaulted to 20 (array ignored, not clamped from 999), offset defaulted to 0.
+        self::assertSame(20, $body['data']['limit']);
+        self::assertSame(0, $body['data']['offset']);
     }
 }

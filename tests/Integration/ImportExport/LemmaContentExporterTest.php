@@ -72,6 +72,42 @@ final class LemmaContentExporterTest extends LemmaTestCase
         self::assertSame('/uploads/blob00000001.jpg', $records[7]['data']['fetch_path']);
     }
 
+    public function testWindowedBatchesReassembleToTheFullOrderedBundle(): void
+    {
+        $this->seedPublishedEntry();
+
+        // Export in 2-record windows across 4 batches; the concatenation must equal the full,
+        // single-batch bundle in the same order (windowed reads must not drop/duplicate/reorder).
+        $exporter = $this->exporter();
+        $ctx = new ExportContext($this->appContext(), 'job000000002', 'ndjson');
+        $assembled = [];
+        foreach ([0, 2, 4, 6] as $seq => $offset) {
+            $result = $exporter->process(
+                new ExportBatch('batchwin' . $seq, 'job000000002', $seq + 1, $offset, 2),
+                $ctx,
+            );
+            $path = $this->appContext()->getBasePath() . '/storage/' . $result->resultPath;
+            foreach (array_values(array_filter(explode("\n", trim((string) file_get_contents($path))))) as $line) {
+                $assembled[] = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+            }
+        }
+
+        self::assertSame([
+            'content_type',
+            'entry',
+            'entry_draft',
+            'entry_version',
+            'entry_publication',
+            'entry_route',
+            'entry_reference',
+            'asset_manifest',
+        ], array_column($assembled, 'kind'));
+        self::assertSame('post', $assembled[0]['data']['slug']);
+        self::assertSame('hello-world', $assembled[5]['data']['slug']);
+        self::assertSame('hero_image', $assembled[6]['data']['source_field']);
+        self::assertSame('blob00000001', $assembled[7]['data']['uuid']);
+    }
+
     private function exporter(): LemmaContentExporter
     {
         return new LemmaContentExporter($this->appContext(), $this->connection());

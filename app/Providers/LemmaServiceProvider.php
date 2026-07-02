@@ -23,6 +23,7 @@ use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\ApiKeyAdminController;
 use App\Http\Controllers\CacheAdminController;
 use App\Http\Controllers\CapabilityAdminController;
+use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\HealthAdminController;
@@ -30,6 +31,7 @@ use App\Http\Controllers\ImportExportController;
 use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\ScheduledTasksController;
 use App\Http\Controllers\UserAdminController;
+use App\Support\UserRoleAssignmentPolicy;
 use App\Settings\GeneralSettings;
 use App\Settings\SettingsStore;
 use App\Content\Http\Controllers\ContentTypeController;
@@ -601,6 +603,11 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            UserRoleAssignmentPolicy::class => [
+                'class' => UserRoleAssignmentPolicy::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
             ExtensionAdminController::class => [
                 'class' => ExtensionAdminController::class,
                 'shared' => true,
@@ -618,6 +625,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             GeneralSettingsController::class => [
                 'class' => GeneralSettingsController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            EmailSettingsController::class => [
+                'class' => EmailSettingsController::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -749,8 +761,6 @@ final class LemmaServiceProvider extends ServiceProvider
     {
         return new EngineIndexableContentReader(
             $container->get(DeliveryRepository::class),
-            $container->get(ContentTypeRepository::class),
-            $container->get(RouteRepository::class),
             $container->get(PathRenderer::class),
         );
     }

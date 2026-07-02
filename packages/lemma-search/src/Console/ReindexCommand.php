@@ -39,11 +39,17 @@ final class ReindexCommand extends BaseCommand
 
         $offset = 0;
         $indexed = 0;
+        // Memoize schemas per type: a site has a handful of types but thousands of records,
+        // and schemaFor() runs an uncached content_types query per call.
+        $schemas = [];
         do {
             $page = $this->reader->enumerateIndexablePublished($pageSize, $offset, $type, $locale);
             $docs = [];
             foreach ($page->items as $record) {
-                $schema = $this->types->schemaFor($record->contentTypeUuid);
+                if (!array_key_exists($record->contentTypeUuid, $schemas)) {
+                    $schemas[$record->contentTypeUuid] = $this->types->schemaFor($record->contentTypeUuid);
+                }
+                $schema = $schemas[$record->contentTypeUuid];
                 if ($schema === null) {
                     continue;
                 }
@@ -54,7 +60,9 @@ final class ReindexCommand extends BaseCommand
                 $indexed += count($docs);
             }
             $offset += $pageSize;
-        } while ($offset < $page->total && $page->items !== []);
+            // A short page means the result set is exhausted (IndexablePage carries no
+            // total — paging this way costs zero COUNT queries).
+        } while (count($page->items) === $pageSize);
 
         return $indexed;
     }

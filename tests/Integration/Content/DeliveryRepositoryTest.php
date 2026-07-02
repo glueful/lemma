@@ -44,10 +44,15 @@ final class DeliveryRepositoryTest extends LemmaTestCase
 
     private function publish(string $title, string $slug): string
     {
+        return $this->publishInType($this->type, $title, $slug);
+    }
+
+    private function publishInType(string $typeUuid, string $title, string $slug): string
+    {
         $entries = $this->entries();
-        $uuid = $entries->createEntry($this->type, 'en', 1, 'user00000001');
+        $uuid = $entries->createEntry($typeUuid, 'en', 1, 'user00000001');
         $entries->saveDraft($uuid, 'en', ['title' => $title], 1, 0, 'user00000001');
-        (new RouteRepository($this->connection()))->assign($uuid, $this->type, 'en', $slug);
+        (new RouteRepository($this->connection()))->assign($uuid, $typeUuid, 'en', $slug);
         (new PublishService(
             $this->appContext(),
             $entries,
@@ -104,11 +109,40 @@ final class DeliveryRepositoryTest extends LemmaTestCase
         $published = $this->publish('Batch', 'batch');
         $draftOnly = $this->entries()->createEntry($this->type, 'en', 1, 'user00000001');
 
-        $out = $this->repo()->publishedByEntryUuids([$published, $draftOnly], 'en');
+        // read:content = full access, so the (non-public) post type resolves normally here.
+        $out = $this->repo()->publishedByEntryUuids([$published, $draftOnly], 'en', ['read:content']);
 
         self::assertArrayHasKey($published, $out);
         self::assertArrayNotHasKey($draftOnly, $out);
         self::assertSame('Batch', $out[$published]['fields']['title']);
+    }
+
+    public function testPublishedByEntryUuidsFiltersByTypeVisibility(): void
+    {
+        // A public type and a NON-public type, one published entry each.
+        $publicType = (new ContentTypeRepository($this->connection()))->create([
+            'slug' => 'public-post', 'name' => 'Public', 'public_delivery' => true,
+            'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
+        ]);
+        $privateType = (new ContentTypeRepository($this->connection()))->create([
+            'slug' => 'secret', 'name' => 'Secret', 'public_delivery' => false,
+            'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
+        ]);
+        $pub = $this->publishInType($publicType, 'Public One', 'public-one');
+        $priv = $this->publishInType($privateType, 'Secret One', 'secret-one');
+
+        // Anonymous (null scopes): only the public type's entry resolves.
+        $anon = $this->repo()->publishedByEntryUuids([$pub, $priv], 'en', null);
+        self::assertArrayHasKey($pub, $anon);
+        self::assertArrayNotHasKey($priv, $anon, 'a non-public type must not resolve for an anonymous caller');
+
+        // read:content:secret → the private type resolves too.
+        $scoped = $this->repo()->publishedByEntryUuids([$pub, $priv], 'en', ['read:content:secret']);
+        self::assertArrayHasKey($pub, $scoped);
+        self::assertArrayHasKey($priv, $scoped);
+        // The visibility metadata columns never leak into the resolved row.
+        self::assertArrayNotHasKey('_public', $scoped[$priv]);
+        self::assertArrayNotHasKey('_type_slug', $scoped[$priv]);
     }
 
     public function testListAppliesCompiledNumberFilter(): void

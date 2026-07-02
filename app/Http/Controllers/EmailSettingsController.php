@@ -19,7 +19,8 @@ use Symfony\Component\Mime\Email;
 /**
  * Read/write the mailer settings (the `MAIL_*` keys) in the project `.env`, plus a test-send.
  *
- * Mounted under the authenticated `/v1/admin` group (auth + `content.manage`). Writes go
+ * Mounted under the authenticated `/v1/admin` group (auth + `system.config`, superuser-only —
+ * these routes write MAIL_* to .env and open an SMTP connection with the stored credentials). Writes go
  * through the framework's atomic {@see EnvWriter}; the password is never read back to the client
  * (only whether one is set) and is only rewritten when a new value is submitted. Note: a running
  * process keeps its boot-time env, so saved changes apply on the next request/restart — which is
@@ -53,7 +54,7 @@ final class EmailSettingsController
     #[ApiOperation(
         summary: 'Get email settings',
         description: 'Current MAIL_* values from .env. The password is never returned — only '
-            . '`password_set`. Requires `content.manage`.',
+            . '`password_set`. Requires `system.config`.',
         tags: ['Lemma Settings'],
     )]
     #[ApiResponse(200, description: 'Current email settings (password omitted).')]
@@ -72,7 +73,7 @@ final class EmailSettingsController
     #[ApiOperation(
         summary: 'Update email settings',
         description: 'Writes the submitted MAIL_* values to .env. MAIL_PASSWORD is only rewritten '
-            . 'when a non-empty `password` is supplied. Requires `content.manage`.',
+            . 'when a non-empty `password` is supplied. Requires `system.config`.',
         tags: ['Lemma Settings'],
     )]
     #[ApiResponse(200, description: 'Settings saved.')]
@@ -113,7 +114,7 @@ final class EmailSettingsController
     #[ApiOperation(
         summary: 'Send a test email',
         description: 'Sends a test email to `to` using a transport built from the CURRENT .env '
-            . 'MAIL_* values (so it verifies just-saved SMTP settings). Requires `content.manage`.',
+            . 'MAIL_* values (so it verifies just-saved SMTP settings). Requires `system.config`.',
         tags: ['Lemma Settings'],
     )]
     #[ApiResponse(200, description: 'Test email sent.')]

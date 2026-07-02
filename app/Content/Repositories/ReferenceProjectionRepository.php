@@ -10,10 +10,12 @@ use Glueful\Database\Connection;
 /**
  * Write-time projection of reference/asset fields into entry_references (V1_DESIGN §4).
  *
- * Rebuilt on every draft save inside the draft-save transaction: the source entry's
- * existing rows are deleted then re-inserted from the draft's reference field values
- * and asset blob references, deduped on the unique
- * (source_entry_uuid, source_field, target_entry_uuid).
+ * Rebuilt per (source entry, locale) inside the publish/draft-save transaction: that locale's
+ * existing rows are deleted then re-inserted from the version's reference field values and asset
+ * blob references, deduped on the unique
+ * (source_entry_uuid, source_field, target_entry_uuid, locale). Keeping references locale-scoped is
+ * what lets a multi-locale entry publish/unpublish one locale without discarding the others'
+ * projections (which "what links here" and asset delete-protection depend on).
  */
 final class ReferenceProjectionRepository
 {
@@ -21,10 +23,19 @@ final class ReferenceProjectionRepository
     {
     }
 
-    /** @param array<string,mixed> $fields the cleaned draft fields */
-    public function rebuildForEntry(string $sourceEntryUuid, ContentTypeSchema $schema, array $fields): void
-    {
-        $this->clearForEntry($sourceEntryUuid);
+    /**
+     * Rebuild the reference rows for one (entry, locale): clear that locale's rows, then re-insert
+     * from the given fields. Other locales' rows are untouched.
+     *
+     * @param array<string,mixed> $fields the cleaned/published fields for $locale
+     */
+    public function rebuildForEntry(
+        string $sourceEntryUuid,
+        ContentTypeSchema $schema,
+        array $fields,
+        string $locale,
+    ): void {
+        $this->clearForEntryLocale($sourceEntryUuid, $locale);
 
         $rows = [];
         foreach ($schema->fields() as $f) {
@@ -36,6 +47,7 @@ final class ReferenceProjectionRepository
                     'source_entry_uuid' => $sourceEntryUuid,
                     'source_field' => $f->name,
                     'target_entry_uuid' => $target,
+                    'locale' => $locale,
                 ];
             }
         }
@@ -45,10 +57,20 @@ final class ReferenceProjectionRepository
         }
     }
 
+    /** Delete every reference row for a source entry across ALL locales (whole-entry delete). */
     public function clearForEntry(string $sourceEntryUuid): void
     {
         $this->db->table('entry_references')
             ->where('source_entry_uuid', '=', $sourceEntryUuid)
+            ->delete();
+    }
+
+    /** Delete a source entry's reference rows for ONE locale (leaves other locales intact). */
+    public function clearForEntryLocale(string $sourceEntryUuid, string $locale): void
+    {
+        $this->db->table('entry_references')
+            ->where('source_entry_uuid', '=', $sourceEntryUuid)
+            ->where('locale', '=', $locale)
             ->delete();
     }
 

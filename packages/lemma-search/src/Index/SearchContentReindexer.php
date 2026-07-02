@@ -16,6 +16,8 @@ use Glueful\Lemma\Search\Engine\SearchBackend;
  */
 final class SearchContentReindexer implements ContentReindexer
 {
+    private bool $indexEnsured = false;
+
     public function __construct(
         private readonly IndexableContentReader $reader,
         private readonly DocumentBuilder $builder,
@@ -41,6 +43,15 @@ final class SearchContentReindexer implements ContentReindexer
         if ($schema === null) {
             $this->backend->deleteEntry($entryUuid, $locale);
             return;
+        }
+
+        // Guarantee the index exists WITH its searchable/filterable settings before the
+        // first event-driven upsert: addDocuments auto-creates a settings-less index,
+        // which would then reject every visibility-filtered search until a manual
+        // search:reindex. Once per instance — ensureIndex is idempotent but not free.
+        if (!$this->indexEnsured) {
+            $this->backend->ensureIndex();
+            $this->indexEnsured = true;
         }
 
         $this->backend->upsert([$this->builder->build($record, $schema)]);

@@ -27,8 +27,17 @@ const authMiddleware: Middleware = {
 
 // Refresh-on-401: on a 401, attempt a single refresh; on success retry the original request
 // once; on failure clear the session (the router guard then routes to /login).
+//
+// The retry must use a clone taken BEFORE the body was sent: fetch consumes the request body, so
+// request.clone() in onResponse throws for a bodied POST/PATCH/PUT (GETs have no body, which hid
+// the bug). Clone in onRequest instead and stash it keyed to the request.
 let refreshing: Promise<boolean> | null = null
+const pristineRequests = new WeakMap<Request, Request>()
 const refreshMiddleware: Middleware = {
+  onRequest({ request }) {
+    pristineRequests.set(request, request.clone())
+    return request
+  },
   async onResponse({ request, response }) {
     if (response.status !== 401) return response
     const { useSessionStore } = await import('@/stores/session')
@@ -41,7 +50,8 @@ const refreshMiddleware: Middleware = {
       session.clear()
       return response
     }
-    const retry = request.clone()
+    // Re-clone the pristine copy so its body is still intact if openapi-fetch retries again.
+    const retry = (pristineRequests.get(request) ?? request).clone()
     retry.headers.set('authorization', `Bearer ${session.accessToken ?? ''}`)
     return fetch(retry)
   },

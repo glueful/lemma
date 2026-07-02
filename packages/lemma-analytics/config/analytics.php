@@ -11,4 +11,8 @@ return [
 
     // HMAC key for the one-way actor hash in analytics_active_actors. Falls back to APP_KEY.
     'hash_key' => env('ANALYTICS_HASH_KEY', env('APP_KEY', '')),
+
+    // Maximum from..to span (in days) a query may request. series() zero-fills one bucket per day,
+    // so an unbounded range is a multi-million-iteration DoS; requests beyond this are rejected 422.
+    'max_range_days' => (int) env('ANALYTICS_MAX_RANGE_DAYS', 366),
 ];

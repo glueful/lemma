@@ -112,9 +112,15 @@ php glueful search:reindex [--type=<slug>] [--locale=<code>]   # backfill the in
 php glueful search:status                                       # doctor: backend health + config warnings
 ```
 
-**Visibility drift:** `public_delivery` is denormalized into each document at index time, so after
-flipping a content type's `public_delivery` flag, run `search:reindex --type=<slug>` for search
-visibility to match delivery. `search:status` restates this.
+**Real-server smoke test:** the unit suite fakes the Meilisearch seam, so Meilisearch's
+actual contract (document-id charset, filterable attributes, delete-by-filter) is only
+exercised by `tests/Integration/Search/MeilisearchSmokeTest.php` — run it against a live
+server with `MEILISEARCH_SMOKE=1 vendor/bin/phpunit --filter MeilisearchSmokeTest` before
+shipping index-shape changes.
+
+**No visibility drift:** visibility is resolved from the live content-type store on every
+request (nothing visibility-related is denormalized into documents), so flipping a content
+type's `public_delivery` flag takes effect in search immediately — no reindex needed.
 
 ## Lifecycle
 

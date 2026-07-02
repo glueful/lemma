@@ -42,4 +42,24 @@ describe('capabilities store', () => {
     await store.ensureLoaded()
     expect(authFetch).toHaveBeenCalledTimes(1)
   })
+
+  // Regression: reset() must drop the cached set AND clear the loaded flag so the next
+  // ensureLoaded() re-fetches — otherwise a second account in the same tab inherits the
+  // previous user's capabilities.
+  it('reset clears the set and forces the next ensureLoaded to reload', async () => {
+    authFetch.mockResolvedValue({ data: { capabilities: [{ id: 'lemma.forms' }] } })
+    const store = useCapabilitiesStore()
+    await store.ensureLoaded()
+    expect(store.isEnabled('lemma.forms')).toBe(true)
+
+    store.reset()
+    expect(store.loaded).toBe(false)
+    expect(store.isEnabled('lemma.forms')).toBe(false)
+
+    authFetch.mockResolvedValue({ data: { capabilities: [{ id: 'lemma.render' }] } })
+    await store.ensureLoaded()
+    expect(authFetch).toHaveBeenCalledTimes(2)
+    expect(store.isEnabled('lemma.forms')).toBe(false)
+    expect(store.isEnabled('lemma.render')).toBe(true)
+  })
 })

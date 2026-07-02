@@ -30,12 +30,10 @@ final class StatusCommand extends BaseCommand
             ? '<info>Backend: reachable, index present.</info>'
             : '<error>Backend: UNREACHABLE (GET /v1/search will return 503).</error>');
 
-        // Per-type config-field validation (only configured types need checking).
-        /** @var array<string,mixed> $typeConfig */
-        $typeConfig = (array) config($this->getContext(), 'lemma_search.types', []);
+        // Per-type config-field validation. The injected DocumentBuilder is the single
+        // source of the configured types — never re-read the config tree it was built from.
         $warnings = [];
-        foreach (array_keys($typeConfig) as $slug) {
-            $slug = (string) $slug;
+        foreach ($this->builder->configuredTypeSlugs() as $slug) {
             $uuid = $this->types->findUuidBySlug($slug);
             if ($uuid === null) {
                 $warnings[] = "[{$slug}] configured type has no matching content type (skipped).";
@@ -50,13 +48,6 @@ final class StatusCommand extends BaseCommand
         foreach ($warnings as $w) {
             $output->writeln('<comment>' . $w . '</comment>');
         }
-
-        // Visibility drift is a documented edge: flipping a type's public_delivery flag needs a
-        // reindex to take effect (public_delivery is denormalized into each doc at index time).
-        $output->writeln(
-            '<comment>Note: after changing a content type\'s public_delivery flag, run '
-            . '`php glueful search:reindex --type=<slug>` for search visibility to match delivery.</comment>',
-        );
 
         return $healthy ? self::SUCCESS : self::FAILURE;
     }

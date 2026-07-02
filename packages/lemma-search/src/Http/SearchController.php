@@ -13,8 +13,9 @@ use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Public content search. Behind `optional_api_key`: an authenticated key narrows visibility
- * to its scopes; anonymous sees only public_delivery content. Visibility is enforced inside
- * the backend filter, so `total`/pagination are correct.
+ * to its scopes; anonymous sees only public-delivery types. Visibility is resolved from the
+ * live type store per request and enforced inside the backend filter, so `total`/pagination
+ * are correct and a type flipped private drops out immediately.
  */
 final class SearchController
 {
@@ -29,12 +30,12 @@ final class SearchController
 
     public function search(Request $request): Response
     {
-        $q = trim((string) $request->query->get('q', ''));
+        $q = trim(self::stringParam($request, 'q'));
         if ($q === '') {
             return Response::error('A non-empty `q` query parameter is required.', 422);
         }
 
-        $locale = trim((string) $request->query->get('locale', ''));
+        $locale = trim(self::stringParam($request, 'locale'));
         if ($locale === '') {
             return Response::error('A `locale` query parameter is required.', 422);
         }
@@ -45,7 +46,7 @@ final class SearchController
             : null;
         $ctx = $this->visibility->resolve($grantedScopes);
 
-        $typeSlug = trim((string) $request->query->get('type', ''));
+        $typeSlug = trim(self::stringParam($request, 'type'));
         if ($typeSlug !== '') {
             $typeUuid = $this->types->findUuidBySlug($typeSlug);
             if ($typeUuid === null) {
@@ -58,22 +59,28 @@ final class SearchController
             $typeSlug = null;
         }
 
-        if (!$this->backend->health()) {
+        $limit = $this->clamp(
+            (int) self::stringParam($request, 'limit', (string) $this->defaultLimit),
+            1,
+            $this->maxLimit,
+        );
+        $offset = max(0, (int) self::stringParam($request, 'offset', '0'));
+
+        // No health() preflight: it cost two extra Meilisearch round-trips per request to
+        // predict what this try/catch handles anyway (backend down/misconfigured → 503).
+        try {
+            $results = $this->backend->search(new SearchRequest(
+                q: $q,
+                locale: $locale,
+                typeSlug: $typeSlug,
+                allAccess: $ctx->allAccess,
+                visibleTypeUuids: $ctx->visibleTypeUuids,
+                limit: $limit,
+                offset: $offset,
+            ));
+        } catch (\Throwable) {
             return Response::error('Search is temporarily unavailable.', 503);
         }
-
-        $limit = $this->clamp((int) $request->query->get('limit', $this->defaultLimit), 1, $this->maxLimit);
-        $offset = max(0, (int) $request->query->get('offset', 0));
-
-        $results = $this->backend->search(new SearchRequest(
-            q: $q,
-            locale: $locale,
-            typeSlug: $typeSlug,
-            allAccess: $ctx->allAccess,
-            scopedTypeUuids: $ctx->scopedTypeUuids,
-            limit: $limit,
-            offset: $offset,
-        ));
 
         $hits = [];
         foreach ($results->hits as $hit) {
@@ -99,5 +106,20 @@ final class SearchController
     private function clamp(int $value, int $min, int $max): int
     {
         return max($min, min($max, $value));
+    }
+
+    /**
+     * Read a query parameter as a string, tolerating malformed array-valued params.
+     *
+     * This route is public (optional_api_key), so a client sending e.g. `?q[]=a` would otherwise
+     * hit Symfony InputBag::get()'s non-scalar guard and surface as an unhandled 500. Reading via
+     * all() and treating a non-string value as the default keeps every scalar input identical while
+     * turning array inputs into the "absent" case (→ the existing 422 for required params).
+     */
+    private static function stringParam(Request $request, string $key, string $default = ''): string
+    {
+        $value = $request->query->all()[$key] ?? null;
+
+        return \is_string($value) ? $value : $default;
     }
 }

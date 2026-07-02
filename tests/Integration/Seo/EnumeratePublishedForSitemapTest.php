@@ -54,6 +54,19 @@ final class EnumeratePublishedForSitemapTest extends LemmaTestCase
         }
     }
 
+    public function testNonPublicTypesAreExcludedFromTheSitemap(): void
+    {
+        $this->seedBilingualPublishedEntry(); // public 'blog' → 2 rows (en + fr)
+        // A published entry of a NON-public type must never appear in the anonymous sitemap.
+        $this->seedPublishedEntryInType('secret', false, 'en', 'hidden', 'Hidden');
+
+        $page = $this->reader()->enumeratePublishedForSitemap(50000, 0);
+
+        self::assertSame(2, $page['total'], 'the non-public type must not be counted');
+        $hrefs = array_map(static fn (array $i): string => $i['href'], $page['items']);
+        self::assertNotContains('https://site.test/en/secret/hidden', $hrefs);
+    }
+
     public function testOffsetReturnsTheRequestedSliceNotAPage(): void
     {
         $this->seedBilingualPublishedEntry(); // 2 published rows

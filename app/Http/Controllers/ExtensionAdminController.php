@@ -10,6 +10,7 @@ use Glueful\Extensions\EnabledProviders;
 use Glueful\Extensions\ExtensionManager;
 use Glueful\Extensions\ExtensionStateWriter;
 use Glueful\Extensions\PackageManifest;
+use Glueful\Helpers\RequestHelper;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
@@ -216,11 +217,9 @@ final class ExtensionAdminController
             );
         }
 
-        // Read `name` from the JSON body (the app convention — see ContentTypeController/
-        // MediaAdminController); fall back to a form-encoded field. Symfony leaves
-        // $request->request empty for an application/json body, so reading it alone yields ''.
-        $body = json_decode((string) $request->getContent(), true);
-        $raw = (is_array($body) ? ($body['name'] ?? null) : null) ?? $request->request->get('name');
+        // JSON body with form-encoded fallback: Symfony leaves $request->request empty for
+        // an application/json body, so reading it alone would yield ''.
+        $raw = RequestHelper::getRequestData($request)['name'] ?? null;
         $name = is_string($raw) ? trim($raw) : '';
         $candidate = (new PackageManifest($this->context))->getCandidates()[$name] ?? null;
         if ($candidate === null) {

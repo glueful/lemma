@@ -37,4 +37,29 @@ final class ContentTypeReaderTest extends LemmaTestCase
         self::assertNull($schema->field('title')?->format()); // non-text field has no format
         self::assertNull($reader->schemaFor('missing'));
     }
+
+    public function testDeliveryTypesListsNonDeletedTypesWithVisibility(): void
+    {
+        $this->connection()->table('content_types')->insert([
+            'uuid' => 'type0000pub1',
+            'slug' => 'pages',
+            'name' => 'Pages',
+            'public_delivery' => true,
+            'schema' => json_encode([['name' => 'title', 'type' => 'string']]),
+            'schema_version' => 1,
+        ]);
+        $this->connection()->table('content_types')->insert([
+            'uuid' => 'type0000priv',
+            'slug' => 'internal',
+            'name' => 'Internal',
+            'public_delivery' => false,
+            'schema' => json_encode([['name' => 'title', 'type' => 'string']]),
+            'schema_version' => 1,
+        ]);
+
+        $types = $this->container()->get(ContentTypeReader::class)->deliveryTypes();
+
+        self::assertSame(['slug' => 'pages', 'public_delivery' => true], $types['type0000pub1']);
+        self::assertSame(['slug' => 'internal', 'public_delivery' => false], $types['type0000priv']);
+    }
 }

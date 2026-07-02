@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Glueful\Lemma\Search\Engine;
 
+use Glueful\Lemma\Search\Index\DocumentBuilder;
 use Glueful\Lemma\Search\Query\Hit;
 use Glueful\Lemma\Search\Query\SearchRequest;
 use Glueful\Lemma\Search\Query\SearchResults;
@@ -20,7 +21,8 @@ final class MeilisearchBackend implements SearchBackend
     private const HL_POST = "\x03";
 
     private const SEARCHABLE = ['title', 'body'];
-    private const FILTERABLE = ['content_type_uuid', 'content_type_slug', 'public_delivery', 'locale'];
+    // entry_uuid is filterable so whole-entry purges (deleteByFilter) are valid in Meilisearch.
+    private const FILTERABLE = ['content_type_uuid', 'content_type_slug', 'locale', 'entry_uuid'];
 
     public function __construct(
         private readonly MeilisearchIndex $index,
@@ -48,7 +50,7 @@ final class MeilisearchBackend implements SearchBackend
     public function deleteEntry(string $entryUuid, ?string $locale = null): void
     {
         if ($locale !== null) {
-            $this->index->deleteDocument($entryUuid . ':' . $locale);
+            $this->index->deleteDocument(DocumentBuilder::documentId($entryUuid, $locale));
             return;
         }
         $this->index->deleteByFilter('entry_uuid = ' . $this->quote($entryUuid));
@@ -56,6 +58,12 @@ final class MeilisearchBackend implements SearchBackend
 
     public function search(SearchRequest $request): SearchResults
     {
+        // No all-access and nothing visible (no public types, no matching scopes): nothing
+        // can match — skip Meilisearch entirely rather than sending an empty IN list.
+        if (!$request->allAccess && $request->visibleTypeUuids === []) {
+            return new SearchResults([], 0, $request->limit, $request->offset);
+        }
+
         $params = [
             'limit' => $request->limit,
             'offset' => $request->offset,
@@ -104,12 +112,10 @@ final class MeilisearchBackend implements SearchBackend
         $clauses = ['locale = ' . $this->quote($request->locale)];
 
         if (!$request->allAccess) {
-            $visible = ['public_delivery = true'];
-            if ($request->scopedTypeUuids !== []) {
-                $ids = implode(', ', array_map([$this, 'quote'], $request->scopedTypeUuids));
-                $visible[] = 'content_type_uuid IN [' . $ids . ']';
-            }
-            $clauses[] = '(' . implode(' OR ', $visible) . ')';
+            // Visibility comes from the LIVE type store (public + scope-granted uuids),
+            // never from values denormalized into documents at index time.
+            $ids = implode(', ', array_map([$this, 'quote'], $request->visibleTypeUuids));
+            $clauses[] = 'content_type_uuid IN [' . $ids . ']';
         }
 
         if ($request->typeSlug !== null) {

@@ -31,8 +31,10 @@ final class SearchContentReindexerTest extends TestCase
             /** @var list<array{0:string,1:?string}> */
             public array $deletes = [];
             public bool $throwOnUpsert = false;
+            public int $ensured = 0;
             public function ensureIndex(): void
             {
+                $this->ensured++;
             }
             public function upsert(iterable $documents): void
             {
@@ -74,7 +76,7 @@ final class SearchContentReindexerTest extends TestCase
                 ?string $t = null,
                 ?string $l = null
             ): IndexablePage {
-                return new IndexablePage([], 0, $limit, $offset);
+                return new IndexablePage([], $limit, $offset);
             }
         };
     }
@@ -102,6 +104,10 @@ final class SearchContentReindexerTest extends TestCase
                         return null;
                     }
                 };
+            }
+            public function deliveryTypes(): array
+            {
+                return [];
             }
         };
     }
@@ -140,7 +146,13 @@ final class SearchContentReindexerTest extends TestCase
         );
         $r->reindexEntry('e-1', 'en');
         self::assertSame([], $backend->deletes);
-        self::assertSame('e-1:en', $backend->upserted[0]['id']);
+        self::assertSame('e-1_en', $backend->upserted[0]['id']);
+        // The event path must ensure the index (with settings) before its first upsert —
+        // addDocuments would otherwise auto-create a settings-less index that rejects
+        // every visibility-filtered search. Ensured once, not per upsert.
+        self::assertSame(1, $backend->ensured);
+        $r->reindexEntry('e-1', 'en');
+        self::assertSame(1, $backend->ensured);
     }
 
     public function testResilientDecoratorSwallowsBackendFailures(): void

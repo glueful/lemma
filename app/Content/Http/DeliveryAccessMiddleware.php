@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Content\Http;
 
+use App\Content\Delivery\DeliveryVisibility;
 use App\Content\Repositories\ContentTypeRepository;
-use Glueful\Auth\ApiKey\ApiKeyService;
 use Glueful\Http\Response;
 use Glueful\Routing\RouteMiddleware;
 use Symfony\Component\HttpFoundation\Request;
@@ -38,26 +38,29 @@ final class DeliveryAccessMiddleware implements RouteMiddleware
             return Response::notFound('Content type not found.');
         }
 
-        if ($request->attributes->has('api_key_scopes')) {
-            /** @var list<string> $granted */
-            $granted = array_values(array_filter(
-                (array) $request->attributes->get('api_key_scopes', []),
-                'is_string'
-            ));
-
-            if (
-                ApiKeyService::scopeSatisfies($granted, 'read:content')
-                || ApiKeyService::scopeSatisfies($granted, 'read:content:' . $type)
-            ) {
-                return $next($request);
-            }
-        }
-
-        if ((bool) ($row['public_delivery'] ?? false)) {
+        $public = (bool) ($row['public_delivery'] ?? false);
+        if (DeliveryVisibility::isAccessible($public, $type, $this->scopes($request))) {
             return $next($request);
         }
 
         return Response::forbidden('This content type requires a scoped API key');
+    }
+
+    /**
+     * The request's granted API-key scopes, or null when the request carries no API key
+     * (anonymous) — the shape {@see DeliveryVisibility} expects.
+     *
+     * @return list<string>|null
+     */
+    private function scopes(Request $request): ?array
+    {
+        if (!$request->attributes->has('api_key_scopes')) {
+            return null;
+        }
+        return array_values(array_filter(
+            (array) $request->attributes->get('api_key_scopes', []),
+            'is_string',
+        ));
     }
 
     private function routeType(Request $request): string

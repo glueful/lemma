@@ -82,6 +82,47 @@ final class LemmaContentImporterTest extends LemmaTestCase
         self::assertSame(1, $this->connection()->table('entry_routes')->count());
     }
 
+    public function testAssetManifestUpsertRollsBackOnFailedInsertPreservingLiveBlob(): void
+    {
+        // Clear any residue from a prior run (blobs is not auto-truncated between tests).
+        $this->connection()->table('blobs')->where('uuid', '=', 'blobrbk00001')->forceDelete();
+        // A live, already-uploaded blob whose metadata a re-import will try to replace.
+        $this->connection()->table('blobs')->insert([
+            'uuid' => 'blobrbk00001',
+            'name' => 'hero.jpg',
+            'mime_type' => 'image/jpeg',
+            'size' => 123,
+            'url' => '/uploads/blobrbk00001.jpg',
+            'storage_type' => 'local',
+            'visibility' => 'private',
+            'status' => 'active',
+            'created_by' => 'user00000001',
+            'created_at' => '2026-06-16 00:00:00',
+        ]);
+
+        // Re-import the same uuid with a malformed asset_manifest row (a non-numeric value for the
+        // bigint `size` column) so the insert fails. The forceDelete+insert must be atomic: the
+        // live metadata must survive an unsuccessful re-import.
+        $importer = $this->importer();
+        $upsert = new \ReflectionMethod($importer, 'upsert');
+        $upsert->setAccessible(true);
+        try {
+            $upsert->invoke($importer, 'asset_manifest', [
+                'uuid' => 'blobrbk00001',
+                'name' => 'replacement.jpg',
+                'size' => 'not-an-integer',
+            ]);
+            self::fail('expected the malformed asset_manifest insert to throw');
+        } catch (\Throwable) {
+            // expected — 'not-an-integer' is not a valid bigint for the `size` column.
+        }
+
+        $survivor = $this->connection()->table('blobs')->where('uuid', '=', 'blobrbk00001')->first();
+        self::assertNotNull($survivor, 'live blob metadata must survive a failed re-import');
+        self::assertSame('hero.jpg', $survivor['name']);
+        self::assertSame('/uploads/blobrbk00001.jpg', $survivor['url']);
+    }
+
     private function importer(): LemmaContentImporter
     {
         return new LemmaContentImporter($this->appContext(), $this->connection());

@@ -81,4 +81,35 @@ final class AnalyticsApiTest extends LemmaTestCase
         $res = $controller->breakdown($req);
         self::assertSame(422, $res->getStatusCode());
     }
+
+    public function testSeriesRejectsInvalidDateWith422NotUncaught500(): void
+    {
+        $controller = $this->container()->get(AnalyticsController::class);
+        $req = Request::create('/v1/admin/analytics/series', 'GET', [
+            'metric' => 'collections.row.created', 'from' => 'not-a-date', 'to' => '2025-06-10',
+        ]);
+
+        self::assertSame(422, $controller->series($req)->getStatusCode());
+    }
+
+    public function testSeriesRejectsAbusiveDateRangeWith422(): void
+    {
+        $controller = $this->container()->get(AnalyticsController::class);
+        // A multi-century span would zero-fill millions of buckets; the span cap rejects it.
+        $req = Request::create('/v1/admin/analytics/series', 'GET', [
+            'metric' => 'collections.row.created', 'from' => '2000-01-01', 'to' => '2999-12-31',
+        ]);
+
+        self::assertSame(422, $controller->series($req)->getStatusCode());
+    }
+
+    public function testSeriesRejectsFromAfterToWith422(): void
+    {
+        $controller = $this->container()->get(AnalyticsController::class);
+        $req = Request::create('/v1/admin/analytics/series', 'GET', [
+            'metric' => 'collections.row.created', 'from' => '2025-06-10', 'to' => '2025-06-01',
+        ]);
+
+        self::assertSame(422, $controller->series($req)->getStatusCode());
+    }
 }

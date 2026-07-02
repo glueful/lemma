@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Search;
 
 use Glueful\Lemma\Search\Engine\MeilisearchBackend;
 use Glueful\Lemma\Search\Engine\MeilisearchIndex;
+use Glueful\Lemma\Search\Index\DocumentBuilder;
 use Glueful\Lemma\Search\Query\SearchRequest;
 use PHPUnit\Framework\TestCase;
 
@@ -53,10 +54,6 @@ final class MeilisearchBackendTest extends TestCase
                 $this->lastParams = $params;
                 return $this->searchResult;
             }
-            public function stats(): array
-            {
-                return ['numberOfDocuments' => count($this->added)];
-            }
             public function reachable(): bool
             {
                 return $this->up;
@@ -71,23 +68,29 @@ final class MeilisearchBackendTest extends TestCase
 
         self::assertSame(['title', 'body'], $index->settings['searchableAttributes']);
         self::assertContains('content_type_uuid', $index->settings['filterableAttributes']);
-        self::assertContains('public_delivery', $index->settings['filterableAttributes']);
         self::assertContains('locale', $index->settings['filterableAttributes']);
         self::assertContains('content_type_slug', $index->settings['filterableAttributes']);
+        // entry_uuid must be filterable or whole-entry purges (deleteByFilter) are rejected.
+        self::assertContains('entry_uuid', $index->settings['filterableAttributes']);
+        // Visibility is resolved live at query time — never denormalized into the index.
+        self::assertNotContains('public_delivery', $index->settings['filterableAttributes']);
     }
 
     public function testUpsertForwardsDocuments(): void
     {
         $index = $this->fakeIndex();
-        (new MeilisearchBackend($index, 40))->upsert([['id' => 'e-1:en', 'title' => 'x']]);
-        self::assertSame('e-1:en', $index->added[0]['id']);
+        (new MeilisearchBackend($index, 40))->upsert([['id' => 'e-1_en', 'title' => 'x']]);
+        self::assertSame('e-1_en', $index->added[0]['id']);
     }
 
     public function testDeleteEntryWithLocaleDeletesSingleDocumentId(): void
     {
         $index = $this->fakeIndex();
         (new MeilisearchBackend($index, 40))->deleteEntry('e-1', 'en');
-        self::assertSame(['e-1:en'], $index->deletedIds);
+        // Must compose the same Meilisearch-safe id DocumentBuilder indexes under
+        // (colons are invalid in Meilisearch document ids).
+        self::assertSame([DocumentBuilder::documentId('e-1', 'en')], $index->deletedIds);
+        self::assertSame(['e-1_en'], $index->deletedIds);
         self::assertSame([], $index->deletedFilters);
     }
 
@@ -116,11 +119,11 @@ final class MeilisearchBackendTest extends TestCase
         $req = new SearchRequest('climate', 'en', null, false, ['ct-a', 'ct-b'], 20, 0);
         $results = $backend->search($req);
 
-        // Filter: locale AND (public OR scoped-in).
+        // Filter: locale AND the live-resolved visible type allowlist.
         $filter = $index->lastParams['filter'];
         self::assertStringContainsString('locale = "en"', $filter);
-        self::assertStringContainsString('public_delivery = true', $filter);
         self::assertStringContainsString('content_type_uuid IN ["ct-a", "ct-b"]', $filter);
+        self::assertStringNotContainsString('public_delivery', $filter);
 
         self::assertSame(1, $results->total);
         $hit = $results->hits[0];
@@ -141,9 +144,21 @@ final class MeilisearchBackendTest extends TestCase
 
         $filter = $index->lastParams['filter'];
         self::assertStringContainsString('content_type_slug = "blog"', $filter);
-        // all-access ⇒ no visibility narrowing to public/scoped.
-        self::assertStringNotContainsString('public_delivery = true', $filter);
+        // all-access ⇒ no visibility narrowing to the visible-type allowlist.
         self::assertStringNotContainsString('content_type_uuid IN', $filter);
+    }
+
+    public function testSearchShortCircuitsWhenNothingIsVisible(): void
+    {
+        // No all-access and an empty visible set: nothing can match — Meilisearch is
+        // never queried (avoids an empty IN [] filter).
+        $index = $this->fakeIndex();
+        $results = (new MeilisearchBackend($index, 40))
+            ->search(new SearchRequest('x', 'en', null, false, [], 20, 0));
+
+        self::assertSame([], $results->hits);
+        self::assertSame(0, $results->total);
+        self::assertNull($index->lastQuery);
     }
 
     public function testHealthReflectsIndexReachability(): void

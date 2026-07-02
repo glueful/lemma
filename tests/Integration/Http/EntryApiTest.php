@@ -216,6 +216,7 @@ final class EntryApiTest extends LemmaTestCase
             $source,
             ContentTypeSchema::fromArray([['name' => 'related', 'type' => 'reference']]),
             ['related' => $target],
+            'en',
         );
 
         $blocked = $this->controller()->destroy(new Request(), $target);

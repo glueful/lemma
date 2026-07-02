@@ -27,8 +27,5 @@ interface MeilisearchIndex
      */
     public function rawSearch(string $query, array $params): array;
 
-    /** @return array<string,mixed> */
-    public function stats(): array;
-
     public function reachable(): bool;
 }

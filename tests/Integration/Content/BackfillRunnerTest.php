@@ -10,6 +10,7 @@ use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\MigrationRepository;
 use App\Content\Repositories\VersionRepository;
+use App\Content\Schema\Migration\MigrationOpSet;
 use App\Content\Services\MigrationService;
 use App\Tests\Support\LemmaTestCase;
 
@@ -147,6 +148,82 @@ final class BackfillRunnerTest extends LemmaTestCase
             ->reconcile($this->connection(), $this->types(), $type);
 
         self::assertNull($this->connection()->table('lemma_filter_indexes')->where('field', '=', 'score')->first());
+    }
+
+    public function testDraftBackfillDoesNotClobberConcurrentEditorSaveAndRecordsFailure(): void
+    {
+        [$type, $entry] = $this->seedRenameMigration(draftFields: ['title' => 'orig']);
+        // An editor saves after the migration snapshotted the draft: lock_version 1 -> 2, new fields.
+        $this->entries()->saveDraft($entry, 'en', ['title' => 'edited'], 1, 1, 'user00000001');
+
+        // Drive the runner with the PRE-edit snapshot it would have read (stale lock_version 1).
+        $migrationUuid = $this->migrationUuid($type);
+        $opSet = MigrationOpSet::fromArray($this->migrations()->find($migrationUuid)['ops']);
+        $this->invoke('processDraft', [$migrationUuid, $opSet, 2, [
+            'entry_uuid' => $entry,
+            'locale' => 'en',
+            'fields' => json_encode(['title' => 'orig'], JSON_THROW_ON_ERROR),
+            'schema_version' => 1,
+            'lock_version' => 1,
+        ]]);
+
+        // The editor's content survives unchanged — the backfill did not overwrite it.
+        $draft = $this->entries()->findDraft($entry, 'en');
+        self::assertSame(['title' => 'edited'], $draft['fields']);
+        self::assertSame(1, (int) $draft['schema_version'], 'editor draft is still unmigrated');
+        self::assertSame(2, (int) $draft['lock_version']);
+        // The still-below-target draft is recorded as a re-runnable failure.
+        self::assertSame(1, (int) $this->migrations()->find($migrationUuid)['work_items_failed']);
+    }
+
+    public function testDraftBackfillStaysQuietWhenAlreadyMigratedConcurrently(): void
+    {
+        [$type, $entry] = $this->seedRenameMigration(draftFields: ['title' => 'orig']);
+        // Another pass already migrated the draft to v2 (lock bumped). A stale item must not fail it.
+        $this->connection()->table('entry_drafts')
+            ->where('entry_uuid', '=', $entry)->where('locale', '=', 'en')
+            ->update(['fields' => json_encode(['heading' => 'orig']), 'schema_version' => 2, 'lock_version' => 2]);
+
+        $migrationUuid = $this->migrationUuid($type);
+        $opSet = MigrationOpSet::fromArray($this->migrations()->find($migrationUuid)['ops']);
+        $this->invoke('processDraft', [$migrationUuid, $opSet, 2, [
+            'entry_uuid' => $entry,
+            'locale' => 'en',
+            'fields' => json_encode(['title' => 'orig'], JSON_THROW_ON_ERROR),
+            'schema_version' => 1,
+            'lock_version' => 1,
+        ]]);
+
+        self::assertSame(0, (int) $this->migrations()->find($migrationUuid)['work_items_failed']);
+    }
+
+    public function testPublishedBackfillDoesNotRevertConcurrentPublish(): void
+    {
+        [$type, $entry] = $this->seedRenameMigration(publishedFields: ['title' => 'V1']);
+        $v1Uuid = (string) $this->versions()->findPublication($entry, 'en')['version_uuid'];
+        // A concurrent publish pins a newer version (V2) after the migration read the V1 pin.
+        $v2 = $this->versions()->appendVersion($entry, 'en', 2, ['heading' => 'V2'], 2, 'user00000001');
+        $this->versions()->pin($entry, 'en', $v2, 'user00000001');
+
+        $migrationUuid = $this->migrationUuid($type);
+        $opSet = MigrationOpSet::fromArray($this->migrations()->find($migrationUuid)['ops']);
+        $this->invoke('processPublished', [$migrationUuid, $opSet, $this->types()->schemaFor($type), 2, null, [
+            'entry_uuid' => $entry,
+            'locale' => 'en',
+            'version_uuid' => $v1Uuid,
+            'schema_version' => 1,
+        ]]);
+
+        // Pin still points at the concurrently published V2 — not reverted to a migrated copy of V1.
+        self::assertSame($v2, (string) $this->versions()->findPublication($entry, 'en')['version_uuid']);
+    }
+
+    /** @param list<mixed> $args */
+    private function invoke(string $method, array $args): void
+    {
+        $m = new \ReflectionMethod(BackfillRunner::class, $method);
+        $m->setAccessible(true);
+        $m->invoke($this->runner(), ...$args);
     }
 
     /**

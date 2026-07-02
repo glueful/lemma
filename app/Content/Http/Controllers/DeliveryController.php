@@ -118,12 +118,13 @@ final class DeliveryController
         }
 
         $selector = FieldSelector::fromRequest($request);
+        $scopes = $this->grantedScopes($request);
 
         // Pagination branch: explicit ?page/?perPage uses the framework offset envelope.
         if ($query->wantsPagination()) {
             [$page, $perPage] = $this->pageParams($query);
             $result = $this->delivery->paginatePublished($typeUuid, $locale, $page, $perPage, $filter, $order);
-            $rows = $this->shape($result['data'], $schema, $selector, $locale, $typeUuid);
+            $rows = $this->shape($result['data'], $schema, $selector, $locale, $typeUuid, $scopes);
             $response = Response::paginated(
                 array_map(fn(array $r): array => $this->item($r), $rows),
                 $result['total'],
@@ -137,7 +138,7 @@ final class DeliveryController
         $limit = $this->limit($query);
         $cursor = Cursor::decode($query->cursor ?? '');
         $rows = $this->delivery->listPublished($typeUuid, $locale, $limit, $filter, $order, $cursor);
-        $shaped = $this->shape($rows, $schema, $selector, $locale, $typeUuid);
+        $shaped = $this->shape($rows, $schema, $selector, $locale, $typeUuid, $scopes);
 
         $nextCursor = null;
         if (count($rows) === $limit && $rows !== []) {
@@ -200,7 +201,14 @@ final class DeliveryController
         $row = $result->content();
 
         $selector = FieldSelector::fromRequest($request);
-        $shaped = $this->shape([$row], $schema, $selector, (string) $row['locale'], $typeUuid);
+        $shaped = $this->shape(
+            [$row],
+            $schema,
+            $selector,
+            (string) $row['locale'],
+            $typeUuid,
+            $this->grantedScopes($request),
+        );
         $item = $this->item($shaped[0]);
         $item['seo'] = $this->canonical->project(
             (string) $row['entry_uuid'],
@@ -209,12 +217,14 @@ final class DeliveryController
             (string) $row['locale'],
         );
 
+        $private = $this->isScoped($request);
         $etag = $this->etags->forItem((string) $row['version_uuid'], $this->selectionKey($request));
         if ($this->etags->matches($request, $etag)) {
             return $this->etags->notModified(
                 $etag,
                 $this->ttl($typeRow),
                 $this->etags->cacheTag([(string) $row['entry_uuid']], $type),
+                $private,
             );
         }
 
@@ -224,6 +234,7 @@ final class DeliveryController
             $etag,
             $this->ttl($typeRow),
             $this->etags->cacheTag([(string) $row['entry_uuid']], $type),
+            $private,
         );
     }
 
@@ -286,6 +297,7 @@ final class DeliveryController
         FieldSelector $selector,
         string $locale,
         string $typeUuid,
+        ?array $grantedScopes,
     ): array {
         if ($rows === []) {
             return [];
@@ -301,7 +313,14 @@ final class DeliveryController
             }
         }
 
-        $rows = $this->references->expand($rows, $schema, $selector->empty() ? null : $selector, $locale);
+        $rows = $this->references->expand(
+            $rows,
+            $schema,
+            $selector->empty() ? null : $selector,
+            $locale,
+            2,
+            $grantedScopes,
+        );
 
         if ($selector->empty()) {
             return $rows;
@@ -354,7 +373,35 @@ final class DeliveryController
             $etag,
             $this->ttl($typeRow),
             $this->etags->cacheTag($entryUuids, $typeSlug),
+            $this->isScoped($request),
         );
+    }
+
+    /**
+     * The request's granted API-key scopes, or null when the request carries no API key
+     * (anonymous). Threaded into reference expansion so a referenced non-public type is
+     * gated by the same rule as the URL type ({@see DeliveryVisibility}).
+     *
+     * @return list<string>|null
+     */
+    private function grantedScopes(Request $request): ?array
+    {
+        if (!$request->attributes->has('api_key_scopes')) {
+            return null;
+        }
+        return array_values(array_filter(
+            (array) $request->attributes->get('api_key_scopes', []),
+            'is_string',
+        ));
+    }
+
+    /**
+     * True when the response body depends on an API key's scopes (a private, non-shareable
+     * response). Anonymous responses stay publicly cacheable.
+     */
+    private function isScoped(Request $request): bool
+    {
+        return $request->attributes->has('api_key_scopes');
     }
 
     /**
@@ -463,7 +510,10 @@ final class DeliveryController
      */
     private function stringQuery(Request $request, string $key): ?string
     {
-        $value = $request->query->get($key);
+        // Read via all(), not get(): InputBag::get() throws a BadRequestException on an array-valued
+        // param (`key[]=`) before any is_string() guard could run — a 500 on this public endpoint.
+        // all() hands back the raw value so a non-string simply reads as absent (null).
+        $value = $request->query->all()[$key] ?? null;
         return is_string($value) ? $value : null;
     }
 
@@ -474,12 +524,33 @@ final class DeliveryController
     private function selectionKey(Request $request): string
     {
         $parts = [
-            'fields=' . (string) $request->query->get('fields', ''),
-            'expand=' . (string) $request->query->get('expand', ''),
-            'sort=' . (string) $request->query->get('sort', ''),
+            // Read through stringQuery (all()-based): a `fields[]=`/`expand[]=`/`sort[]=` array param
+            // must not throw here — this runs at ETag time on the public delivery path.
+            'fields=' . ($this->stringQuery($request, 'fields') ?? ''),
+            'expand=' . ($this->stringQuery($request, 'expand') ?? ''),
+            'sort=' . ($this->stringQuery($request, 'sort') ?? ''),
             'locale=' . $this->locale($this->stringQuery($request, 'locale')),
             'filter=' . json_encode($request->query->all('filter')),
+            // Scoped responses can expand references anonymous callers can't see, so the
+            // validator MUST differ by access or a shared cache would 304 a scoped
+            // conditional request against an anonymous body.
+            'scopes=' . $this->scopeFingerprint($request),
         ];
         return implode('&', $parts);
+    }
+
+    /**
+     * A stable fingerprint of the caller's access for the ETag key: empty for anonymous,
+     * else a hash of the sorted granted scopes so two differently-scoped keys (which may
+     * expand different references) never share a validator.
+     */
+    private function scopeFingerprint(Request $request): string
+    {
+        $scopes = $this->grantedScopes($request);
+        if ($scopes === null) {
+            return '';
+        }
+        sort($scopes);
+        return sha1(implode(',', $scopes));
     }
 }

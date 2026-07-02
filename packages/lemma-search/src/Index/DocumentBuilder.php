@@ -23,6 +23,16 @@ final class DocumentBuilder
     {
     }
 
+    /**
+     * The Meilisearch document id for one entry+locale. Meilisearch ids allow only
+     * alphanumerics, `-` and `_` — never use `:` or other separators here. Deletes
+     * (MeilisearchBackend::deleteEntry) must compose the identical id.
+     */
+    public static function documentId(string $entryUuid, string $locale): string
+    {
+        return $entryUuid . '_' . $locale;
+    }
+
     /** @return array<string,mixed> */
     public function build(IndexableContent $content, ContentSchemaReader $schema): array
     {
@@ -35,7 +45,7 @@ final class DocumentBuilder
         // Title.
         $titleField = isset($cfg['title_field']) ? (string) $cfg['title_field'] : 'title';
         $title = $this->stringValue($content->fields, $titleField);
-        if ($title === null && $titleField === 'title') {
+        if (($title === null || $title === '') && $titleField === 'title') {
             // Convention chain: entryLabel → first indexed string field.
             $title = $content->entryLabel;
             if ($title === null || $title === '') {
@@ -68,17 +78,30 @@ final class DocumentBuilder
             }
         }
 
+        // No visibility flags are denormalized into the document: visibility is resolved
+        // from the live type store at query time (VisibilityResolver), so flipping a type
+        // private takes effect immediately without a reindex.
         return [
-            'id' => $content->entryUuid . ':' . $content->locale,
+            'id' => self::documentId($content->entryUuid, $content->locale),
             'entry_uuid' => $content->entryUuid,
             'locale' => $content->locale,
             'content_type_uuid' => $content->contentTypeUuid,
             'content_type_slug' => $content->contentTypeSlug,
-            'public_delivery' => $content->publicDelivery,
             'href' => $content->href,
             'title' => (string) ($title ?? ''),
             'body' => implode("\n\n", $bodyParts),
         ];
+    }
+
+    /**
+     * The type slugs with per-type config — the single source for `search:status`'s
+     * validation sweep (never re-read the config tree this builder was constructed from).
+     *
+     * @return list<string>
+     */
+    public function configuredTypeSlugs(): array
+    {
+        return array_map('strval', array_keys($this->typeConfig));
     }
 
     /** @return list<string> Non-fatal config warnings for `search:status`. */
@@ -135,16 +158,12 @@ final class DocumentBuilder
         if ($weights === []) {
             return $fields;
         }
-        $keyed = array_values($fields);
-        usort($keyed, function (string $a, string $b) use ($weights, $fields): int {
-            $wa = (int) ($weights[$a] ?? 0);
-            $wb = (int) ($weights[$b] ?? 0);
-            if ($wa === $wb) {
-                return array_search($a, $fields, true) <=> array_search($b, $fields, true);
-            }
-            return $wb <=> $wa; // higher weight first
-        });
-        return $keyed;
+        // usort is stable (PHP ≥ 8.0), so equal-weight fields keep their input order.
+        usort(
+            $fields,
+            fn (string $a, string $b): int => ((int) ($weights[$b] ?? 0)) <=> ((int) ($weights[$a] ?? 0)),
+        );
+        return $fields;
     }
 
     /** @param array<string,mixed> $fields */

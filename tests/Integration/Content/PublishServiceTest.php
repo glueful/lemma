@@ -142,6 +142,35 @@ final class PublishServiceTest extends LemmaTestCase
             ->findPublication($this->entry, 'en')['version_uuid']);
     }
 
+    public function testPublishRejectsSoftDeletedEntry(): void
+    {
+        $this->entries()->softDelete($this->entry);
+
+        $this->expectException(\RuntimeException::class);
+        $this->service()->publish($this->entry, 'en', 'user00000001');
+    }
+
+    public function testRollbackRejectsSoftDeletedEntry(): void
+    {
+        $v1 = $this->service()->publish($this->entry, 'en', 'user00000001');
+        $this->entries()->saveDraft($this->entry, 'en', ['title' => 'V2'], 1, 1, 'user00000001');
+        $v2 = $this->service()->publish($this->entry, 'en', 'user00000001');
+        $this->entries()->softDelete($this->entry);
+
+        try {
+            $this->service()->rollback($this->entry, 'en', $v1, 'user00000001');
+            self::fail('expected rollback on a soft-deleted entry to throw');
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        // The pin was NOT rewound onto the deleted entry — it still points at V2.
+        self::assertSame(
+            $v2,
+            (new VersionRepository($this->connection()))->findPublication($this->entry, 'en')['version_uuid'],
+        );
+    }
+
     public function testReferenceProjectionTracksPublishedSnapshotOnly(): void
     {
         $types = new ContentTypeRepository($this->connection());

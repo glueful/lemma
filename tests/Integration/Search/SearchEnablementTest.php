@@ -7,10 +7,8 @@ namespace App\Tests\Integration\Search;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Application;
 use Glueful\Bootstrap\ApplicationContext;
-use Glueful\Framework;
 use Glueful\Lemma\Contracts\Search\ContentReindexer;
 use Glueful\Lemma\Search\Index\ResilientContentReindexer;
-use Glueful\Routing\RouteManifest;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -19,8 +17,7 @@ use Symfony\Component\HttpFoundation\Request;
  * SearchEndpointTest::testRouteAbsentByDefaultBecausePackIsOptIn). This proves the other
  * direction: once the provider is enabled, the boot gate registers /v1/search and binds the
  * (resilient) ContentReindexer. Dedicated enabled boot via a temp config/testing/extensions.php
- * override (the real allow-list + this provider), removed in a finally so the shared context is
- * never poisoned. Mirrors SeoRemovabilityTest's override strategy.
+ * override carrying the real allow-list + this provider.
  */
 final class SearchEnablementTest extends LemmaTestCase
 {
@@ -34,43 +31,13 @@ final class SearchEnablementTest extends LemmaTestCase
             return;
         }
 
-        $root = dirname(__DIR__, 3);
-        $overrideDir = $root . '/config/testing';
-        $overrideFile = $overrideDir . '/extensions.php';
-
-        if (!is_dir($overrideDir)) {
-            mkdir($overrideDir, 0755, true);
-        }
-
         // The real allow-list plus lemma-search (opt-in, so not in the default list).
         /** @var array{enabled: list<string>} $base */
-        $base = require $root . '/config/extensions.php';
+        $base = require dirname(__DIR__, 3) . '/config/extensions.php';
         $enabled = $base['enabled'];
         $enabled[] = 'Glueful\\Lemma\\Search\\LemmaSearchServiceProvider';
-        file_put_contents(
-            $overrideFile,
-            "<?php\nreturn ['enabled' => " . var_export($enabled, true) . "];\n",
-        );
 
-        RouteManifest::reset();
-        foreach (glob($root . '/storage/cache/routes_*.php') ?: [] as $f) {
-            @unlink($f);
-        }
-
-        try {
-            self::$enabledApp = Framework::create($root)
-                ->withConfigDir($root . '/config')
-                ->withEnvironment('testing')
-                ->boot()
-                ->getContext();
-        } finally {
-            @unlink($overrideFile);
-            if (is_dir($overrideDir) && count((array) scandir($overrideDir)) === 2) {
-                @rmdir($overrideDir);
-            }
-        }
-
-        RouteManifest::reset();
+        self::$enabledApp = self::bootAppWithConfigOverride('extensions', ['enabled' => $enabled]);
     }
 
     public function testRouteRegisteredWhenEnabled(): void

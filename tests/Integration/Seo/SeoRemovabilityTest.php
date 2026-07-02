@@ -7,18 +7,12 @@ namespace App\Tests\Integration\Seo;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Application;
 use Glueful\Bootstrap\ApplicationContext;
-use Glueful\Framework;
-use Glueful\Routing\RouteManifest;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Proves lemma-seo is cleanly disable-able: with lemma.seo disabled, the Task-4/5/6 boot
  * gate skips loadRoutesFrom() entirely, so every SEO surface (public meta, sitemap, robots,
  * admin meta) returns 404 — route unregistered, not a live-but-disabled handler.
- *
- * Boot strategy mirrors Collections\RemovabilityTest: a dedicated disabled boot with a
- * temporary config/testing/lemma.php override, removed in a finally so the shared enabled
- * context other test classes rely on is never poisoned.
  */
 final class SeoRemovabilityTest extends LemmaTestCase
 {
@@ -28,41 +22,9 @@ final class SeoRemovabilityTest extends LemmaTestCase
     {
         parent::setUpBeforeClass();
 
-        if (self::$disabledApp !== null) {
-            return;
-        }
-
-        $root = dirname(__DIR__, 3);
-        $overrideDir = $root . '/config/testing';
-        $overrideFile = $overrideDir . '/lemma.php';
-
-        if (!is_dir($overrideDir)) {
-            mkdir($overrideDir, 0755, true);
-        }
-        file_put_contents(
-            $overrideFile,
-            "<?php\nreturn ['capabilities' => ['lemma.seo' => false]];\n",
-        );
-
-        RouteManifest::reset();
-        foreach (glob($root . '/storage/cache/routes_*.php') ?: [] as $f) {
-            @unlink($f);
-        }
-
-        try {
-            self::$disabledApp = Framework::create($root)
-                ->withConfigDir($root . '/config')
-                ->withEnvironment('testing')
-                ->boot()
-                ->getContext();
-        } finally {
-            @unlink($overrideFile);
-            if (is_dir($overrideDir) && count((array) scandir($overrideDir)) === 2) {
-                @rmdir($overrideDir);
-            }
-        }
-
-        RouteManifest::reset();
+        self::$disabledApp ??= self::bootAppWithConfigOverride('lemma', [
+            'capabilities' => ['lemma.seo' => false],
+        ]);
     }
 
     private function hit(string $method, string $path): int

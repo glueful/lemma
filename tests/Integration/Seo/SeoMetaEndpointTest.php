@@ -60,6 +60,17 @@ final class SeoMetaEndpointTest extends LemmaTestCase
         self::assertSame(404, $resp->getStatusCode());
     }
 
+    public function testPublicMetaForNonPublicTypeIs404(): void
+    {
+        // A published entry of a NON-public type must not leak its SEO meta on this anonymous
+        // endpoint — it 404s exactly like an unknown type (no existence disclosure).
+        $this->seedPublishedEntryInType('secret-doc', false, 'en', 'classified', 'Classified');
+
+        $controller = $this->container()->get(SeoMetaController::class);
+        $resp = $controller->show(new Request(['locale' => 'en']), 'secret-doc', 'classified');
+        self::assertSame(404, $resp->getStatusCode(), 'non-public type must not expose SEO meta');
+    }
+
     public function testPublicMetaUnknownSlugIs404(): void
     {
         $this->seedBilingualPublishedEntry();

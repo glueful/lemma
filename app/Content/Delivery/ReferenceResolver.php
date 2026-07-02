@@ -41,6 +41,9 @@ final class ReferenceResolver
      *        null/empty => expand all reference fields
      * @param string $locale resolve targets in this locale
      * @param int $depth remaining expansion depth (default 2); 0 stops recursion
+     * @param list<string>|null $grantedScopes the caller's API-key scopes (null = anonymous);
+     *        targets whose type the caller cannot read resolve to null. Threaded through the
+     *        recursion so nested references are gated too.
      * @return list<array<string,mixed>> the rows with references spliced in
      */
     public function expand(
@@ -49,6 +52,7 @@ final class ReferenceResolver
         ?FieldSelector $selector,
         string $locale,
         int $depth = 2,
+        ?array $grantedScopes = null,
     ): array {
         if ($rootRows === [] || $depth <= 0) {
             return $rootRows;
@@ -65,8 +69,8 @@ final class ReferenceResolver
             return $rootRows;
         }
 
-        // 2) Batch-resolve the published versions in ONE query.
-        $resolved = $this->repo->publishedByEntryUuids($targetUuids, $locale);
+        // 2) Batch-resolve the published versions in ONE query, gated by the caller's scopes.
+        $resolved = $this->repo->publishedByEntryUuids($targetUuids, $locale, $grantedScopes);
 
         // 3) Recurse: expand references inside the resolved targets (same type/schema in
         //    the self-referential case; for cross-type we still use the source schema's
@@ -75,7 +79,7 @@ final class ReferenceResolver
         //    and bounded we recurse with the same schema. Depth bounds the recursion.
         if ($depth - 1 > 0 && $resolved !== []) {
             $resolved = $this->indexExpanded(
-                $this->expand(array_values($resolved), $schema, $selector, $locale, $depth - 1),
+                $this->expand(array_values($resolved), $schema, $selector, $locale, $depth - 1, $grantedScopes),
                 array_keys($resolved)
             );
         }

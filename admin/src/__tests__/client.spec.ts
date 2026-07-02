@@ -42,4 +42,29 @@ describe('api client middleware', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1)
     expect(res.response.status).toBe(200)
   })
+
+  // Regression: a bodied mutation (POST/PATCH/PUT) must survive refresh-on-401. The network send
+  // consumes the request body, so cloning in onResponse threw "body already used" and the retry
+  // never fired — GETs (no body) hid it. The pristine clone taken in onRequest fixes it.
+  it('retries a bodied POST after 401 with its body intact', async () => {
+    getToken.mockReturnValue('stale')
+    onRefresh.mockResolvedValue(true)
+    ;(globalThis.fetch as any)
+      // First send consumes the body, exactly as a real network send does, then 401s.
+      .mockImplementationOnce(async (req: Request) => {
+        await req.text()
+        return new Response('{}', { status: 401 })
+      })
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    const { client } = await import('@/api/client')
+
+    const res = await client.POST('/content-types' as any, { body: { name: 'Post' } })
+
+    expect(onRefresh).toHaveBeenCalledTimes(1)
+    expect(res.response.status).toBe(200)
+    const retried = (globalThis.fetch as any).mock.calls[1][0] as Request
+    expect(retried.method).toBe('POST')
+    expect(await retried.text()).toBe(JSON.stringify({ name: 'Post' }))
+    expect(retried.headers.get('authorization')).toBe('Bearer stale')
+  })
 })

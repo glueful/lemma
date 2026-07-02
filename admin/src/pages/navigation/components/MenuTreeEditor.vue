@@ -60,11 +60,6 @@ function outdentChild(holder: number, childIndex: number): void {
   changed()
 }
 
-function addItem(): void {
-  props.items.push({ kind: 'url', url: '/', labels: { [props.locale]: 'New item' }, children: [] })
-  changed()
-}
-
 function setLabel(item: NavTreeItem, value: string): void {
   item.labels[props.locale] = value
   changed()

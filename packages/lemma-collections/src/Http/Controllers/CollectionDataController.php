@@ -9,14 +9,17 @@ use Glueful\Database\Connection;
 use Glueful\Http\Response;
 use Glueful\Lemma\Collections\Data\RowRepository;
 use Glueful\Lemma\Collections\Data\RowValidator;
+use Glueful\Lemma\Collections\Exceptions\CollectionExpandForbiddenException;
 use Glueful\Lemma\Collections\Exceptions\InvalidQueryException;
 use Glueful\Lemma\Collections\Exceptions\RowNotFoundException;
 use Glueful\Lemma\Collections\Exceptions\RowReferencedException;
 use Glueful\Lemma\Collections\Exceptions\RowValidationException;
 use Glueful\Lemma\Collections\Http\ActorResolver;
+use Glueful\Lemma\Collections\Http\CollectionAccessResolver;
 use Glueful\Lemma\Collections\Query\QueryCompiler;
 use Glueful\Lemma\Collections\Relations\RelationResolver;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
+use Glueful\Lemma\Collections\Schema\CollectionDefinition;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -46,7 +49,21 @@ final class CollectionDataController
         private readonly QueryCompiler $compiler,
         private readonly RelationResolver $relations,
         private readonly ActorResolver $actor,
+        private readonly CollectionAccessResolver $access,
     ) {
+    }
+
+    /**
+     * Predicate the RelationResolver calls to decide whether the caller may expand a relation
+     * whose target is another collection: the target's own read policy must grant access, not
+     * the URL collection's. Bound to this request.
+     *
+     * @return callable(CollectionDefinition): bool
+     */
+    private function targetReadGate(Request $request): callable
+    {
+        return fn (CollectionDefinition $target): bool =>
+            $this->access->allows($request, $target, $target->name, 'read');
     }
 
     /**
@@ -80,7 +97,11 @@ final class CollectionDataController
 
         $expand = $this->expandParam($request);
         if ($expand !== []) {
-            $rows = $this->relations->expand($def, $rows, $expand);
+            try {
+                $rows = $this->relations->expand($def, $rows, $expand, $this->targetReadGate($request));
+            } catch (CollectionExpandForbiddenException $e) {
+                return Response::forbidden($e->getMessage());
+            }
         }
 
         return Response::paginated(
@@ -114,8 +135,12 @@ final class CollectionDataController
 
         $expand = $this->expandParam($request);
         if ($expand !== []) {
-            $expanded = $this->relations->expand($def, [$row], $expand);
-            $row      = $expanded[0] ?? $row;
+            try {
+                $expanded = $this->relations->expand($def, [$row], $expand, $this->targetReadGate($request));
+                $row      = $expanded[0] ?? $row;
+            } catch (CollectionExpandForbiddenException $e) {
+                return Response::forbidden($e->getMessage());
+            }
         }
 
         return Response::success($row, 'Row retrieved.');

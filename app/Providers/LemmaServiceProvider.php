@@ -30,6 +30,7 @@ use App\Http\Controllers\ImportExportController;
 use App\Http\Controllers\MediaAdminController;
 use App\Http\Controllers\ScheduledTasksController;
 use App\Http\Controllers\UserAdminController;
+use App\Support\UserRoleAssignmentPolicy;
 use App\Settings\GeneralSettings;
 use App\Settings\SettingsStore;
 use App\Content\Http\Controllers\ContentTypeController;
@@ -598,6 +599,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             UserAdminController::class => [
                 'class' => UserAdminController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            UserRoleAssignmentPolicy::class => [
+                'class' => UserRoleAssignmentPolicy::class,
                 'shared' => true,
                 'autowire' => true,
             ],

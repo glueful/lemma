@@ -9,6 +9,8 @@ use App\Http\DTOs\ErrorResponse;
 use App\Http\DTOs\UpdateUserData;
 use Glueful\Auth\PasswordHasher;
 use App\Support\ActorHelper;
+use App\Support\RoleAssignmentException;
+use App\Support\UserRoleAssignmentPolicy;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Aegis\AegisPermissionProvider;
 use Glueful\Extensions\Aegis\Models\Role;
@@ -39,6 +41,7 @@ final class UserAdminController
         private readonly ApplicationContext $context,
         private readonly UserRepository $users,
         private readonly AegisPermissionProvider $aegis,
+        private readonly UserRoleAssignmentPolicy $rolePolicy,
     ) {
     }
 
@@ -68,6 +71,21 @@ final class UserAdminController
         }
         if ($this->users->usernameExists($input->username)) {
             return Response::validation(['username' => 'A user with this username already exists.']);
+        }
+
+        // Authorize role assignment BEFORE creating the account, so a denied request never
+        // leaves an orphaned user. A new account has no current roles, and is never the actor.
+        if ($input->role_slugs !== []) {
+            try {
+                $this->rolePolicy->assertCanSyncRoles(
+                    ActorHelper::uuidFromRequest($request) ?? '',
+                    '',
+                    [],
+                    $input->role_slugs,
+                );
+            } catch (RoleAssignmentException $e) {
+                return $this->roleAssignmentError($e);
+            }
         }
 
         try {
@@ -137,6 +155,16 @@ final class UserAdminController
 
         // role_slugs is nullable: omitted ⇒ leave roles untouched; provided ⇒ replace with that set.
         if ($input->role_slugs !== null) {
+            try {
+                $this->rolePolicy->assertCanSyncRoles(
+                    ActorHelper::uuidFromRequest($request) ?? '',
+                    $uuid,
+                    $this->currentRoleSlugs($uuid),
+                    $input->role_slugs,
+                );
+            } catch (RoleAssignmentException $e) {
+                return $this->roleAssignmentError($e);
+            }
             $this->syncRoles($uuid, $input->role_slugs);
         }
 
@@ -198,6 +226,31 @@ final class UserAdminController
      *
      * @param list<string> $roleSlugs
      */
+    /**
+     * The role slugs a user currently holds (for computing the assignment diff).
+     *
+     * @return list<string>
+     */
+    private function currentRoleSlugs(string $userUuid): array
+    {
+        $slugs = [];
+        foreach ($this->aegis->getUserRoles($userUuid) as $role) {
+            if ($role instanceof Role) {
+                $slugs[] = $role->getSlug();
+            }
+        }
+        return $slugs;
+    }
+
+    /** Map a role-assignment policy failure to its HTTP response (403 deny / 422 unknown slug). */
+    private function roleAssignmentError(RoleAssignmentException $e): Response
+    {
+        if ($e->status === 422) {
+            return Response::validation(['role_slugs' => $e->getMessage()]);
+        }
+        return Response::error($e->getMessage(), Response::HTTP_FORBIDDEN, ['code' => 'FORBIDDEN']);
+    }
+
     private function syncRoles(string $userUuid, array $roleSlugs): void
     {
         $want = array_values(

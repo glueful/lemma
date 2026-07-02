@@ -13,6 +13,7 @@ use Glueful\Lemma\Collections\Data\RowRepository;
 use Glueful\Lemma\Collections\Events\CollectionRowCreated;
 use Glueful\Lemma\Collections\Events\CollectionRowDeleted;
 use Glueful\Lemma\Collections\Events\CollectionRowUpdated;
+use Glueful\Lemma\Collections\Exceptions\CollectionExpandForbiddenException;
 use Glueful\Lemma\Collections\Exceptions\RowReferencedException;
 use Glueful\Lemma\Collections\Exceptions\RowValidationException;
 use Glueful\Lemma\Collections\Relations\RelationResolver;
@@ -136,6 +137,12 @@ final class RelationsTest extends LemmaTestCase
         return $this->container()->get(RelationResolver::class);
     }
 
+    /** A target-read gate that authorizes every expansion — for tests exercising mechanics only. */
+    private static function allowAll(): callable
+    {
+        return static fn (): bool => true;
+    }
+
     private function actor(): Actor
     {
         return new Actor('admin', 'u1');
@@ -235,11 +242,28 @@ final class RelationsTest extends LemmaTestCase
             $this->actor(),
         );
 
-        $expanded = $this->resolver()->expand($this->articles, [$article], ['author']);
+        $expanded = $this->resolver()->expand($this->articles, [$article], ['author'], self::allowAll());
 
         self::assertIsArray($expanded[0]['author'], 'Expanded single relation must be an array (the target row)');
         self::assertSame((string) $author['uuid'], (string) $expanded[0]['author']['uuid']);
         self::assertSame('Alice', (string) $expanded[0]['author']['name']);
+        // Only the safe column allow-list is projected — never the internal auto-increment id.
+        self::assertArrayNotHasKey('id', $expanded[0]['author'], 'internal id must not leak through expansion');
+    }
+
+    public function testExpandThrowsWhenTargetCollectionIsUnreadable(): void
+    {
+        $author  = $this->repo()->create($this->authors, ['name' => 'Eve'], $this->actor());
+        $article = $this->repo()->create(
+            $this->articles,
+            ['title' => 'Gated', 'author' => (string) $author['uuid']],
+            $this->actor(),
+        );
+
+        // Caller cannot read the target collection → explicit ?expand is a 403-mapped error,
+        // not a silent passthrough of the raw uuid.
+        $this->expectException(CollectionExpandForbiddenException::class);
+        $this->resolver()->expand($this->articles, [$article], ['author'], static fn (): bool => false);
     }
 
     /**
@@ -255,7 +279,7 @@ final class RelationsTest extends LemmaTestCase
             $this->actor(),
         );
 
-        $expanded = $this->resolver()->expand($this->articles, [$article], ['co_authors']);
+        $expanded = $this->resolver()->expand($this->articles, [$article], ['co_authors'], self::allowAll());
 
         self::assertIsArray($expanded[0]['co_authors']);
         self::assertCount(2, $expanded[0]['co_authors']);
@@ -282,7 +306,7 @@ final class RelationsTest extends LemmaTestCase
             $this->actor(),
         );
 
-        $expanded = $this->resolver()->expand($this->nested, [$nested], ['article']);
+        $expanded = $this->resolver()->expand($this->nested, [$nested], ['article'], self::allowAll());
 
         self::assertIsArray($expanded[0]['article'], 'expanded article must be an array');
         self::assertSame((string) $article['uuid'], (string) $expanded[0]['article']['uuid']);

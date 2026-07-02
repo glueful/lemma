@@ -28,6 +28,9 @@ final class ReferenceResolverTest extends LemmaTestCase
         $this->type = (new ContentTypeRepository($this->connection()))->create([
             'slug' => 'post',
             'name' => 'Post',
+            // Public type: these tests exercise expansion mechanics on the legit path.
+            // Cross-type visibility gating has its own test below.
+            'public_delivery' => true,
             'schema' => [
                 ['name' => 'title', 'type' => 'string', 'required' => true],
                 ['name' => 'author', 'type' => 'reference'],
@@ -108,6 +111,40 @@ final class ReferenceResolverTest extends LemmaTestCase
         $author = $expanded[0]['fields']['author'];
         self::assertIsArray($author);
         self::assertSame('Target B', $author['fields']['title']);
+    }
+
+    public function testReferenceToNonPublicTypeIsGatedByCallerScopes(): void
+    {
+        // A published entry of a NON-public type, referenced by a public post's author.
+        $secretType = (new ContentTypeRepository($this->connection()))->create([
+            'slug' => 'secret', 'name' => 'Secret', 'public_delivery' => false,
+            'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
+        ]);
+        $entries = $this->entries();
+        $secret = $entries->createEntry($secretType, 'en', 1, 'user00000001');
+        $entries->saveDraft($secret, 'en', ['title' => 'Top Secret'], 1, 0, 'user00000001');
+        (new RouteRepository($this->connection()))->assign($secret, $secretType, 'en', 'top-secret');
+        (new PublishService(
+            $this->appContext(),
+            $entries,
+            new VersionRepository($this->connection()),
+            new ContentTypeRepository($this->connection()),
+            new FieldValidator(),
+            new ReferenceProjectionRepository($this->connection()),
+        ))->publish($secret, 'en', 'user00000001');
+
+        $a = $this->createPublished(['title' => 'Public Post', 'author' => $secret], 'public-post');
+        $rootA = $this->repo()->findPublishedByUuid($this->type, 'en', $a);
+        self::assertNotNull($rootA);
+
+        // Anonymous: the referenced non-public type must resolve to null, not leak its fields.
+        $anon = $this->resolver()->expand([$rootA], $this->schema(), null, 'en', 2, null);
+        self::assertNull($anon[0]['fields']['author'], 'anonymous caller must not see a non-public reference');
+
+        // A key scoped for the secret type expands it normally.
+        $scoped = $this->resolver()->expand([$rootA], $this->schema(), null, 'en', 2, ['read:content:secret']);
+        self::assertIsArray($scoped[0]['fields']['author']);
+        self::assertSame('Top Secret', $scoped[0]['fields']['author']['fields']['title']);
     }
 
     public function testUnpublishedTargetResolvesToNull(): void

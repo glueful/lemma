@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Glueful\Lemma\Collections\Relations;
 
 use Glueful\Database\Connection;
+use Glueful\Lemma\Collections\Exceptions\CollectionExpandForbiddenException;
 use Glueful\Lemma\Collections\Exceptions\RowReferencedException;
 use Glueful\Lemma\Collections\Exceptions\RowValidationException;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
@@ -42,8 +43,12 @@ final class RelationResolver
     /** Relation target descriptor for the framework users table (`settings['target'] = "users"`). */
     private const USERS_TARGET = 'users';
 
-    /** Safe columns exposed when expanding a users relation — never the password/hash. */
-    private const USERS_COLUMNS = ['uuid', 'username', 'email', 'status'];
+    /**
+     * Safe columns exposed when expanding a users relation on the public data API — enough to
+     * render "created by / owner" style UI, and NEVER PII/operational state (no email, status,
+     * or password). A privileged admin surface can project more if it ever needs to.
+     */
+    private const USERS_COLUMNS = ['uuid', 'username'];
 
     public function __construct(
         private readonly Connection $connection,
@@ -145,11 +150,19 @@ final class RelationResolver
      *
      * Targets with `content:*` descriptors are skipped (out of scope for v1).
      *
-     * @param  list<array<string, mixed>> $rows   Rows from a collection's table.
-     * @param  list<string>               $expand Names of relation fields to expand.
-     * @return list<array<string, mixed>>         The same rows with relation values resolved.
+     * Authorization: a `collection:{name}` target is expanded only when `$canReadTarget` returns
+     * true for the target's definition — the URL collection's own scope (checked by
+     * CollectionScopeMiddleware) does NOT authorize reading a *different* collection's rows. An
+     * explicit `?expand` of a forbidden target throws {@see CollectionExpandForbiddenException}
+     * (mapped to 403 by the controller) rather than silently returning raw uuids.
+     *
+     * @param  list<array<string, mixed>> $rows          Rows from a collection's table.
+     * @param  list<string>               $expand        Names of relation fields to expand.
+     * @param  callable(CollectionDefinition): bool $canReadTarget target read-access predicate.
+     * @return list<array<string, mixed>>                The same rows with relation values resolved.
+     * @throws CollectionExpandForbiddenException when a requested collection target is unauthorized.
      */
-    public function expand(CollectionDefinition $def, array $rows, array $expand): array
+    public function expand(CollectionDefinition $def, array $rows, array $expand, callable $canReadTarget): array
     {
         foreach ($expand as $fieldName) {
             $field = $def->field($fieldName);
@@ -158,7 +171,11 @@ final class RelationResolver
                 continue;
             }
 
-            [$table, $columns] = $this->resolveTargetTable((string) ($field->settings['target'] ?? ''));
+            [$table, $columns] = $this->resolveTarget(
+                (string) ($field->settings['target'] ?? ''),
+                $fieldName,
+                $canReadTarget,
+            );
             if ($table === null) {
                 continue; // unsupported / unknown target
             }
@@ -176,12 +193,15 @@ final class RelationResolver
     }
 
     /**
-     * Map a relation target descriptor to the table to read and the columns to expose.
+     * Map a relation target descriptor to the table to read and the explicit, safe columns to
+     * expose (never `SELECT *`). A `collection:` target must pass `$canReadTarget` first.
      *
-     * @return array{0: string|null, 1: list<string>|null} [table, columns]; columns null = all
-     *         columns; a null table means the target is unsupported/unknown and should be skipped.
+     * @param callable(CollectionDefinition): bool $canReadTarget
+     * @return array{0: string|null, 1: list<string>} [table, columns]; a null table means the
+     *         target is unsupported/unknown and should be skipped.
+     * @throws CollectionExpandForbiddenException when the caller can't read a collection target.
      */
-    private function resolveTargetTable(string $target): array
+    private function resolveTarget(string $target, string $fieldName, callable $canReadTarget): array
     {
         if ($target === self::USERS_TARGET) {
             return ['users', self::USERS_COLUMNS];
@@ -189,10 +209,32 @@ final class RelationResolver
 
         if (str_starts_with($target, 'collection:')) {
             $def = $this->definitions->findByName(substr($target, strlen('collection:')));
-            return $def !== null ? [$def->tableName, null] : [null, null];
+            if ($def === null) {
+                return [null, []];
+            }
+            if (!$canReadTarget($def)) {
+                throw CollectionExpandForbiddenException::forField($fieldName, $def->name);
+            }
+            return [$def->tableName, $this->safeColumns($def)];
         }
 
-        return [null, null];
+        return [null, []];
+    }
+
+    /**
+     * The explicit column allow-list for an expanded collection row: the safe system columns plus
+     * every declared field, excluding the internal auto-increment `id`. Field names can never
+     * collide with a system column (CollectionManager rejects such names), so this is exhaustive.
+     *
+     * @return list<string>
+     */
+    private function safeColumns(CollectionDefinition $def): array
+    {
+        $columns = ['uuid', 'created_at', 'updated_at'];
+        foreach ($def->fields as $field) {
+            $columns[] = $field->name;
+        }
+        return array_values(array_unique($columns));
     }
 
     /**

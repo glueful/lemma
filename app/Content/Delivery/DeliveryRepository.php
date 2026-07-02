@@ -353,10 +353,16 @@ final class DeliveryRepository
      * path's {@see base()} guard — a referenced entry that's been archived must not
      * surface through another entry's reference.
      *
-     * @param list<string> $entryUuids
+     * Also joins `content_types` and drops any target whose type the request cannot read
+     * ({@see DeliveryVisibility}): a reference must never expose a non-public type's fields
+     * to a caller not scoped for it. `$grantedScopes` is required (null = anonymous) so
+     * expansion cannot accidentally bypass the visibility gate.
+     *
+     * @param list<string>     $entryUuids
+     * @param list<string>|null $grantedScopes null = anonymous (no api_key_scopes)
      * @return array<string,array<string,mixed>> keyed by entry_uuid
      */
-    public function publishedByEntryUuids(array $entryUuids, string $locale): array
+    public function publishedByEntryUuids(array $entryUuids, string $locale, ?array $grantedScopes): array
     {
         if ($entryUuids === []) {
             return [];
@@ -364,13 +370,26 @@ final class DeliveryRepository
         $rows = $this->db->table('entry_publications as p')
             ->join('entry_versions as v', 'v.uuid', '=', 'p.version_uuid')
             ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
-            ->select(['p.entry_uuid', 'v.uuid AS version_uuid', 'v.fields', 'v.version'])
+            ->join('content_types as ct', 'ct.uuid', '=', 'e.content_type_uuid')
+            ->select([
+                'p.entry_uuid', 'v.uuid AS version_uuid', 'v.fields', 'v.version',
+                'ct.slug AS _type_slug', 'ct.public_delivery AS _public',
+            ])
             ->whereIn('p.entry_uuid', $entryUuids)
             ->where('e.status', '=', 'active')
             ->where('p.locale', '=', $locale)
             ->get();
         $out = [];
         foreach ($rows as $r) {
+            $accessible = DeliveryVisibility::isAccessible(
+                (bool) ($r['_public'] ?? false),
+                (string) ($r['_type_slug'] ?? ''),
+                $grantedScopes,
+            );
+            if (!$accessible) {
+                continue; // caller can't read this target's type — resolves to null downstream
+            }
+            unset($r['_type_slug'], $r['_public']); // never surface the visibility metadata
             $out[$r['entry_uuid']] = $this->hydrate($r);
         }
         return $out;

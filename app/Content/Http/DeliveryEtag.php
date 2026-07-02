@@ -64,23 +64,38 @@ final class DeliveryEtag
     /**
      * A bodyless 304 Not Modified carrying the validator + cache headers.
      */
-    public function notModified(string $etag, int $ttl, string $cacheTag): Response
+    public function notModified(string $etag, int $ttl, string $cacheTag, bool $private = false): Response
     {
         $response = new Response();
         // setNotModified() sets 304, strips the body to '' and removes body-only headers.
         $response->setNotModified();
-        $this->applyHeaders($response, $etag, $ttl, $cacheTag);
+        $this->applyHeaders($response, $etag, $ttl, $cacheTag, $private);
         return $response;
     }
 
     /**
      * Apply ETag / Cache-Control / Cache-Tag headers to a built response.
+     *
+     * A `$private` response (one whose body depends on the caller's API-key scopes) is
+     * marked `Cache-Control: private` and `Vary: X-API-Key`, so a shared cache/CDN never
+     * serves a scoped-key body to an anonymous caller at the same URL. Anonymous responses
+     * stay `public`. The ETag selection key already folds in a scope fingerprint (see
+     * DeliveryController::selectionKey), so scoped conditional requests can't collide.
      */
-    public function applyHeaders(Response $response, string $etag, int $ttl, string $cacheTag): Response
-    {
+    public function applyHeaders(
+        Response $response,
+        string $etag,
+        int $ttl,
+        string $cacheTag,
+        bool $private = false,
+    ): Response {
         $response->headers->set('ETag', $etag);
-        $response->headers->set('Cache-Control', 'public, max-age=' . $ttl);
+        $response->headers->set('Cache-Control', ($private ? 'private' : 'public') . ', max-age=' . $ttl);
         $response->headers->set('Cache-Tag', $cacheTag);
+        if ($private) {
+            // Append (don't replace) so a CORS `Vary: Origin` set upstream survives.
+            $response->headers->set('Vary', 'X-API-Key', false);
+        }
         return $response;
     }
 

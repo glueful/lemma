@@ -26,7 +26,8 @@ abstract class LemmaTestCase extends TestCase
         'entry_schedules',
         'import_export_reports', 'import_export_errors', 'import_export_files',
         'import_export_batches', 'import_export_jobs',
-        'entry_schema_migrations', 'entry_references', 'entry_redirects', 'entry_routes', 'entry_publications',
+        'entry_schema_migrations', 'entry_references', 'published_entry_references',
+        'entry_redirects', 'entry_routes', 'entry_publications',
         'entry_versions', 'entry_drafts', 'entries', 'content_types',
     ];
 

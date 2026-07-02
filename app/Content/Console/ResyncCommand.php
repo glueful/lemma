@@ -9,6 +9,7 @@ use App\Content\Delivery\SortCompiler;
 use App\Content\Events\EntryPublished;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
+use App\Content\Pipeline\Listeners\ProjectPublishedReferencesListener;
 use App\Content\Pipeline\Listeners\PurgeCdnListener;
 use App\Content\Pipeline\Listeners\ReindexSearchListener;
 use App\Content\Repositories\ContentTypeRepository;
@@ -40,6 +41,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  * the world into memory.
  *
  * RE-DRIVEN EFFECTS (Option A — direct listener invocation, for precise control):
+ *   - ProjectPublishedReferencesListener (always) rebuild published-reference projection rows
  *   - InvalidateCacheTagsListener  (always)  drop lemma:entry:{uuid} + lemma:type:{slug}
  *   - PurgeCdnListener             (always)  idempotent + capability-gated (no-ops without cdn)
  *   - ReindexSearchListener        (always)  idempotent + capability-gated (no-ops without search)
@@ -54,7 +56,8 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 #[AsCommand(
     name: 'lemma:resync',
-    description: 'Re-drive the publishing pipeline (cache + search, optionally webhooks) for published content',
+    description: 'Re-drive the publishing pipeline (projection + cache + search, optionally webhooks) '
+        . 'for published content',
 )]
 final class ResyncCommand extends BaseCommand
 {
@@ -65,7 +68,8 @@ final class ResyncCommand extends BaseCommand
     {
         $this
             ->setDescription(
-                'Re-drive the publishing pipeline (cache + search, optionally webhooks) for published content'
+                'Re-drive the publishing pipeline (projection + cache + search, optionally webhooks) '
+                . 'for published content'
             )
             ->setHelp(
                 'Re-fires the idempotent downstream effects for published content after a crash dropped '
@@ -103,7 +107,9 @@ final class ResyncCommand extends BaseCommand
             $count = $this->resyncEverything($withWebhooks);
         }
 
-        $effects = $withWebhooks ? 'cache + search + webhooks' : 'cache + search';
+        $effects = $withWebhooks
+            ? 'projection + cache + search + webhooks'
+            : 'projection + cache + search';
         $this->success(sprintf('Resynced %d published entr%s (%s).', $count, $count === 1 ? 'y' : 'ies', $effects));
 
         return self::SUCCESS;
@@ -195,11 +201,13 @@ final class ResyncCommand extends BaseCommand
     }
 
     /**
-     * Invoke the idempotent effect listeners for one publish event. Cache invalidation +
-     * CDN purge + search reindex always run; webhook re-dispatch only when opted in.
+     * Invoke the idempotent effect listeners for one publish event. Projection rebuild +
+     * cache invalidation + CDN purge + search reindex always run (projection first, so
+     * the purge sees current rows); webhook re-dispatch only when opted in.
      */
     private function reDrive(EntryPublished $event, bool $withWebhooks): void
     {
+        ($this->getService(ProjectPublishedReferencesListener::class))($event);
         ($this->getService(InvalidateCacheTagsListener::class))($event);
         ($this->getService(PurgeCdnListener::class))($event);
         ($this->getService(ReindexSearchListener::class))($event);

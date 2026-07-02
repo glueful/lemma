@@ -97,7 +97,9 @@ Shape" as post‑V1 and have **no** design doc yet:
 - **Rendered delivery** — templates/themes/page rendering (the "rendered" half of the hybrid
   CMS). APPROACH calls this *"its own phase with its own design."* ✅ **Design written
   (2026‑07‑02): [V2_DESIGN.md](V2_DESIGN.md)** — all rendered-delivery decisions, the pinned
-  render-core scope, and the sub-project sequence live there; implementation not yet started.
+  render-core scope, and the sub-project sequence live there; sub‑projects 1–3
+  (navigation, render core, render caching) shipped 2026‑07‑02 — see "Recommended
+  sequencing" below.
 - **Block / page builder** — architectural (how blocks compose + persist).
 - **Approval / review workflow** — ✅ **shipped** (2026‑07‑02) as the `glueful/lemma-workflow`
   capability pack: single-stage state machine (draft → in_review → approved/changes_requested)
@@ -125,9 +127,9 @@ Shape" as post‑V1 and have **no** design doc yet:
    (`lemma-navigation`) and ✅ sub‑project 2 (`lemma-render` core) **shipped** (2026‑07‑02):
    Lemma serves real HTML pages from published content through filesystem Twig themes
    (catch‑all → `PublicRouteResolver`, pack‑embedded default theme + app override).
-   **Next step: render caching (V2 sub‑project 3)** — full‑page cache keyed
-   `render:{theme}:{normalizedPath}`, tag‑invalidated via the lifecycle/`MenuUpdated`
-   seams, ETag, CDN composition. Spec:
+   ✅ sub‑project 3 (render caching) **shipped** (2026‑07‑02): full‑page cache keyed
+   `render:{theme}:{normalizedPath}`, surrogate‑tag invalidation through the existing
+   lifecycle/`MenuUpdated` seams, ETag/304, `php glueful render:cache:clear`. Spec:
    `docs/superpowers/specs/2026-07-02-lemma-render-caching-design.md`.
 2. **Taxonomies → term‑archives + facets** — the reference primitive is now shipped, so this is no
    longer a from‑scratch module: it's the smaller, additive delivery surface (term‑archive

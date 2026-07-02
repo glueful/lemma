@@ -13,6 +13,7 @@ use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Delivery\EntryTargetResolver;
 use Glueful\Lemma\Contracts\Navigation\MenuReader;
 use Glueful\Lemma\Contracts\Navigation\MenuUpdated;
+use Glueful\Lemma\Render\Console\ClearRenderCacheCommand;
 use Glueful\Lemma\Render\Http\Controllers\RenderController;
 use Glueful\Lemma\Render\Http\Middleware\RenderPageCache;
 use Glueful\Lemma\Render\Listeners\PurgeRenderCacheOnMenuUpdate;
@@ -58,7 +59,17 @@ final class LemmaRenderServiceProvider extends ServiceProvider
                 'shared' => true,
                 'factory' => [self::class, 'makePurgeRenderCacheOnMenuUpdate'],
             ],
+            ClearRenderCacheCommand::class => [
+                'shared' => true,
+                'factory' => [self::class, 'makeClearRenderCacheCommand'],
+            ],
         ];
+    }
+
+    public static function makeClearRenderCacheCommand(
+        ContainerInterface $container,
+    ): ClearRenderCacheCommand {
+        return new ClearRenderCacheCommand($container->get(CacheStore::class));
     }
 
     public static function makePurgeRenderCacheOnMenuUpdate(
@@ -179,5 +190,9 @@ final class LemmaRenderServiceProvider extends ServiceProvider
                 [app($context, PurgeRenderCacheOnMenuUpdate::class), 'onMenuUpdated'],
             );
         }
+
+        // OUTSIDE the capability gate (analytics-pack precedent): an operator may need
+        // to clear stale pages right after disabling the capability.
+        $this->commands([ClearRenderCacheCommand::class]);
     }
 }

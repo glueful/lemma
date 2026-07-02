@@ -303,4 +303,20 @@ final class RenderPageCacheTest extends LemmaTestCase
 
         self::assertSame([], $this->cache()->getKeys('render:*'));
     }
+
+    public function testRenderCacheClearCommandEmptiesTheNamespace(): void
+    {
+        // deletePattern works with or without tag support — the non-tag-driver
+        // escape hatch (spec §6). Covers per-path AND fixed keys.
+        $this->seedBilingualPublishedEntry();
+        $this->handle(Request::create('/blog/hello', 'GET'));
+        $this->handle(Request::create('/no/such-page', 'GET'));
+        self::assertCount(2, $this->cache()->getKeys('render:*'));
+
+        $command = $this->container()
+            ->get(\Glueful\Lemma\Render\Console\ClearRenderCacheCommand::class);
+        $command->clear();
+
+        self::assertSame([], $this->cache()->getKeys('render:*'));
+    }
 }

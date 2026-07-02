@@ -111,20 +111,20 @@ Shape" as post‑V1 and have **no** design doc yet:
   filterable references, above), so categories/tags already work as content-type-as-terms today.
   What remains is the **delivery surface**: term-archive endpoints + facet counts over a
   *published*-reference projection, an additive layer the references spec explicitly deferred.
-- **Forms** — feature module. **Navigation / menu builder** — ✅ spec written (2026‑07‑02,
-  `docs/superpowers/specs/2026-07-02-lemma-navigation-design.md`) as V2 sub‑project 1;
-  implementation plan is the next step.
+- **Forms** — feature module. **Navigation / menu builder** — ✅ **shipped** (2026‑07‑02) as
+  `glueful/lemma-navigation` (V2 sub‑project 1): menu trees with per‑locale labels,
+  published‑only resolution via the new `MenuReader` + `EntryTargetResolver` contracts,
+  lock_version‑guarded tree writes, admin SPA tree editor.
 - **Ecommerce content integration**, **personalization / segmentation** — later, per APPROACH.
 
 ---
 
 ## Recommended sequencing (opinion, not a commitment)
 
-1. **Rendered delivery** — ✅ design phase done (2026‑07‑02): [V2_DESIGN.md](V2_DESIGN.md) settles
-   the decision set, and the first sub‑project spec is written
-   (`docs/superpowers/specs/2026-07-02-lemma-navigation-design.md`). **Next step: the
-   `lemma-navigation` implementation plan**, then render core, then render caching, per the
-   V2 sub‑project sequence.
+1. **Rendered delivery** — ✅ design done ([V2_DESIGN.md](V2_DESIGN.md)) and ✅ sub‑project 1
+   (`lemma-navigation`) **shipped** (2026‑07‑02). **Next step: the `lemma-render` core
+   spec + plan** (PublicRouteResolver contract, catch‑all mechanism, Twig pipeline, default
+   theme), then render caching, per the V2 sub‑project sequence.
 2. **Taxonomies → term‑archives + facets** — the reference primitive is now shipped, so this is no
    longer a from‑scratch module: it's the smaller, additive delivery surface (term‑archive
    endpoints + facet counts over a published‑reference projection) the references spec deferred.

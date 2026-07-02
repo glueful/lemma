@@ -6,9 +6,13 @@ namespace Glueful\Lemma\Workflow;
 
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Migrations\MigrationPriority;
+use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Contracts\Authoring\DraftSummaryReader;
+use Glueful\Lemma\Contracts\Events\ContentLifecycleEvent;
+use Glueful\Lemma\Workflow\Http\Controllers\WorkflowController;
 use Glueful\Permissions\PermissionManager;
 use Psr\Container\ContainerInterface;
 
@@ -29,24 +33,44 @@ final class LemmaWorkflowServiceProvider extends ServiceProvider
                 'factory' => [self::class, 'makeWorkflowPublishGate'],
                 'tags' => ['lemma.publish_gate'],
             ],
+            WorkflowLifecycleListener::class => [
+                'class' => WorkflowLifecycleListener::class, 'shared' => true, 'autowire' => true,
+            ],
+            WorkflowController::class => [
+                'shared' => true,
+                'factory' => [self::class, 'makeWorkflowController'],
+            ],
         ];
+    }
+
+    public static function makeWorkflowController(ContainerInterface $container): WorkflowController
+    {
+        return new WorkflowController(
+            $container->get(WorkflowService::class),
+            $container->get(WorkflowStateRepository::class),
+            $container->get(DraftSummaryReader::class),
+            self::resolvePermissionManager($container),
+        );
     }
 
     public static function makeWorkflowPublishGate(ContainerInterface $container): WorkflowPublishGate
     {
-        // Dual-id PermissionManager lookup — the RequireLemmaPermission convention.
-        $permissions = null;
-        foreach ([PermissionManager::class, 'permission.manager'] as $id) {
-            if ($container->has($id) && ($m = $container->get($id)) instanceof PermissionManager) {
-                $permissions = $m;
-                break;
-            }
-        }
         return new WorkflowPublishGate(
             $container->get(CapabilityRegistry::class),
             $container->get(WorkflowStateRepository::class),
-            $permissions,
+            self::resolvePermissionManager($container),
         );
+    }
+
+    /** Dual-id PermissionManager lookup — the RequireLemmaPermission convention. */
+    private static function resolvePermissionManager(ContainerInterface $container): ?PermissionManager
+    {
+        foreach ([PermissionManager::class, 'permission.manager'] as $id) {
+            if ($container->has($id) && ($m = $container->get($id)) instanceof PermissionManager) {
+                return $m;
+            }
+        }
+        return null;
     }
 
     public function register(ApplicationContext $context): void
@@ -70,5 +94,16 @@ final class LemmaWorkflowServiceProvider extends ServiceProvider
             MigrationPriority::DEPENDENT,
             'lemma-workflow',
         );
+
+        if ($registry->isEnabled('lemma.workflow')) {
+            // Automatic transitions ride the CONTRACT lifecycle events (interface-typed
+            // listener — the lemma-seo invalidator pattern). Wired only when enabled:
+            // disabled means no state mutations at all.
+            $events = app($context, EventService::class);
+            $listener = app($context, WorkflowLifecycleListener::class);
+            $events->addListener(ContentLifecycleEvent::class, [$listener, 'onContentChanged']);
+
+            $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
+        }
     }
 }

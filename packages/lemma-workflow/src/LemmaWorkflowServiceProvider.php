@@ -9,13 +9,44 @@ use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Permissions\PermissionManager;
+use Psr\Container\ContainerInterface;
 
 final class LemmaWorkflowServiceProvider extends ServiceProvider
 {
     /** @return array<string, array<string, mixed>> */
     public static function services(): array
     {
-        return [];
+        return [
+            WorkflowStateRepository::class => [
+                'class' => WorkflowStateRepository::class, 'shared' => true, 'autowire' => true,
+            ],
+            WorkflowService::class => [
+                'class' => WorkflowService::class, 'shared' => true, 'autowire' => true,
+            ],
+            WorkflowPublishGate::class => [
+                'shared' => true,
+                'factory' => [self::class, 'makeWorkflowPublishGate'],
+                'tags' => ['lemma.publish_gate'],
+            ],
+        ];
+    }
+
+    public static function makeWorkflowPublishGate(ContainerInterface $container): WorkflowPublishGate
+    {
+        // Dual-id PermissionManager lookup — the RequireLemmaPermission convention.
+        $permissions = null;
+        foreach ([PermissionManager::class, 'permission.manager'] as $id) {
+            if ($container->has($id) && ($m = $container->get($id)) instanceof PermissionManager) {
+                $permissions = $m;
+                break;
+            }
+        }
+        return new WorkflowPublishGate(
+            $container->get(CapabilityRegistry::class),
+            $container->get(WorkflowStateRepository::class),
+            $permissions,
+        );
     }
 
     public function register(ApplicationContext $context): void

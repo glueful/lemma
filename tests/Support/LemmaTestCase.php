@@ -21,6 +21,7 @@ abstract class LemmaTestCase extends TestCase
 
     // Truncate order is child -> parent (no FKs in v1, but keep it deterministic).
     private const TABLES = [
+        'workflow_transitions', 'workflow_review_states',
         'entry_schedules',
         'import_export_reports', 'import_export_errors', 'import_export_files',
         'import_export_batches', 'import_export_jobs',
@@ -46,6 +47,41 @@ abstract class LemmaTestCase extends TestCase
     /** Verified once per process: are the tables actually migrated? */
     private static bool $schemaVerified = false;
 
+    private function grantSeedActorBypass(): void
+    {
+        $db = $this->connection();
+        $perm = $db->table('permissions')->select(['uuid'])
+            ->where('slug', '=', 'workflow.bypass')->first();
+        if ($perm === null) {
+            return; // workflow pack absent — nothing to bypass
+        }
+        $roleSlug = 'test-seed-bypass';
+        $role = $db->table('roles')->select(['uuid'])->where('slug', '=', $roleSlug)->first();
+        $roleUuid = $role !== null ? (string) $role['uuid'] : \Glueful\Helpers\Utils::generateNanoID();
+        if ($role === null) {
+            $db->table('roles')->insert(['uuid' => $roleUuid, 'slug' => $roleSlug, 'name' => $roleSlug]);
+        }
+        $link = $db->table('role_permissions')->select(['id'])
+            ->where('role_uuid', '=', $roleUuid)
+            ->where('permission_uuid', '=', (string) $perm['uuid'])
+            ->first();
+        if ($link === null) {
+            $db->table('role_permissions')->insert([
+                'uuid' => \Glueful\Helpers\Utils::generateNanoID(),
+                'role_uuid' => $roleUuid,
+                'permission_uuid' => (string) $perm['uuid'],
+            ]);
+        }
+        $assigned = $db->table('user_roles')->select(['id'])
+            ->where('user_uuid', '=', 'user00000001')
+            ->where('role_uuid', '=', $roleUuid)
+            ->first();
+        if ($assigned === null) {
+            $this->container()->get(\Glueful\Extensions\Aegis\AegisPermissionProvider::class)
+                ->assignRole('user00000001', $roleSlug);
+        }
+    }
+
     protected function setUp(): void
     {
         // Fail loud and clear if the test DB isn't migrated, instead of letting every
@@ -65,6 +101,14 @@ abstract class LemmaTestCase extends TestCase
             }
             self::$schemaVerified = true;
         }
+
+        // TEST HARNESS ONLY: the workflow publish gate is live suite-wide, and the shared
+        // seeding actor publishes fixture content without going through review — grant it
+        // workflow.bypass so pre-existing publish-path tests behave exactly as before the
+        // gate existed. Re-asserted EVERY test (cheap + idempotent): some suites clean RBAC
+        // tables, and a once-per-process grant silently dies with them. Production grants
+        // are ONLY the administrator dependent migration.
+        $this->grantSeedActorBypass();
 
         // QueryBuilder has no truncate(); delete-all via a tautological predicate
         // (every Lemma table has an integer `id`). Deletes commit immediately.

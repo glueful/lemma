@@ -9,13 +9,46 @@ use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
+use Glueful\Lemma\Contracts\Delivery\EntryTargetResolver;
+use Glueful\Lemma\Contracts\Navigation\MenuReader;
+use Glueful\Lemma\Navigation\Http\Controllers\MenuController;
+use Glueful\Lemma\Navigation\Http\Controllers\NavigationAdminController;
+use Psr\Container\ContainerInterface;
 
 final class LemmaNavigationServiceProvider extends ServiceProvider
 {
     /** @return array<string, array<string, mixed>> */
     public static function services(): array
     {
-        return [];
+        return [
+            MenuRepository::class => [
+                'class' => MenuRepository::class, 'shared' => true, 'autowire' => true,
+            ],
+            MenuResolver::class => [
+                'shared' => true,
+                'factory' => [self::class, 'makeMenuResolver'],
+            ],
+            MenuReader::class => [
+                'shared' => true,
+                'factory' => [self::class, 'makeMenuResolver'],
+            ],
+            NavigationAdminController::class => [
+                'class' => NavigationAdminController::class, 'shared' => true, 'autowire' => true,
+            ],
+            MenuController::class => [
+                'class' => MenuController::class, 'shared' => true, 'autowire' => true,
+            ],
+        ];
+    }
+
+    public static function makeMenuResolver(ContainerInterface $container): MenuResolver
+    {
+        return new MenuResolver(
+            $container->get(ApplicationContext::class),
+            $container->get(CapabilityRegistry::class),
+            $container->get(MenuRepository::class),
+            $container->get(EntryTargetResolver::class),
+        );
     }
 
     public function boot(ApplicationContext $context): void
@@ -33,5 +66,10 @@ final class LemmaNavigationServiceProvider extends ServiceProvider
             MigrationPriority::DEPENDENT,
             'lemma-navigation',
         );
+
+        if ($registry->isEnabled('lemma.navigation')) {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/public-routes.php');
+        }
     }
 }

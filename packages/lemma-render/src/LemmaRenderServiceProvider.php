@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace Glueful\Lemma\Render;
 
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Cache\CacheStore;
+use Glueful\Events\EventService;
 use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Delivery\EntryTargetResolver;
 use Glueful\Lemma\Contracts\Navigation\MenuReader;
+use Glueful\Lemma\Contracts\Navigation\MenuUpdated;
 use Glueful\Lemma\Render\Http\Controllers\RenderController;
+use Glueful\Lemma\Render\Http\Middleware\RenderPageCache;
+use Glueful\Lemma\Render\Listeners\PurgeRenderCacheOnMenuUpdate;
 use Psr\Container\ContainerInterface;
 
 use function config;
@@ -41,7 +46,49 @@ final class LemmaRenderServiceProvider extends ServiceProvider
                 'shared' => true,
                 'factory' => [self::class, 'makeRenderController'],
             ],
+            RenderPageCache::class => [
+                'shared' => true,
+                'factory' => [self::class, 'makeRenderPageCache'],
+            ],
+            RenderErrorCache::class => [
+                'shared' => true,
+                'factory' => [self::class, 'makeRenderErrorCache'],
+            ],
+            PurgeRenderCacheOnMenuUpdate::class => [
+                'shared' => true,
+                'factory' => [self::class, 'makePurgeRenderCacheOnMenuUpdate'],
+            ],
         ];
+    }
+
+    public static function makePurgeRenderCacheOnMenuUpdate(
+        ContainerInterface $container,
+    ): PurgeRenderCacheOnMenuUpdate {
+        return new PurgeRenderCacheOnMenuUpdate($container);
+    }
+
+    public static function makeRenderErrorCache(ContainerInterface $container): RenderErrorCache
+    {
+        $context = $container->get(ApplicationContext::class);
+        return new RenderErrorCache(
+            $container->get(CacheStore::class),
+            $container->get(ThemeLocator::class)->activePaths()['name'],
+            (bool) config($context, 'lemma_render.cache_enabled', true),
+            (int) config($context, 'lemma_render.cache_ttl', 3600),
+        );
+    }
+
+    public static function makeRenderPageCache(ContainerInterface $container): RenderPageCache
+    {
+        $context = $container->get(ApplicationContext::class);
+        return new RenderPageCache(
+            // The SAME binding InvalidateCacheTagsListener invalidates (spec §3 pin) —
+            // this identity is what makes zero-new-purge-code true.
+            $container->get(CacheStore::class),
+            $container->get(ThemeLocator::class)->activePaths()['name'],
+            (bool) config($context, 'lemma_render.cache_enabled', true),
+            (int) config($context, 'lemma_render.cache_ttl', 3600),
+        );
     }
 
     public static function makeRenderController(ContainerInterface $container): RenderController
@@ -52,6 +99,7 @@ final class LemmaRenderServiceProvider extends ServiceProvider
             $container->get(TwigFactory::class),
             $container->get(RenderContextExtension::class),
             $container->get(ReservedPaths::class),
+            $container->get(RenderErrorCache::class),
             $container->get(\Psr\Log\LoggerInterface::class),
         );
     }
@@ -121,6 +169,15 @@ final class LemmaRenderServiceProvider extends ServiceProvider
             if (is_dir($assets)) {
                 $this->serveFrontend('/theme-assets', $assets, ['spaFallback' => false]);
             }
+
+            // The pack's ONE purge listener (spec §4): menu changes purge broadly.
+            // Entry/type purges need no render code — InvalidateCacheTagsListener
+            // already invalidates the tags the middleware stores under.
+            $events = app($context, EventService::class);
+            $events->addListener(
+                MenuUpdated::class,
+                [app($context, PurgeRenderCacheOnMenuUpdate::class), 'onMenuUpdated'],
+            );
         }
     }
 }

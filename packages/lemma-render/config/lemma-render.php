@@ -24,4 +24,12 @@ return [
 
     // Exact reserved paths ('sitemap.xml' does not reserve /sitemap-history).
     'reserved_exact' => ['sitemap.xml', 'robots.txt'],
+
+    // Full-page render cache (spec sub-project 3). false = exactly the uncached
+    // behavior (set in dev while theming).
+    'cache_enabled' => env('RENDER_CACHE_ENABLED', true),
+
+    // Safety-net TTL per cached page (seconds); surrogate tags do the real
+    // invalidation. On non-tag cache drivers this TTL is the ONLY freshness bound.
+    'cache_ttl' => (int) env('RENDER_CACHE_TTL', 3600),
 ];

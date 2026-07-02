@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Content\Http\Controllers\DeliveryController;
+use App\Content\Http\Controllers\TaxonomyController;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -23,8 +24,23 @@ $router->group(['prefix' => '/v1/content', 'middleware' => ['optional_api_key']]
         ->middleware('rate_limit')
         ->rateLimit(120, 1, by: 'user');
 
+    // Facet counts — registered BEFORE the show route: /{type}/facets and
+    // /{type}/{slugOrUuid} share a segment shape and `facets` must win. `facets` is a
+    // reserved word on this surface (an entry literally slugged `facets` is shadowed).
+    $router->get('/{type}/facets', [TaxonomyController::class, 'facets'])
+        ->middleware('lemma_delivery_access')
+        ->middleware('rate_limit')
+        ->rateLimit(120, 1, by: 'user');
+
     // Get a single published entry by slug or UUID.
     $router->get('/{type}/{slugOrUuid}', [DeliveryController::class, 'show'])
+        ->middleware('lemma_delivery_access')
+        ->middleware('rate_limit')
+        ->rateLimit(120, 1, by: 'user');
+
+    // Term archive: the shaped term + its published members (projection-backed
+    // membership — term-archives/facets spec §3).
+    $router->get('/{type}/archive/{field}/{term}', [TaxonomyController::class, 'archive'])
         ->middleware('lemma_delivery_access')
         ->middleware('rate_limit')
         ->rateLimit(120, 1, by: 'user');

@@ -110,9 +110,11 @@ Shape" as post‑V1 and have **no** design doc yet:
   the "Shipped since" list above. Remaining localization work is the *field-localization
   copy-on-change* follow-up in the per-feature table below, not editor UX.
 - **Taxonomies / collections** — the underlying **reference primitive shipped** (multi-valued +
-  filterable references, above), so categories/tags already work as content-type-as-terms today.
-  What remains is the **delivery surface**: term-archive endpoints + facet counts over a
-  *published*-reference projection, an additive layer the references spec explicitly deferred.
+  filterable references, above), and ✅ the **delivery surface shipped** (2026‑07‑02):
+  `GET /v1/content/{type}/facets` + `/{type}/archive/{field}/{term}` over the new
+  `published_entry_references` projection (listener‑maintained, `lemma:resync` re‑drivable).
+  Spec: `docs/superpowers/specs/2026-07-02-term-archives-facets-design.md`. This unblocks the
+  rendered listing/archive follow‑up track in V2_DESIGN.md.
 - **Forms** — feature module. **Navigation / menu builder** — ✅ **shipped** (2026‑07‑02) as
   `glueful/lemma-navigation` (V2 sub‑project 1): menu trees with per‑locale labels,
   published‑only resolution via the new `MenuReader` + `EntryTargetResolver` contracts,
@@ -131,11 +133,10 @@ Shape" as post‑V1 and have **no** design doc yet:
    `render:{theme}:{normalizedPath}`, surrogate‑tag invalidation through the existing
    lifecycle/`MenuUpdated` seams, ETag/304, `php glueful render:cache:clear`. Spec:
    `docs/superpowers/specs/2026-07-02-lemma-render-caching-design.md`.
-2. **Taxonomies → term‑archives + facets** — the reference primitive is now shipped, so this is no
-   longer a from‑scratch module: it's the smaller, additive delivery surface (term‑archive
-   endpoints + facet counts over a published‑reference projection) the references spec deferred.
-   High reuse — it makes the references work visible to end‑users and unblocks the
-   listing/archive follow‑up track in V2_DESIGN.md. Needs brainstorm → spec → plan.
+2. **Taxonomies → term‑archives + facets** — ✅ **shipped** (2026‑07‑02): facet counts and
+   term‑archive endpoints over the `published_entry_references` projection (spec:
+   `docs/superpowers/specs/2026-07-02-term-archives-facets-design.md`). The natural next pick is
+   the **rendered listing/archive pages** track in V2_DESIGN.md §6, which this unblocked.
 3. Everything else (importer depth — incl. now‑unblocked WordPress categories/tags, tenancy, the
    per‑feature follow‑ups) is pull‑based: pick one,
    run the proven loop — brainstorm → spec → plan → implement — starting from the linked home

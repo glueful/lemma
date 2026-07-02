@@ -44,6 +44,7 @@ use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
+use App\Content\Http\Controllers\TaxonomyController;
 use App\Content\ImportExport\LemmaContentExporter;
 use App\Content\ImportExport\LemmaContentImporter;
 use App\Content\Http\DeliveryEtag;
@@ -65,6 +66,7 @@ use App\Analytics\AnalyticsBridgeListener;
 use App\Collections\Audit\CollectionAuditListener;
 use App\Content\Pipeline\Listeners\DispatchWebhookListener;
 use App\Content\Pipeline\Listeners\InvalidateCacheTagsListener;
+use App\Content\Pipeline\Listeners\ProjectPublishedReferencesListener;
 use App\Content\Pipeline\Listeners\PurgeCdnListener;
 use App\Content\Pipeline\Listeners\MediaUsageProjector;
 use App\Content\Pipeline\Listeners\ReindexSearchListener;
@@ -74,6 +76,7 @@ use App\Content\Preview\PreviewReader;
 use App\Content\Repositories\ContentTypeRepository;
 use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\MigrationRepository;
+use App\Content\Repositories\PublishedReferenceRepository;
 use App\Content\Repositories\ReferenceProjectionRepository;
 use App\Content\Repositories\RouteRepository;
 use App\Content\Repositories\ScheduleRepository;
@@ -404,6 +407,11 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared' => true,
                 'autowire' => true,
             ],
+            TaxonomyController::class => [
+                'class' => TaxonomyController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
             DeliveryAccessMiddleware::class => [
                 'class' => DeliveryAccessMiddleware::class,
                 'shared' => true,
@@ -436,6 +444,16 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             InvalidateCacheTagsListener::class => [
                 'class' => InvalidateCacheTagsListener::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            PublishedReferenceRepository::class => [
+                'class' => PublishedReferenceRepository::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            ProjectPublishedReferencesListener::class => [
+                'class' => ProjectPublishedReferencesListener::class,
                 'shared' => true,
                 'autowire' => true,
             ],
@@ -904,20 +922,26 @@ final class LemmaServiceProvider extends ServiceProvider
         // single entry's published index document; model/asset events don't.
         $listeners = [
             // Cache-tag invalidation (V1_DESIGN §5). Entry events drop the entry + type
-            // tags; model events drop the type tag.
+            // tags; model events drop the type tag. ProjectPublishedReferencesListener
+            // runs FIRST (listeners run in array order): the cache purge must see a
+            // CURRENT published-reference projection, or a request racing the purge
+            // could re-cache stale facet counts until the next event.
             EntryPublished::class => [
+                ProjectPublishedReferencesListener::class,
                 InvalidateCacheTagsListener::class,
                 DispatchWebhookListener::class,
                 PurgeCdnListener::class,
                 ReindexSearchListener::class,
             ],
             EntryUnpublished::class => [
+                ProjectPublishedReferencesListener::class,
                 InvalidateCacheTagsListener::class,
                 DispatchWebhookListener::class,
                 PurgeCdnListener::class,
                 ReindexSearchListener::class,
             ],
             EntryDeleted::class => [
+                ProjectPublishedReferencesListener::class,
                 InvalidateCacheTagsListener::class,
                 DispatchWebhookListener::class,
                 PurgeCdnListener::class,

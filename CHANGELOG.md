@@ -7,6 +7,18 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 ## [Unreleased]
 
 ### Added
+- **Term archives + facet counts** (the taxonomy delivery surface the references spec
+  deferred): a new `published_entry_references` projection (listener-maintained on
+  publish/unpublish/delete, re-driven by `lemma:resync`, schema-projected so rollback
+  re-pins stay correct) is the single source of "published source references published
+  term". `GET /v1/content/{type}/facets?fields=…` returns global per-term counts
+  (`{uuid, slug, count}`, `count DESC, slug ASC`, limit 100/max 500);
+  `GET /v1/content/{type}/archive/{field}/{term}` returns the shaped term + its members
+  with the list endpoint's exact pagination modes. Target-type visibility is fail-closed
+  (a non-public term type 404s — no term enumeration); term liveness is a read-time
+  publication join, so unpublished terms drop out immediately. Cache purging rides the
+  existing surrogate tags with zero new invalidation code. `facets` becomes a reserved
+  word under `/v1/content/{type}/`.
 - **Render page caching** (`glueful/lemma-render` — V2 sub-project 3): `RenderPageCache`
   middleware keyed `render:{theme}:{normalizedPath}`; only `200 text/html` content
   renders cached per path; single fixed 404/410 body per theme served via

@@ -29,5 +29,6 @@ return [
         'Glueful\Lemma\Collections\LemmaCollectionsServiceProvider',
         'Glueful\Lemma\Importers\LemmaImportersServiceProvider',
         'Glueful\Lemma\Seo\LemmaSeoServiceProvider',
+        'Glueful\Lemma\Workflow\LemmaWorkflowServiceProvider',
     ],
 ];

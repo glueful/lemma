@@ -87,6 +87,7 @@ use App\Content\Seo\RedirectRepository;
 use App\Content\Seo\RouteResolver;
 use App\Content\Services\MigrationService;
 use App\Content\Authoring\EngineContentWriter;
+use App\Content\Authoring\EngineDraftSummaryReader;
 use App\Content\Context\EngineLemmaContext;
 use App\Content\Delivery\EngineContentDeliveryReader;
 use App\Content\Delivery\EngineIndexableContentReader;
@@ -96,6 +97,8 @@ use App\Content\Services\PublishService;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Lemma\Contracts\Authoring\ContentWriter;
+use Glueful\Lemma\Contracts\Authoring\DraftSummaryReader;
+use Glueful\Lemma\Contracts\Authoring\PublishGate;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Context\LemmaContext;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
@@ -262,8 +265,14 @@ final class LemmaServiceProvider extends ServiceProvider
                 'autowire' => true,
             ],
             PublishService::class => [
-                'class' => PublishService::class,
+                // Factory (not autowire): collects tag-registered lemma.publish_gate services
+                // (workflow pack etc.); the tag collection is priority-ordered by the compiler.
+                'factory' => [self::class, 'makePublishService'],
                 'shared' => true,
+            ],
+            DraftSummaryReader::class => [
+                'class'    => EngineDraftSummaryReader::class,
+                'shared'   => true,
                 'autowire' => true,
             ],
             ContentWriter::class => [
@@ -744,6 +753,25 @@ final class LemmaServiceProvider extends ServiceProvider
                 ? null
                 : (string) config($context, 'lemma.seo.public_url_base'),
             (string) config($context, 'i18n.default_locale', 'en')
+        );
+    }
+
+    public static function makePublishService(ContainerInterface $c): PublishService
+    {
+        $gates = $c->has('lemma.publish_gate') ? $c->get('lemma.publish_gate') : [];
+        if ($gates instanceof \Traversable) {
+            $gates = iterator_to_array($gates);
+        }
+        return new PublishService(
+            $c->get(ApplicationContext::class),
+            $c->get(EntryRepository::class),
+            $c->get(VersionRepository::class),
+            $c->get(ContentTypeRepository::class),
+            $c->get(FieldValidator::class),
+            $c->get(ReferenceProjectionRepository::class),
+            $c->has(PublishEventEmitter::class) ? $c->get(PublishEventEmitter::class) : null,
+            $c->has(SchemaProjector::class) ? $c->get(SchemaProjector::class) : null,
+            array_values(array_filter((array) $gates, static fn($g): bool => $g instanceof PublishGate)),
         );
     }
 

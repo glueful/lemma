@@ -32,13 +32,19 @@ final class AnalyticsController
         if ($metric === '' || $from === '' || $to === '') {
             return Response::error('metric, from and to are required.', 422);
         }
-        if (($error = $this->validateRange($from, $to)) !== null) {
-            return $error;
+        $range = $this->normalizeRange($from, $to);
+        if ($range instanceof Response) {
+            return $range;
         }
-        $subject = $request->query->get('dimension') === 'subject'
-            ? (string) $request->query->get('subject', '')
-            : null;
-        $subject = ($subject === '' ? null : $subject);
+        [$from, $to] = $range;
+        $subject = null;
+        if ($request->query->get('dimension') === 'subject') {
+            $subject = (string) $request->query->get('subject', '');
+            if ($subject === '') {
+                // Falling back to '__total__' here would return totals mislabeled as a breakdown.
+                return Response::error('subject is required when dimension=subject.', 422);
+            }
+        }
 
         return Response::success([
             'metric' => $metric,
@@ -56,9 +62,11 @@ final class AnalyticsController
         if ($from === '' || $to === '') {
             return Response::error('from and to are required.', 422);
         }
-        if (($error = $this->validateRange($from, $to)) !== null) {
-            return $error;
+        $range = $this->normalizeRange($from, $to);
+        if ($range instanceof Response) {
+            return $range;
         }
+        [$from, $to] = $range;
         return Response::success($this->query->summary($from, $to));
     }
 
@@ -71,9 +79,11 @@ final class AnalyticsController
         if ($event === '' || $from === '' || $to === '') {
             return Response::error('event, from and to are required.', 422);
         }
-        if (($error = $this->validateRange($from, $to)) !== null) {
-            return $error;
+        $range = $this->normalizeRange($from, $to);
+        if ($range instanceof Response) {
+            return $range;
         }
+        [$from, $to] = $range;
         $limit = (int) $request->query->get('limit', 10);
 
         return Response::success([
@@ -85,12 +95,16 @@ final class AnalyticsController
     }
 
     /**
-     * Reject malformed or abusive date ranges with a 422 (returns null when the range is valid).
-     * Without this, an unparseable date reaches series()'s `new DateTimeImmutable($from)` as an
-     * uncaught 500, and an enormous span makes its per-day zero-fill loop run for millions of
-     * iterations.
+     * Validate the date range and return it normalized to canonical Y-m-d strings, or a 422
+     * Response. Rejecting bad ranges here prevents an unparseable date reaching series()'s
+     * `new DateTimeImmutable($from)` as an uncaught 500, and an enormous span making its per-day
+     * zero-fill loop run for millions of iterations. Normalizing matters because PHP accepts
+     * inputs ('next tuesday', '01/02/2026') that the database would cast differently — or not at
+     * all — against the `day` date column; only the normalized values may reach AnalyticsQuery.
+     *
+     * @return array{string, string}|Response
      */
-    private function validateRange(string $from, string $to): ?Response
+    private function normalizeRange(string $from, string $to): array|Response
     {
         try {
             $fromDate = new \DateTimeImmutable($from);
@@ -105,6 +119,6 @@ final class AnalyticsController
         if ($maxDays > 0 && $fromDate->diff($toDate)->days > $maxDays) {
             return Response::error(sprintf('Date range too large (max %d days).', $maxDays), 422);
         }
-        return null;
+        return [$fromDate->format('Y-m-d'), $toDate->format('Y-m-d')];
     }
 }

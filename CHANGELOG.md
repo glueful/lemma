@@ -28,6 +28,18 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   `CollectionUpdated('access_updated')`.
 
 ### Fixed
+- Analytics (from the `glueful/lemma-analytics` package review): the admin read API now normalizes
+  `from`/`to` to canonical `Y-m-d` before they reach SQL or the response echo — previously any
+  PHP-parseable non-ISO date (`06/10/2025`, `next tuesday`) passed validation but was string/cast-
+  compared raw against the `day` date column (wrong results on SQLite, DateStyle-dependent or a
+  500 on Postgres). Removed the dead `analytics.enabled` / `ANALYTICS_ENABLED` config key (and the
+  identical `SEO_ENABLED` key in `lemma-seo`) — nothing ever read them; the only gate is the
+  `lemma.capabilities` switchboard, and the keys' comments falsely claimed they gated
+  routes/listeners. `series?dimension=subject` without a `subject` is now a 422 instead of
+  silently returning `__total__` counts mislabeled as a breakdown. Metadata `json_encode` failures
+  now throw into the recorder's best-effort catch (logged) instead of inserting a raw `false`; an
+  empty actor-hash key (ANALYTICS_HASH_KEY and APP_KEY both unset) now logs a boot warning that
+  hashes are unsalted. README/permission label now mention the third endpoint (`breakdown`).
 - Collections (pre-release hardening of `glueful/lemma-collections`, from the package review):
   every schema mutation (create, add/drop field, add/remove index, drop collection) now commits
   the definition write and its DDL in ONE transaction with an optimistic `schema_version` guard —

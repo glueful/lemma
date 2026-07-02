@@ -38,7 +38,11 @@ final class AnalyticsRecorder
                 'subject_id' => $fact->subjectId,
                 'actor_type' => $fact->actorType,
                 'actor_id' => $fact->actorId,
-                'metadata' => $fact->metadata === [] ? null : json_encode($fact->metadata),
+                // THROW_ON_ERROR: a silent json_encode() false would insert `false`, not fail
+                // into the best-effort catch below like every other write error.
+                'metadata' => $fact->metadata === []
+                    ? null
+                    : json_encode($fact->metadata, \JSON_THROW_ON_ERROR),
             ]);
 
             $this->bumpDaily($day, $fact->event, '__total__');

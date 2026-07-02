@@ -95,9 +95,9 @@ These are named in [APPROACH.md](APPROACH.md) §"Lemma‑Specific Domain" / §"I
 Shape" as post‑V1 and have **no** design doc yet:
 
 - **Rendered delivery** — templates/themes/page rendering (the "rendered" half of the hybrid
-  CMS). APPROACH calls this *"its own phase with its own design."* **This is the one track
-  that genuinely warrants a `V2_DESIGN.md`** (rendering model, theme/template storage,
-  route→render path, render caching) — write it when this phase is actually picked up.
+  CMS). APPROACH calls this *"its own phase with its own design."* ✅ **Design written
+  (2026‑07‑02): [V2_DESIGN.md](V2_DESIGN.md)** — all rendered-delivery decisions, the pinned
+  render-core scope, and the sub-project sequence live there; implementation not yet started.
 - **Block / page builder** — architectural (how blocks compose + persist).
 - **Approval / review workflow** — ✅ **shipped** (2026‑07‑02) as the `glueful/lemma-workflow`
   capability pack: single-stage state machine (draft → in_review → approved/changes_requested)
@@ -111,21 +111,25 @@ Shape" as post‑V1 and have **no** design doc yet:
   filterable references, above), so categories/tags already work as content-type-as-terms today.
   What remains is the **delivery surface**: term-archive endpoints + facet counts over a
   *published*-reference projection, an additive layer the references spec explicitly deferred.
-- **Forms**, **navigation / menu builder** — feature modules.
+- **Forms** — feature module. **Navigation / menu builder** — ✅ spec written (2026‑07‑02,
+  `docs/superpowers/specs/2026-07-02-lemma-navigation-design.md`) as V2 sub‑project 1;
+  implementation plan is the next step.
 - **Ecommerce content integration**, **personalization / segmentation** — later, per APPROACH.
 
 ---
 
 ## Recommended sequencing (opinion, not a commitment)
 
-1. **`V2_DESIGN.md` for rendered delivery** — the next big expensive‑to‑reverse decision set
-   (rendering model, theme/template storage, route→render path, render caching). This is the one
-   remaining track that warrants a design doc before a plan; write it when the phase is picked up.
+1. **Rendered delivery** — ✅ design phase done (2026‑07‑02): [V2_DESIGN.md](V2_DESIGN.md) settles
+   the decision set, and the first sub‑project spec is written
+   (`docs/superpowers/specs/2026-07-02-lemma-navigation-design.md`). **Next step: the
+   `lemma-navigation` implementation plan**, then render core, then render caching, per the
+   V2 sub‑project sequence.
 2. **Taxonomies → term‑archives + facets** — the reference primitive is now shipped, so this is no
    longer a from‑scratch module: it's the smaller, additive delivery surface (term‑archive
    endpoints + facet counts over a published‑reference projection) the references spec deferred.
-   High reuse — it makes the references work visible to end‑users and feeds a future
-   navigation/menu builder. Needs brainstorm → spec → plan.
+   High reuse — it makes the references work visible to end‑users and unblocks the
+   listing/archive follow‑up track in V2_DESIGN.md. Needs brainstorm → spec → plan.
 3. Everything else (importer depth — incl. now‑unblocked WordPress categories/tags, tenancy, the
    per‑feature follow‑ups) is pull‑based: pick one,
    run the proven loop — brainstorm → spec → plan → implement — starting from the linked home

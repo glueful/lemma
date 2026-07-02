@@ -26,8 +26,19 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   make a collection world-readable/writable — is now fully audited: it stamps the acting admin on
   a `collection_schema_changes` row (`update_access`, policy payload) and dispatches
   `CollectionUpdated('access_updated')`.
+- SEO (from the `glueful/lemma-seo` package review): the public routes (`/v1/seo/meta/...`,
+  `/sitemap.xml`, `/sitemap/{n}.xml`, `/robots.txt`) are now rate-limited like every other
+  anonymous Lemma surface. Sitemap page numbers are bounded by the actual page count (404 beyond
+  it) — previously every distinct `{n}` minted a permanent (no-TTL) cache entry plus a deep-OFFSET
+  enumeration query, an anonymous cache-fill vector.
 
 ### Fixed
+- SEO (from the `glueful/lemma-seo` package review): admin SEO-meta upserts are now validated
+  (`SeoMetaUpsertDTO`) — non-string values, over-length fields, unknown `robots`/`twitter_card`
+  values, and oversize locales are 422s instead of database-driver 500s. The upsert itself is now
+  an atomic `ON CONFLICT` write (find-then-insert raced concurrent PUTs into a unique-violation
+  500) with UTC timestamps. An empty-string `og_title`/`og_description` override now falls back
+  like `title`/`description` instead of emitting `''`.
 - Analytics (from the `glueful/lemma-analytics` package review): the admin read API now normalizes
   `from`/`to` to canonical `Y-m-d` before they reach SQL or the response echo — previously any
   PHP-parseable non-ISO date (`06/10/2025`, `next tuesday`) passed validation but was string/cast-

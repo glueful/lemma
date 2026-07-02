@@ -9,6 +9,7 @@ use App\Tests\Support\LemmaTestCase;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Seo\Http\Controllers\AdminSeoMetaController;
 use Glueful\Lemma\Seo\Http\Controllers\SeoMetaController;
+use Glueful\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Request;
 
 final class SeoMetaEndpointTest extends LemmaTestCase
@@ -99,6 +100,86 @@ final class SeoMetaEndpointTest extends LemmaTestCase
         $data = json_decode((string) $get->getContent(), true)['data'];
         self::assertSame('Custom', $data['title']);
         self::assertSame('noindex', $data['robots']);
+    }
+
+    public function testAdminUpsertRejectsInvalidBodyWith422(): void
+    {
+        $controller = $this->container()->get(AdminSeoMetaController::class);
+
+        // Each previously reached the database and surfaced as a driver-level 500.
+        $bad = [
+            'array title' => ['locale' => 'en', 'body' => ['title' => ['not', 'a', 'string']]],
+            'overlong title' => ['locale' => 'en', 'body' => ['title' => str_repeat('x', 256)]],
+            'unknown robots' => ['locale' => 'en', 'body' => ['robots' => 'follow-me']],
+            'unknown twitter card' => ['locale' => 'en', 'body' => ['twitter_card' => 'gallery']],
+            'overlong locale' => ['locale' => 'much-too-long-locale', 'body' => ['title' => 'ok']],
+        ];
+        foreach ($bad as $label => $case) {
+            $put = Request::create(
+                '/v1/admin/seo/meta/e-1?locale=' . $case['locale'],
+                'PUT',
+                [],
+                [],
+                [],
+                ['CONTENT_TYPE' => 'application/json'],
+                (string) json_encode($case['body']),
+            );
+            try {
+                $controller->update($put, 'e-1');
+                self::fail("{$label}: expected ValidationException");
+            } catch (ValidationException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testAdminUpsertPartialUpdatePreservesOtherFields(): void
+    {
+        $controller = $this->container()->get(AdminSeoMetaController::class);
+        $put = function (array $body) use ($controller): void {
+            $req = Request::create(
+                '/v1/admin/seo/meta/e-partial?locale=en',
+                'PUT',
+                [],
+                [],
+                [],
+                ['CONTENT_TYPE' => 'application/json'],
+                (string) json_encode($body),
+            );
+            self::assertSame(200, $controller->update($req, 'e-partial')->getStatusCode());
+        };
+
+        $put(['title' => 'Custom', 'robots' => 'noindex']);
+        $put(['og_title' => 'OG only']); // second write hits the ON CONFLICT update path
+
+        $data = json_decode(
+            (string) $controller->show(new Request(['locale' => 'en']), 'e-partial')->getContent(),
+            true,
+        )['data'];
+        self::assertSame('Custom', $data['title'], 'absent key must not be touched');
+        self::assertSame('noindex', $data['robots']);
+        self::assertSame('OG only', $data['og_title']);
+    }
+
+    public function testEmptyStringOgOverrideFallsBackToResolvedTitle(): void
+    {
+        $entry = $this->seedBilingualPublishedEntry();
+        $admin = $this->container()->get(AdminSeoMetaController::class);
+        $put = Request::create(
+            "/v1/admin/seo/meta/{$entry}?locale=en",
+            'PUT',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            (string) json_encode(['title' => 'Custom', 'og_title' => '']),
+        );
+        self::assertSame(200, $admin->update($put, $entry)->getStatusCode());
+
+        $resp = $this->container()->get(SeoMetaController::class)
+            ->show(new Request(['locale' => 'en']), 'blog', 'hello');
+        $data = json_decode((string) $resp->getContent(), true)['data'];
+        self::assertSame('Custom', $data['og']['title'], "empty-string og_title must fall back, not emit ''");
     }
 
     public function testPublicMetaRouteIsRegistered(): void

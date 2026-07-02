@@ -30,6 +30,21 @@ final class SitemapBuilder
         return trim($this->origin) !== '';
     }
 
+    /**
+     * Number of page files (≥ 1) derived from the published total. Cached under the sitemap
+     * prefix (same invalidation) so the controller can bound {n} without an enumeration per
+     * request — unbounded n would otherwise mint a permanent cache entry and a deep-OFFSET
+     * query per distinct value.
+     */
+    public function pageCount(): int
+    {
+        $raw = $this->cache->remember('lemma_seo:sitemap:pages', function (): string {
+            $first = $this->reader->enumeratePublishedForSitemap(1, 0);
+            return (string) max(1, intdiv((int) $first['total'] + self::PAGE_SIZE - 1, self::PAGE_SIZE));
+        });
+        return (int) $raw;
+    }
+
     public function rootXml(): string
     {
         return $this->cache->remember('lemma_seo:sitemap:root', function (): string {

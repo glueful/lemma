@@ -6,6 +6,7 @@ namespace Glueful\Lemma\Seo\Http\Controllers;
 
 use Glueful\Http\Response;
 use Glueful\Lemma\Seo\Meta\SeoMetaRepository;
+use Glueful\Lemma\Seo\Meta\SeoMetaUpsertDTO;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -15,10 +16,6 @@ use Symfony\Component\HttpFoundation\Request;
  */
 final class AdminSeoMetaController
 {
-    private const WRITABLE = [
-        'title', 'description', 'og_title', 'og_description', 'og_image', 'twitter_card', 'robots',
-    ];
-
     public function __construct(private readonly SeoMetaRepository $repo)
     {
     }
@@ -45,19 +42,16 @@ final class AdminSeoMetaController
      */
     #[ApiOperation(summary: 'Upsert SEO meta overrides for an entry', tags: ['Lemma SEO'])]
     #[ApiResponse(200, description: 'The stored override row after the upsert.')]
+    #[ApiResponse(422, description: 'Non-string field, over-length value, or unknown enum value.')]
     public function update(Request $request, string $entryUuid): Response
     {
         $locale = (string) $request->query->get('locale', 'en');
         /** @var array<string,mixed> $body */
         $body = (array) json_decode((string) $request->getContent(), true);
 
-        $data = [];
-        foreach (self::WRITABLE as $col) {
-            if (array_key_exists($col, $body)) {
-                $data[$col] = $body[$col];
-            }
-        }
-        $this->repo->upsert($entryUuid, $locale, $data);
-        return Response::success($this->repo->find($entryUuid, $locale));
+        // Throws ValidationException (422) on bad input — the framework handler renders it.
+        $dto = SeoMetaUpsertDTO::fromRequest($locale, $body);
+        $this->repo->upsert($entryUuid, $dto->locale, $dto->fields);
+        return Response::success($this->repo->find($entryUuid, $dto->locale));
     }
 }

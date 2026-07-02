@@ -9,12 +9,18 @@ use Glueful\Routing\Router;
 
 /** @var Router $router */
 
-// Public SEO meta for the frontend <head>. No auth — published content only.
-$router->get('/v1/seo/meta/{type}/{slug}', [SeoMetaController::class, 'show']);
+// Public SEO meta for the frontend <head>. No auth — published content only. Rate-limited
+// like every other anonymous Lemma surface (per-IP): the meta lookup is uncached DB work.
+$router->get('/v1/seo/meta/{type}/{slug}', [SeoMetaController::class, 'show'])
+    ->middleware('rate_limit');
 
 // Sitemaps. Public, raw XML. Adaptive root + numbered page files.
-$router->get('/sitemap.xml', [SitemapController::class, 'index']);
-$router->get('/sitemap/{n}.xml', [SitemapController::class, 'page'])->where('n', '\d+');
+$router->get('/sitemap.xml', [SitemapController::class, 'index'])
+    ->middleware('rate_limit');
+$router->get('/sitemap/{n}.xml', [SitemapController::class, 'page'])
+    ->where('n', '\d+')
+    ->middleware('rate_limit');
 
 // robots.txt. Public, plain text.
-$router->get('/robots.txt', [RobotsController::class, 'show']);
+$router->get('/robots.txt', [RobotsController::class, 'show'])
+    ->middleware('rate_limit');

@@ -2,7 +2,11 @@
 import { computed } from 'vue'
 import { useCollections, type CollectionFieldType } from '@/queries/collections'
 
-defineProps<{ type: CollectionFieldType; disabled?: boolean; indexEditable?: boolean }>()
+const props = defineProps<{
+  type: CollectionFieldType
+  disabled?: boolean
+  indexEditable?: boolean
+}>()
 
 // The settings object is owned by the parent field row; we mutate its keys in place.
 const settings = defineModel<Record<string, unknown>>('settings', { required: true })
@@ -88,6 +92,17 @@ const valuesText = computed({
       .filter(Boolean)
   },
 })
+
+// An enum with no allowed values is rejected by the backend at create/addField time
+// (it would otherwise degrade to free text). Guard it inline so the author fixes it
+// here, on the editable field, instead of hitting a save-time 422. Only for editable
+// fields — an existing (read-only) enum can't be repaired from this panel.
+const enumValuesInvalid = computed(
+  () =>
+    props.type === 'collections.enum' &&
+    !props.disabled &&
+    (!Array.isArray(settings.value.values) || settings.value.values.length === 0),
+)
 </script>
 
 <template>
@@ -145,12 +160,14 @@ const valuesText = computed({
     <UFormField
       v-else-if="type === 'collections.enum'"
       label="Allowed values"
-      help="Comma-separated"
+      :help="enumValuesInvalid ? undefined : 'Comma-separated'"
+      :error="enumValuesInvalid ? 'Add at least one allowed value.' : undefined"
     >
       <UInput
         v-model="valuesText"
         placeholder="draft, published, archived"
         class="w-full"
+        data-test="enum-values"
         :disabled="disabled"
       />
     </UFormField>

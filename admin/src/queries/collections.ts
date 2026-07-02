@@ -197,10 +197,15 @@ export async function updateFieldOrder(name: string, fieldOrder: string[]) {
   return data
 }
 
-/** Delete every row in a collection (keeps the schema). */
-export async function truncateRows(name: string) {
+/**
+ * Delete every row in a collection (keeps the schema). Guarded like dropField/dropCollection:
+ * when the table has rows the backend requires `confirm` to equal the collection name (409
+ * otherwise); an empty table waives it.
+ */
+export async function truncateRows(name: string, confirm?: string) {
   const { data, error, response } = await client.DELETE('/collections/{name}/rows', {
     params: { path: { name } },
+    body: (confirm !== undefined ? { confirm } : undefined) as never,
   })
   if (error) throw toApiError(error, response)
   return data
@@ -333,7 +338,8 @@ export function useCollectionMutations() {
       onSettled: (_d, _e, vars) => invalidate(vars.name),
     }),
     truncate: useMutation({
-      mutation: (vars: { name: string }) => truncateRows(vars.name),
+      mutation: (vars: { name: string; confirm?: string }) =>
+        truncateRows(vars.name, vars.confirm),
       onSettled: (_d, _e, vars) => {
         invalidate(vars.name)
         cache.invalidateQueries({ key: qk.collectionRows(vars.name) })

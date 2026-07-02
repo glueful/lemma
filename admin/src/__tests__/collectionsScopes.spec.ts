@@ -24,13 +24,16 @@ describe('collections scopes panel', () => {
     updateScopesMock.mockClear()
   })
 
-  it('toggling read calls the scope-update mutation with {name}.read', async () => {
+  it('toggling read calls the scope-update mutation with collections.{name}.read', async () => {
     const wrapper = mount(ScopesPanel, { props: { collectionName: 'posts' } })
 
     expect(wrapper.findAll('[data-test="scope-key-row"]')).toHaveLength(1)
 
     await wrapper.find('[data-test="scope-read"]').trigger('click')
 
-    expect(updateScopesMock).toHaveBeenCalledWith({ uuid: 'k1', scopes: ['posts.read'] })
+    expect(updateScopesMock).toHaveBeenCalledWith({
+      uuid: 'k1',
+      scopes: ['collections.posts.read'],
+    })
   })
 })

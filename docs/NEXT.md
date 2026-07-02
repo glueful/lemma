@@ -121,10 +121,13 @@ Shape" as post‑V1 and have **no** design doc yet:
 
 ## Recommended sequencing (opinion, not a commitment)
 
-1. **Rendered delivery** — ✅ design done ([V2_DESIGN.md](V2_DESIGN.md)) and ✅ sub‑project 1
-   (`lemma-navigation`) **shipped** (2026‑07‑02). **Next step: the `lemma-render` core
-   spec + plan** (PublicRouteResolver contract, catch‑all mechanism, Twig pipeline, default
-   theme), then render caching, per the V2 sub‑project sequence.
+1. **Rendered delivery** — ✅ design done ([V2_DESIGN.md](V2_DESIGN.md)), ✅ sub‑project 1
+   (`lemma-navigation`) and ✅ sub‑project 2 (`lemma-render` core) **shipped** (2026‑07‑02):
+   Lemma serves real HTML pages from published content through filesystem Twig themes
+   (catch‑all → `PublicRouteResolver`, pack‑embedded default theme + app override).
+   **Next step: render caching (V2 sub‑project 3)** — full‑page cache keyed
+   `render:{theme}:{locale}:{path}`, tag‑invalidated via the lifecycle/`MenuUpdated`
+   seams, ETag, CDN composition.
 2. **Taxonomies → term‑archives + facets** — the reference primitive is now shipped, so this is no
    longer a from‑scratch module: it's the smaller, additive delivery surface (term‑archive
    endpoints + facet counts over a published‑reference projection) the references spec deferred.

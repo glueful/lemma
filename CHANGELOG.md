@@ -7,6 +7,19 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 ## [Unreleased]
 
 ### Added
+- **Rendered delivery core** (`glueful/lemma-render`, new capability pack — V2
+  sub-project 2): Lemma serves real HTML pages from published content through filesystem
+  Twig themes. One lowest-priority catch-all feeds raw paths into the new
+  `PublicRouteResolver` contract (core wraps the routing/addressability layer:
+  normalization-first canonical 301s, route-template parsing, anonymous visibility,
+  redirect/410 passthrough, and the read-only public delivery shape + content-type slug
+  for template selection — delivery item shaping extracted into a shared
+  `DeliveryItemShaper`, responses byte-identical). Pack-embedded default reference theme
+  (escape-by-default; `|raw` is a theme-author opt-in) with app `themes/` override and
+  per-template fallback; `menu()`/`path()`/`asset()` context functions (navigation
+  optional; no dead links; path-safe assets); reserved paths return standard JSON 404s;
+  homepage via `index.twig` with loud-but-not-leaky config errors; Twig compile cache
+  with auto-reload. Uncached SSR — the render page cache is sub-project 3.
 - **Navigation / menu builder** (`glueful/lemma-navigation`, new capability pack — V2
   rendered-delivery sub-project 1): menu trees as data with per-locale label maps and
   published-only resolution. New `lemma-contracts` seams: `MenuReader` (menus for

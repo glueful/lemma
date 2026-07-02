@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Content\Repositories;
 
+use App\Content\Delivery\InvalidFilterException;
 use App\Content\Schema\ContentTypeSchema;
+use App\Content\Schema\FieldDefinition;
 use App\Content\Schema\Migration\SchemaProjector;
 use Glueful\Database\Connection;
 
@@ -111,5 +113,76 @@ final class PublishedReferenceRepository
         $this->db->table('published_entry_references')
             ->where('target_entry_uuid', '=', $targetEntryUuid)
             ->delete();
+    }
+
+    /**
+     * Global facet counts for one (source type, reference field, locale): entries-per-term
+     * over the projection, JOINED to the target's publication in the SAME locale at read
+     * time (spec §1 — an unpublished term drops out while its rows remain). The slug is
+     * read from the target's published version via the field's referenceSlugField, exactly
+     * like ReferenceFilterResolver. Order: count DESC, slug ASC.
+     *
+     * @return list<array{uuid: string, slug: ?string, count: int}>
+     */
+    public function facetCounts(
+        string $sourceTypeUuid,
+        FieldDefinition $field,
+        string $targetTypeUuid,
+        string $locale,
+        int $limit,
+    ): array {
+        $slugField = $field->referenceSlugField ?? 'slug';
+        // Schema identifier — interpolated (never bound) so it can hit expression indexes;
+        // re-assert the safe shape first (the ReferenceFilterResolver rule).
+        if (preg_match('/\A[a-z][a-z0-9_]*\z/', $slugField) !== 1) {
+            throw new InvalidFilterException("unsafe reference_slug_field: '{$slugField}'");
+        }
+        $slugExpr = "tv.fields ->> '{$slugField}'";
+
+        $rows = $this->db->table('published_entry_references as pr')
+            ->join('entry_publications as tp', 'tp.entry_uuid', '=', 'pr.target_entry_uuid')
+            ->join('entry_versions as tv', 'tv.uuid', '=', 'tp.version_uuid')
+            ->join('entries as te', 'te.uuid', '=', 'pr.target_entry_uuid')
+            ->selectRaw(
+                "pr.target_entry_uuid as uuid, {$slugExpr} as slug, "
+                . 'COUNT(DISTINCT pr.source_entry_uuid) as cnt'
+            )
+            ->where('pr.source_content_type_uuid', '=', $sourceTypeUuid)
+            ->where('pr.field', '=', $field->name)
+            ->where('pr.locale', '=', $locale)
+            ->where('tp.locale', '=', $locale)
+            ->where('te.status', '=', 'active')
+            ->where('te.content_type_uuid', '=', $targetTypeUuid)
+            // Group by the qualified source column + the output alias: bare `uuid`
+            // is ambiguous against the joined tables' own uuid columns; `slug` has no
+            // input-column collision so it resolves to the select alias.
+            ->groupBy(['pr.target_entry_uuid', 'slug'])
+            ->orderByRaw('cnt DESC, slug ASC')
+            ->limit($limit)
+            ->get();
+
+        return array_map(static fn(array $r): array => [
+            'uuid' => (string) $r['uuid'],
+            'slug' => isset($r['slug']) ? (string) $r['slug'] : null,
+            'count' => (int) $r['cnt'],
+        ], $rows);
+    }
+
+    /**
+     * Archive membership predicate (spec §3 pin): an EXISTS over the projection, shaped
+     * to ride DeliveryRepository's compiled-filter slot. Coupled to the delivery spine
+     * aliases (`p` = entry_publications) exactly like FilterCompiler's `v.fields`
+     * expressions are.
+     *
+     * @return array{sql: string, bindings: list<mixed>}
+     */
+    public function membershipPredicate(string $sourceTypeUuid, string $field, string $targetEntryUuid): array
+    {
+        return [
+            'sql' => 'EXISTS (SELECT 1 FROM published_entry_references pr'
+                . ' WHERE pr.source_entry_uuid = p.entry_uuid AND pr.locale = p.locale'
+                . ' AND pr.source_content_type_uuid = ? AND pr.field = ? AND pr.target_entry_uuid = ?)',
+            'bindings' => [$sourceTypeUuid, $field, $targetEntryUuid],
+        ];
     }
 }

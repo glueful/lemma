@@ -173,8 +173,12 @@ Both endpoints apply the same `DeliveryVisibility` check the per-type endpoints 
 body is in the envelope, facets because whole-set term enumeration (uuids, slugs,
 counts) is a disclosure surface even without bodies: a public `post.categories` field
 referencing a non-public `category` type must not let anonymous clients enumerate the
-private term set. Any check failing → 404, exactly as the type's own endpoints behave —
-no partial responses, no per-field redaction.
+private term set. Any check failing denies the whole request — no partial responses, no
+per-field redaction. Statuses follow the enforcement layer (amended to match built
+behavior): the SOURCE type is gated by the shared `lemma_delivery_access` route
+middleware, which denies with **403** exactly as it does on the list/show routes; the
+TARGET-type checks live in the controller and return **404** (the term set/body's
+existence is hidden).
 
 ## 5. Caching + invalidation (zero new purge code)
 

@@ -44,6 +44,7 @@ use App\Content\Http\Controllers\PreviewController;
 use App\Content\Http\Controllers\PublicationController;
 use App\Content\Http\Controllers\RedirectController;
 use App\Content\Http\Controllers\ScheduleController;
+use App\Content\Http\Controllers\TaxonomyController;
 use App\Content\ImportExport\LemmaContentExporter;
 use App\Content\ImportExport\LemmaContentImporter;
 use App\Content\Http\DeliveryEtag;
@@ -403,6 +404,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             DeliveryController::class => [
                 'class' => DeliveryController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            TaxonomyController::class => [
+                'class' => TaxonomyController::class,
                 'shared' => true,
                 'autowire' => true,
             ],

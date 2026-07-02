@@ -3,6 +3,12 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 export interface AdminModuleNav {
   main?: NavigationMenuItem[]
   utilities?: NavigationMenuItem[]
+  /**
+   * Items for the shared expandable "Site" group (site-facing surfaces: navigation menus,
+   * and future render/theme/SEO-site modules). The registry renders ONE Site parent for
+   * all contributing modules — modules must not create their own Site group.
+   */
+  site?: NavigationMenuItem[]
 }
 
 export interface AdminModule {
@@ -42,16 +48,30 @@ function moduleEnabled(module: AdminModule, isEnabled: (id: string) => boolean):
   return (module.requires ?? []).every((id) => isEnabled(id))
 }
 
-/** Assemble the two-group sidebar ([main, utilities]) from the enabled modules, in registration order. */
+/**
+ * Assemble the two-group sidebar ([main, utilities]) from the enabled modules, in
+ * registration order. Enabled modules' `site` items are gathered into ONE expandable
+ * "Site" group appended to main (omitted entirely when no enabled module contributes).
+ */
 export function visibleNav(
   isEnabled: (id: string) => boolean,
 ): [NavigationMenuItem[], NavigationMenuItem[]] {
   const main: NavigationMenuItem[] = []
   const utilities: NavigationMenuItem[] = []
+  const site: NavigationMenuItem[] = []
   for (const m of modules) {
     if (!moduleEnabled(m, isEnabled)) continue
     if (m.nav?.main) main.push(...m.nav.main)
     if (m.nav?.utilities) utilities.push(...m.nav.utilities)
+    if (m.nav?.site) site.push(...m.nav.site)
+  }
+  if (site.length > 0) {
+    main.push({
+      label: 'Site',
+      icon: 'i-lucide-globe',
+      defaultOpen: false,
+      children: site,
+    })
   }
   return [main, utilities]
 }

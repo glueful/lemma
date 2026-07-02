@@ -122,6 +122,11 @@ $manager->addMigrationPath(
     'lemma-workflow'
 );
 $manager->addMigrationPath(
+    $root . '/packages/lemma-navigation/migrations',
+    MigrationPriority::DEPENDENT,
+    'lemma-navigation'
+);
+$manager->addMigrationPath(
     $root . '/database/dependent-migrations',
     MigrationPriority::DEPENDENT,
     'app:dependent'

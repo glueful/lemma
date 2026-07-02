@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c23be51964cfde3854246ff64a55d6dd",
+    "content-hash": "1667c2045bd7d7740d867e0bc6fc0c12",
     "packages": [
         {
             "name": "composer/semver",
@@ -1057,6 +1057,44 @@
                 }
             ],
             "description": "Lemma content format importers (CSV / Markdown / WordPress) as a removable capability pack.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "glueful/lemma-navigation",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-navigation",
+                "reference": "af6b88a0223e3750f62d272cd3bbf9f68d22ec0b"
+            },
+            "require": {
+                "glueful/framework": "^1.65.0",
+                "glueful/lemma-contracts": "*",
+                "php": "^8.3"
+            },
+            "type": "glueful-extension",
+            "extra": {
+                "glueful": {
+                    "provider": "Glueful\\Lemma\\Navigation\\LemmaNavigationServiceProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Navigation\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
+            ],
+            "description": "Navigation menus for Lemma: menu trees as data with published-only resolution, as a removable capability pack.",
             "transport-options": {
                 "relative": true
             }

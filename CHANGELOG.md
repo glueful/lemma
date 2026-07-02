@@ -7,6 +7,19 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 ## [Unreleased]
 
 ### Added
+- **Navigation / menu builder** (`glueful/lemma-navigation`, new capability pack — V2
+  rendered-delivery sub-project 1): menu trees as data with per-locale label maps and
+  published-only resolution. New `lemma-contracts` seams: `MenuReader` (menus for
+  render/frontends; null ≡ pack absent) and `EntryTargetResolver`
+  (`published|unpublished|deleted|missing|routeless` + path, where `published` means
+  addressable — publication AND route — and path is null otherwise), implemented by core.
+  Public `GET /v1/menus/{slug}` (rate-limited); admin CRUD + atomic whole-tree
+  `PUT /menus/{slug}/items` guarded by `lock_version` (stale → 409), recursive validation
+  (depth 6, 500 items, URL schemes; `missing`/`deleted` targets 422, `unpublished`/
+  `routeless` allowed), locale-aware editor payload (`target_status` per `?locale=`).
+  `navigation.manage` permission (granted to `administrator`); `MenuUpdated` event as the
+  future render-cache purge seam. Admin SPA: Navigation page with tree editor (per-locale
+  labels, entry picker with target badges, up/down/indent/outdent, 409 reload handling).
 - **Approval / review workflow** (`glueful/lemma-workflow`, new capability pack): a
   single-stage editorial state machine over draft/publish — submit → in_review →
   approved / changes_requested, per entry+locale. Publishing requires an approved review

@@ -23,4 +23,6 @@ export const qk = {
     ['analytics', 'breakdown', event, from, to] as const,
   workflowState: (uuid: string, locale: string) => ['workflow', 'state', uuid, locale] as const,
   workflowQueue: () => ['workflow', 'queue'] as const,
+  navMenus: () => ['navigation', 'menus'] as const,
+  navMenu: (slug: string, locale: string) => ['navigation', 'menu', slug, locale] as const,
 }

@@ -153,7 +153,7 @@ final class DeliveryRepository
                 ->where('e.status', '=', 'active')            // never enumerate archived/deleted
                 ->whereRaw('r.content_type_uuid = e.content_type_uuid')
                 ->whereRaw('r.locale = p.locale')
-                ->orderByRaw('p.published_at DESC, p.entry_uuid ASC')
+                ->orderByRaw('p.published_at DESC, p.entry_uuid ASC, p.locale ASC')
                 ->limit($take)
                 ->offset($cursor)
                 ->get();
@@ -188,7 +188,9 @@ final class DeliveryRepository
      * One page of published (entry, route, type, fields) rows across all/selected
      * types+locales, for search indexing. Joins the publication spine to the pinned
      * version, the entry (active guard), the entry_route (href slug), and the content
-     * type (slug + public_delivery). Ordered stably (published_at DESC, entry_uuid ASC).
+     * type (slug + public_delivery). Ordered by a TOTAL order (published_at DESC,
+     * entry_uuid ASC, locale ASC) so LIMIT/OFFSET paging never skips or duplicates a
+     * multi-locale entry's rows across page boundaries.
      *
      * @return array{rows:list<array<string,mixed>>,total:int}
      */
@@ -230,7 +232,7 @@ final class DeliveryRepository
                     'p.entry_uuid', 'e.content_type_uuid', 'ct.slug as content_type_slug',
                     'ct.public_delivery', 'p.locale', 'r.slug', 'v.fields', 'p.published_at',
                 ])
-                ->orderByRaw('p.published_at DESC, p.entry_uuid ASC')
+                ->orderByRaw('p.published_at DESC, p.entry_uuid ASC, p.locale ASC')
                 ->limit($take)
                 ->offset($cursor);
             $batch = $q->get();

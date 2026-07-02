@@ -44,6 +44,10 @@ final class OptionalApiKeyAuthMiddleware implements RouteMiddleware
 
         $userData = $identity->toArray();
         $request->attributes->set('authenticated', true);
+        // The post-auth `'user'` array attribute is the framework convention (AuthMiddleware
+        // sets it too). Rate limiting keyed `by: 'user'` reads exactly this attribute —
+        // without it, per-user limits silently degrade to per-IP.
+        $request->attributes->set('user', $userData);
         $request->attributes->set('user_id', $key->user_uuid);
         $request->attributes->set('user_data', $userData);
         $request->attributes->set('auth_method', 'api_key');

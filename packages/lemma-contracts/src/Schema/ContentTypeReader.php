@@ -18,4 +18,13 @@ interface ContentTypeReader
 
     /** True when the content type opts into anonymous public delivery. */
     public function isPublicDelivery(string $uuid): bool;
+
+    /**
+     * All non-deleted content types with the fields delivery-visibility decisions need,
+     * keyed by type uuid. Lets consumers (e.g. search) resolve visibility from the live
+     * schema store per request instead of denormalizing it.
+     *
+     * @return array<string, array{slug: string, public_delivery: bool}>
+     */
+    public function deliveryTypes(): array;
 }

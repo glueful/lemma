@@ -43,6 +43,11 @@ final class SearchEndpointTest extends LemmaTestCase
             }
             public function search(SearchRequest $r): SearchResults
             {
+                // An unreachable/misconfigured Meilisearch surfaces as a thrown SDK
+                // exception from search() — the controller maps it to 503.
+                if (!$this->healthy) {
+                    throw new \RuntimeException('connection refused');
+                }
                 return new SearchResults($this->hits, $this->total, $r->limit, $r->offset);
             }
             public function health(): bool

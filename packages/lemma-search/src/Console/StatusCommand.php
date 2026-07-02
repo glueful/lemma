@@ -51,13 +51,6 @@ final class StatusCommand extends BaseCommand
             $output->writeln('<comment>' . $w . '</comment>');
         }
 
-        // Visibility drift is a documented edge: flipping a type's public_delivery flag needs a
-        // reindex to take effect (public_delivery is denormalized into each doc at index time).
-        $output->writeln(
-            '<comment>Note: after changing a content type\'s public_delivery flag, run '
-            . '`php glueful search:reindex --type=<slug>` for search visibility to match delivery.</comment>',
-        );
-
         return $healthy ? self::SUCCESS : self::FAILURE;
     }
 }

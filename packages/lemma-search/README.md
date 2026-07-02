@@ -112,9 +112,9 @@ php glueful search:reindex [--type=<slug>] [--locale=<code>]   # backfill the in
 php glueful search:status                                       # doctor: backend health + config warnings
 ```
 
-**Visibility drift:** `public_delivery` is denormalized into each document at index time, so after
-flipping a content type's `public_delivery` flag, run `search:reindex --type=<slug>` for search
-visibility to match delivery. `search:status` restates this.
+**No visibility drift:** visibility is resolved from the live content-type store on every
+request (nothing visibility-related is denormalized into documents), so flipping a content
+type's `public_delivery` flag takes effect in search immediately — no reindex needed.
 
 ## Lifecycle
 

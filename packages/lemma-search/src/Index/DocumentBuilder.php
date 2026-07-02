@@ -23,6 +23,16 @@ final class DocumentBuilder
     {
     }
 
+    /**
+     * The Meilisearch document id for one entry+locale. Meilisearch ids allow only
+     * alphanumerics, `-` and `_` — never use `:` or other separators here. Deletes
+     * (MeilisearchBackend::deleteEntry) must compose the identical id.
+     */
+    public static function documentId(string $entryUuid, string $locale): string
+    {
+        return $entryUuid . '_' . $locale;
+    }
+
     /** @return array<string,mixed> */
     public function build(IndexableContent $content, ContentSchemaReader $schema): array
     {
@@ -35,7 +45,7 @@ final class DocumentBuilder
         // Title.
         $titleField = isset($cfg['title_field']) ? (string) $cfg['title_field'] : 'title';
         $title = $this->stringValue($content->fields, $titleField);
-        if ($title === null && $titleField === 'title') {
+        if (($title === null || $title === '') && $titleField === 'title') {
             // Convention chain: entryLabel → first indexed string field.
             $title = $content->entryLabel;
             if ($title === null || $title === '') {
@@ -68,13 +78,15 @@ final class DocumentBuilder
             }
         }
 
+        // No visibility flags are denormalized into the document: visibility is resolved
+        // from the live type store at query time (VisibilityResolver), so flipping a type
+        // private takes effect immediately without a reindex.
         return [
-            'id' => $content->entryUuid . ':' . $content->locale,
+            'id' => self::documentId($content->entryUuid, $content->locale),
             'entry_uuid' => $content->entryUuid,
             'locale' => $content->locale,
             'content_type_uuid' => $content->contentTypeUuid,
             'content_type_slug' => $content->contentTypeSlug,
-            'public_delivery' => $content->publicDelivery,
             'href' => $content->href,
             'title' => (string) ($title ?? ''),
             'body' => implode("\n\n", $bodyParts),

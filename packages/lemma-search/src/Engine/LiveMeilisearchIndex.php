@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Glueful\Lemma\Search\Engine;
 
 use Glueful\Extensions\Meilisearch\Indexing\IndexManager;
+use Meilisearch\Endpoints\Indexes;
 use Psr\Container\ContainerInterface;
 use Throwable;
 
@@ -15,6 +16,8 @@ use Throwable;
  */
 final class LiveMeilisearchIndex implements MeilisearchIndex
 {
+    private ?Indexes $handle = null;
+
     public function __construct(
         private readonly IndexManager $manager,
         private readonly string $indexName,
@@ -28,32 +31,41 @@ final class LiveMeilisearchIndex implements MeilisearchIndex
 
     public function ensureIndex(array $settings): void
     {
-        $this->manager->getOrCreateIndex($this->indexName);
+        $this->handle = $this->manager->getOrCreateIndex($this->indexName);
         $this->manager->updateSettings($this->indexName, $settings);
     }
 
     public function addDocuments(array $documents): void
     {
         // 'id' is the Meilisearch primary key by convention (see IndexManager::createIndex).
-        $this->manager->getOrCreateIndex($this->indexName)->addDocuments($documents, 'id');
+        $this->index()->addDocuments($documents, 'id');
     }
 
     public function deleteDocument(string $id): void
     {
-        $this->manager->getOrCreateIndex($this->indexName)->deleteDocument($id);
+        $this->index()->deleteDocument($id);
     }
 
     public function deleteByFilter(string $filter): void
     {
         // meilisearch-php: filtered delete via deleteDocuments(['filter' => …]).
-        $this->manager->getOrCreateIndex($this->indexName)->deleteDocuments(['filter' => $filter]);
+        $this->index()->deleteDocuments(['filter' => $filter]);
     }
 
     public function rawSearch(string $query, array $params): array
     {
         // rawSearch returns the direct Meilisearch response array (hits with _formatted /
         // _rankingScore, estimatedTotalHits) — no SearchResult wrapper.
-        return $this->manager->getOrCreateIndex($this->indexName)->rawSearch($query, $params);
+        return $this->index()->rawSearch($query, $params);
+    }
+
+    /**
+     * Memoized index handle: getOrCreateIndex() re-validates existence/primary key with an
+     * HTTP GET on every call, which would double the Meilisearch traffic of each operation.
+     */
+    private function index(): Indexes
+    {
+        return $this->handle ??= $this->manager->getOrCreateIndex($this->indexName);
     }
 
     public function stats(): array

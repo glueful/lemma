@@ -76,6 +76,7 @@ final class ReindexCommandTest extends TestCase
         };
 
         $types = new class implements ContentTypeReader {
+            public int $schemaLookups = 0;
             public function findUuidBySlug(string $slug): ?string
             {
                 return 'ct-1';
@@ -84,8 +85,13 @@ final class ReindexCommandTest extends TestCase
             {
                 return true;
             }
+            public function deliveryTypes(): array
+            {
+                return ['ct-1' => ['slug' => 'blog', 'public_delivery' => true]];
+            }
             public function schemaFor(string $uuid): ?ContentSchemaReader
             {
+                $this->schemaLookups++;
                 return new class implements ContentSchemaReader {
                     public function fields(): array
                     {
@@ -105,5 +111,8 @@ final class ReindexCommandTest extends TestCase
         self::assertTrue($backend->ensured);
         self::assertSame(3, $count);
         self::assertCount(3, $backend->upserted);
+        // schemaFor runs an uncached DB query per call — backfill must memoize per type
+        // (3 records, 1 type → 1 lookup), not look up per record.
+        self::assertSame(1, $types->schemaLookups);
     }
 }

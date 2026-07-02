@@ -13,8 +13,9 @@ use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Public content search. Behind `optional_api_key`: an authenticated key narrows visibility
- * to its scopes; anonymous sees only public_delivery content. Visibility is enforced inside
- * the backend filter, so `total`/pagination are correct.
+ * to its scopes; anonymous sees only public-delivery types. Visibility is resolved from the
+ * live type store per request and enforced inside the backend filter, so `total`/pagination
+ * are correct and a type flipped private drops out immediately.
  */
 final class SearchController
 {
@@ -58,22 +59,24 @@ final class SearchController
             $typeSlug = null;
         }
 
-        if (!$this->backend->health()) {
-            return Response::error('Search is temporarily unavailable.', 503);
-        }
-
         $limit = $this->clamp((int) $request->query->get('limit', $this->defaultLimit), 1, $this->maxLimit);
         $offset = max(0, (int) $request->query->get('offset', 0));
 
-        $results = $this->backend->search(new SearchRequest(
-            q: $q,
-            locale: $locale,
-            typeSlug: $typeSlug,
-            allAccess: $ctx->allAccess,
-            scopedTypeUuids: $ctx->scopedTypeUuids,
-            limit: $limit,
-            offset: $offset,
-        ));
+        // No health() preflight: it cost two extra Meilisearch round-trips per request to
+        // predict what this try/catch handles anyway (backend down/misconfigured → 503).
+        try {
+            $results = $this->backend->search(new SearchRequest(
+                q: $q,
+                locale: $locale,
+                typeSlug: $typeSlug,
+                allAccess: $ctx->allAccess,
+                visibleTypeUuids: $ctx->visibleTypeUuids,
+                limit: $limit,
+                offset: $offset,
+            ));
+        } catch (\Throwable) {
+            return Response::error('Search is temporarily unavailable.', 503);
+        }
 
         $hits = [];
         foreach ($results->hits as $hit) {

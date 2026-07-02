@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    // NOTE: enable/disable is NOT configured here — the capability switchboard in the app's
+    // config/lemma.php ('capabilities' => ['lemma.render' => false]) is the only gate.
+
+    // Active theme name: an app-level themes/{name}/ directory, falling back to the
+    // pack-embedded default theme. RESOLVED AT BOOT (v1): changing it requires an app
+    // restart / extension-cache rebuild.
+    'theme' => env('RENDER_THEME', 'default'),
+
+    // Entry uuid rendered at `/` (through index.twig). Empty = standalone index.twig.
+    // A set-but-unresolvable value is a LOUD 500 config error (never a themed 404).
+    'homepage_entry' => env('RENDER_HOMEPAGE_ENTRY', ''),
+
+    // site.name in the template context.
+    'site_name' => env('RENDER_SITE_NAME', 'Lemma'),
+
+    // First-PATH-SEGMENT prefixes the catch-all must never render ('v1' reserves /v1 and
+    // /v1/... but NOT /v1abc). Reserved hits return the framework's standard JSON 404.
+    'reserved_prefixes' => ['v1', 'admin', 'extensions', 'theme-assets'],
+
+    // Exact reserved paths ('sitemap.xml' does not reserve /sitemap-history).
+    'reserved_exact' => ['sitemap.xml', 'robots.txt'],
+];

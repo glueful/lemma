@@ -7,6 +7,16 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 ## [Unreleased]
 
 ### Added
+- **Rendered listing & archive pages** (V2 render follow-up): `/{type}` and
+  `/{type}/{field}/{term}` (+ `/page/n`, + locale prefixes) through the render
+  catch-all — `PublicRouteResolver` gained `listing`/`archive` kinds with
+  LIST-shaped items carrying batch-rendered `href`s; archive membership rides the
+  `published_entry_references` projection; path-based pagination with `/page/1`
+  canonical 301s and `total_pages = max(1, ceil(total/per_page))`; cached pages
+  carry the broad `lemma:type:{type}` tag so any publish purges them. Opt-in via
+  `RENDER_LISTING_TYPES` (default off). New default-theme templates
+  `listing.twig`/`archive.twig`/`_pagination.twig`; `page` is reserved as an
+  archive field segment.
 - **Term archives + facet counts** (the taxonomy delivery surface the references spec
   deferred): a new `published_entry_references` projection (listener-maintained on
   publish/unpublish/delete, re-driven by `lemma:resync`, schema-projected so rollback

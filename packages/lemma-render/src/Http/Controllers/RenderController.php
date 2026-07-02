@@ -84,6 +84,7 @@ final class RenderController
                 fn (): Response => $this->render('error.twig', $this->defaultLocale(), null, 410),
             ),
             'content' => $this->renderEntry($result),
+            'listing', 'archive' => $this->renderCollection($result, '/' . ltrim($path, '/')),
             default => $this->errors->themed404(
                 fn (): Response => $this->render('404.twig', $this->defaultLocale(), null, 404),
             ),
@@ -109,6 +110,84 @@ final class RenderController
     }
 
     /**
+     * Listing/archive pages (listing spec §4). Template family follows the kind
+     * (listing/{type}.twig → listing.twig; archive/{type}.twig → archive.twig); the
+     * context ships ready pagination paths so themes never build page URLs; the
+     * Cache-Tag ALWAYS carries the broad lemma:type:{type} — page contents change when
+     * one new entry publishes, so per-item tags alone cannot keep cached pages fresh.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function renderCollection(array $result, string $path): Response
+    {
+        $family = $result['kind'] === 'archive' ? 'archive' : 'listing';
+        $typeSlug = (string) $result['type'];
+        $locale = (string) $result['locale'];
+        /** @var array<string,mixed> $listing */
+        $listing = $result['listing'];
+
+        $candidate = "{$family}/{$typeSlug}.twig";
+        $template = $this->twig()->getLoader()->exists($candidate) ? $candidate : "{$family}.twig";
+
+        $page = (int) $listing['page'];
+        $totalPages = (int) $listing['total_pages'];
+        // The base path strips a trailing /page/{n}; page 2's prev is the BARE base
+        // (canonical — /page/1 301s).
+        $base = $page > 1 ? (string) preg_replace('#/page/\d+$#', '', $path) : $path;
+        $pagination = [
+            'page' => $page,
+            'per_page' => (int) $listing['per_page'],
+            'total' => (int) $listing['total'],
+            'total_pages' => $totalPages,
+            'prev_path' => $page <= 1 ? null : ($page === 2 ? $base : $base . '/page/' . ($page - 1)),
+            'next_path' => $page < $totalPages ? $base . '/page/' . ($page + 1) : null,
+        ];
+
+        $extra = [
+            'items' => $listing['items'],
+            'pagination' => $pagination,
+            'type' => $typeSlug,
+        ];
+        if ($result['kind'] === 'archive') {
+            $extra['term'] = $result['term'];
+            $extra['field'] = $result['field'];
+        }
+
+        $response = $this->render($template, $locale, null, 200, $extra);
+        $this->tagCollection($response, $result);
+        return $response;
+    }
+
+    /**
+     * Surrogate tags for a collection page: per-item entry tags + the BROAD type tag
+     * (the correctness mechanism — see renderCollection); archives add the term's entry
+     * tag and its type's tag so term edits and term-type events purge too.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function tagCollection(Response $response, array $result): void
+    {
+        $typeSlug = (string) $result['type'];
+        $tags = [];
+        foreach ((array) ($result['listing']['items'] ?? []) as $item) {
+            $uuid = is_string($item['uuid'] ?? null) ? $item['uuid'] : '';
+            if ($uuid !== '') {
+                $tags[] = 'lemma:entry:' . $uuid;
+            }
+        }
+        $termUuid = is_string($result['term']['uuid'] ?? null) ? $result['term']['uuid'] : '';
+        if ($termUuid !== '') {
+            $tags[] = 'lemma:entry:' . $termUuid;
+        }
+        $tags[] = 'lemma:type:' . $typeSlug;
+        $termType = is_string($result['term_type'] ?? null) ? $result['term_type'] : '';
+        if ($termType !== '' && $termType !== $typeSlug) {
+            $tags[] = 'lemma:type:' . $termType;
+        }
+        $response->headers->set('Cache-Tag', implode(', ', array_values(array_unique($tags))));
+    }
+
+    /**
      * Stamp the surrogate Cache-Tag header (same strings the delivery API emits and
      * InvalidateCacheTagsListener invalidates) so the page cache and the CDN can both
      * purge this page on entry/type events.
@@ -124,9 +203,17 @@ final class RenderController
         $response->headers->set('Cache-Tag', "lemma:entry:{$uuid}, lemma:type:{$typeSlug}");
     }
 
-    /** @param array<string,mixed>|null $entry */
-    private function render(string $template, string $locale, ?array $entry, int $status): Response
-    {
+    /**
+     * @param array<string,mixed>|null $entry
+     * @param array<string,mixed> $extra additional template context (listing/archive pages)
+     */
+    private function render(
+        string $template,
+        string $locale,
+        ?array $entry,
+        int $status,
+        array $extra = [],
+    ): Response {
         $this->extension->setLocale($locale);
         $context = [
             'site' => [
@@ -138,6 +225,7 @@ final class RenderController
         if ($entry !== null) {
             $context['entry'] = $entry;
         }
+        $context += $extra;
 
         try {
             $html = $this->twig()->render($template, $context);

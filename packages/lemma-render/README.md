@@ -62,6 +62,25 @@ requires an app restart / extension-cache rebuild.
 welcome. A set-but-unresolvable value (missing/unpublished/routeless/deleted) is a
 **500 config error** — logged always, message in the body only under debug mode.
 
+## Listing & archive pages
+
+Allowlisted types get a rendered listing at `/{type}` and term archives at
+`/{type}/{field}/{term}` (the field must be a filterable reference; membership
+comes from the same published-reference projection as the delivery archive
+endpoint). Pagination is path-based — `/{type}/page/2` — because the render
+cache is keyed by path; `/page/1` 301s to the bare path. `page` is a reserved
+word as an archive field segment. Templates: `listing/{type}.twig` →
+`listing.twig`, `archive/{type}.twig` → `archive.twig`; context ships `items`
+(each with a ready `href`; `null` = routeless), `pagination`
+(`prev_path`/`next_path` precomputed), and for archives `term` + `field`.
+Cached pages carry the broad `lemma:type:{type}` surrogate tag, so ANY publish
+of the type purges every listing page immediately.
+
+| Key (env) | Default |
+|---|---|
+| `lemma_render.listing_types` (`RENDER_LISTING_TYPES`, comma-separated) | `''` — feature dormant |
+| `lemma_render.listing_per_page` (`RENDER_LISTING_PER_PAGE`) | `10` |
+
 ## Config
 
 | Key (env) | Default |
@@ -117,7 +136,8 @@ the headless product is untouched.
 
 ## Out of scope (v1 — see V2_DESIGN §6)
 
-Listing/archive pages, taxonomy term pages, DB-edited templates, page/block builder,
-preview-through-theme, admin theme/homepage switching UI. Per-page TTL overrides,
-stale-while-revalidate, and user/preview cache bypass are deferred with them (render
-caching spec §8).
+Taxonomy term INDEX pages (`/{type}/{field}` enumerating all terms), DB-edited
+templates, page/block builder, preview-through-theme, admin theme/homepage switching
+UI. Per-page TTL overrides, stale-while-revalidate, and user/preview cache bypass are
+deferred with them (render caching spec §8); facet counts in templates are a separate
+follow-up (listing spec §6).

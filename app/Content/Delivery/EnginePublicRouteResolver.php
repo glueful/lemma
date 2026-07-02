@@ -65,7 +65,7 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             return $this->notFound();
         }
         if ($result->isGone()) {
-            return ['kind' => 'gone', 'locale' => $locale, 'content' => null, 'redirect' => null];
+            return ['kind' => 'gone', 'locale' => $locale, 'type' => null, 'content' => null, 'redirect' => null];
         }
         if ($result->isRedirect()) {
             $descriptor = $result->redirect();
@@ -76,6 +76,7 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
         return [
             'kind' => 'content',
             'locale' => (string) $row['locale'],
+            'type' => $typeSlug,
             'content' => $this->shaper->shapePublic($row, $typeUuid, $typeSlug),
             'redirect' => null,
         ];
@@ -116,6 +117,7 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
         return [
             'kind' => 'content',
             'locale' => (string) $row['locale'],
+            'type' => $typeSlug,
             'content' => $this->shaper->shapePublic($row, $typeUuid, $typeSlug),
             'redirect' => null,
         ];
@@ -172,13 +174,13 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
     /** @return array{kind: string, locale: null, content: null, redirect: array{location: string, status: int}} */
     private function redirect(string $location, int $status): array
     {
-        return ['kind' => 'redirect', 'locale' => null, 'content' => null,
+        return ['kind' => 'redirect', 'locale' => null, 'type' => null, 'content' => null,
             'redirect' => ['location' => $location, 'status' => $status]];
     }
 
     /** @return array{kind: string, locale: null, content: null, redirect: null} */
     private function notFound(): array
     {
-        return ['kind' => 'not_found', 'locale' => null, 'content' => null, 'redirect' => null];
+        return ['kind' => 'not_found', 'locale' => null, 'type' => null, 'content' => null, 'redirect' => null];
     }
 }

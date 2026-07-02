@@ -63,7 +63,10 @@ interface PublicRouteResolver
 {
     /**
      * @return array{kind: 'content'|'redirect'|'gone'|'not_found', locale: ?string,
-     *   content: ?array, redirect: ?array{location: string, status: int}}
+     *   type: ?string, content: ?array, redirect: ?array{location: string, status: int}}
+     *   `type` = the content-type slug (content kind only) — the template hierarchy
+     *   (entry/{type-slug}.twig) selects on it; neither the delivery envelope nor the
+     *   seo object carries the slug, and the resolver knows it during resolution.
      */
     public function resolvePath(string $path): array;
 

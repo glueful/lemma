@@ -55,6 +55,12 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   enumeration query, an anonymous cache-fill vector.
 
 ### Fixed
+- Admin SPA: capability-gated nav/panels now converge WITHOUT manual reloads when a pack is
+  toggled. Enable/disable on the extension detail page polls the capabilities endpoint until
+  the answer actually changes (the backend serves the pre-toggle list for a few seconds — the
+  dev extension-cache TTL — so a single refetch loses the race), and the capabilities store
+  re-fetches on window focus for toggles made outside the UI (CLI). Background refetches keep
+  the previous set on transient failure instead of blanking the gated nav.
 - Importers (from the `glueful/lemma-importers` package review): import/export batch uuids are now
   random — the deterministic `hash(adapter:sequence:offset)` uuids collided with the globally
   UNIQUE `import_export_batches.uuid` column, so the SECOND import ever run with the same adapter

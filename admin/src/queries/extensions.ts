@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { authFetch } from '@/api/authFetch'
 import { runtimeConfig } from '@/runtime/config'
+import { useCapabilitiesStore } from '@/stores/capabilities'
 
 // Extensions admin API (App\Http\Controllers\ExtensionAdminController, under /v1/admin/extensions).
 // Installed data is local (PackageManifest + the enabled allow-list); Browse proxies Packagist
@@ -92,17 +93,26 @@ export function useExtensionReadme(name: MaybeRefOrGetter<string | undefined>) {
 
 export function useExtensionMutations() {
   const cache = useQueryCache()
+  const caps = useCapabilitiesStore()
   const invalidate = () => cache.invalidateQueries({ key: ['extensions'] })
+  // A toggle changes the capability list, which drives the gated nav/panels — but the
+  // backend serves the previous list for a few seconds (dev extension-cache TTL), so a
+  // single refetch loses the race. Fire-and-forget poll until the set actually changes;
+  // the sidebar is a computed over the store and converges the moment it does.
+  const converge = () => {
+    invalidate()
+    void caps.refreshUntilChanged()
+  }
 
   const enable = useMutation({
     mutation: (name: string) =>
       authFetch(`${base()}/enable`, { method: 'POST', body: JSON.stringify({ name }) }),
-    onSettled: invalidate,
+    onSettled: converge,
   })
   const disable = useMutation({
     mutation: (name: string) =>
       authFetch(`${base()}/disable`, { method: 'POST', body: JSON.stringify({ name }) }),
-    onSettled: invalidate,
+    onSettled: converge,
   })
 
   return { enable, disable }

@@ -43,6 +43,80 @@ describe('capabilities store', () => {
     expect(authFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('refresh replaces the set with the latest server answer', async () => {
+    authFetch.mockResolvedValue({ data: { capabilities: [{ id: 'lemma.workflow' }] } })
+    const store = useCapabilitiesStore()
+    await store.ensureLoaded()
+    expect(store.isEnabled('lemma.workflow')).toBe(true)
+
+    // The pack was disabled server-side; a focus refetch must drop the nav entry.
+    authFetch.mockResolvedValue({ data: { capabilities: [] } })
+    await store.refresh()
+    expect(store.isEnabled('lemma.workflow')).toBe(false)
+  })
+
+  it('refresh keeps the previous set on a transient failure (no nav blanking)', async () => {
+    authFetch.mockResolvedValue({ data: { capabilities: [{ id: 'lemma.workflow' }] } })
+    const store = useCapabilitiesStore()
+    await store.ensureLoaded()
+
+    authFetch.mockRejectedValue(new Error('network blip'))
+    await store.refresh()
+    expect(store.isEnabled('lemma.workflow')).toBe(true)
+  })
+
+  it('refresh before the initial load just performs the initial load', async () => {
+    authFetch.mockResolvedValue({ data: { capabilities: [{ id: 'lemma.seo' }] } })
+    const store = useCapabilitiesStore()
+    await store.refresh()
+    expect(store.loaded).toBe(true)
+    expect(store.isEnabled('lemma.seo')).toBe(true)
+    expect(authFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshUntilChanged polls past stale answers and stops once the set changes', async () => {
+    vi.useFakeTimers()
+    try {
+      authFetch.mockResolvedValue({ data: { capabilities: [{ id: 'lemma.workflow' }] } })
+      const store = useCapabilitiesStore()
+      await store.ensureLoaded()
+
+      // Backend keeps serving the stale (pre-toggle) list twice, then the fresh one.
+      authFetch
+        .mockResolvedValueOnce({ data: { capabilities: [{ id: 'lemma.workflow' }] } })
+        .mockResolvedValueOnce({ data: { capabilities: [{ id: 'lemma.workflow' }] } })
+        .mockResolvedValue({ data: { capabilities: [] } })
+
+      const done = store.refreshUntilChanged(6, 1200)
+      await vi.advanceTimersByTimeAsync(1200) // attempt 1: stale
+      expect(store.isEnabled('lemma.workflow')).toBe(true)
+      await vi.advanceTimersByTimeAsync(1200) // attempt 2: stale
+      await vi.advanceTimersByTimeAsync(1200) // attempt 3: fresh → stops
+      await done
+      expect(store.isEnabled('lemma.workflow')).toBe(false)
+      expect(authFetch).toHaveBeenCalledTimes(4) // initial load + 3 polls, no further attempts
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshUntilChanged gives up after maxAttempts when nothing changes', async () => {
+    vi.useFakeTimers()
+    try {
+      authFetch.mockResolvedValue({ data: { capabilities: [{ id: 'lemma.seo' }] } })
+      const store = useCapabilitiesStore()
+      await store.ensureLoaded()
+
+      const done = store.refreshUntilChanged(3, 1000)
+      await vi.advanceTimersByTimeAsync(3000)
+      await done
+      expect(authFetch).toHaveBeenCalledTimes(4) // initial load + exactly 3 bounded polls
+      expect(store.isEnabled('lemma.seo')).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   // Regression: reset() must drop the cached set AND clear the loaded flag so the next
   // ensureLoaded() re-fetches — otherwise a second account in the same tab inherits the
   // previous user's capabilities.

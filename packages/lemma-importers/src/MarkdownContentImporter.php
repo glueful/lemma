@@ -14,16 +14,16 @@ use Glueful\Extensions\ImportExport\Support\ImportContext;
 use Glueful\Extensions\ImportExport\Support\ImportOptions;
 use Glueful\Extensions\ImportExport\Support\ImportPlan;
 use Glueful\Extensions\ImportExport\Support\ImportSource;
+use Glueful\Helpers\Utils;
 use Glueful\Lemma\Contracts\Authoring\ContentWriter;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
+use Glueful\Lemma\Importers\Concerns\ReadsImportSource;
 use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\DisallowedRawHtml\DisallowedRawHtmlExtension;
 use League\CommonMark\MarkdownConverter;
-
-use function config;
 
 /**
  * Imports a single Markdown/MDX document as one entry.
@@ -42,6 +42,7 @@ use function config;
  */
 final class MarkdownContentImporter implements ImporterInterface, RetryableAdapterInterface
 {
+    use ReadsImportSource;
     use RequiresImportersCapability;
 
     private ?MarkdownConverter $markdown = null;
@@ -79,12 +80,17 @@ final class MarkdownContentImporter implements ImporterInterface, RetryableAdapt
         if ($slug === '') {
             throw new \InvalidArgumentException('A target content_type is required.');
         }
-        if ($this->types->findUuidBySlug($slug) === null) {
+        $typeUuid = $this->types->findUuidBySlug($slug);
+        if ($typeUuid === null) {
             throw new \InvalidArgumentException(sprintf('Unknown content type "%s".', $slug));
         }
-        // One file is one document → one record.
+        $this->validateTargets($typeUuid, $slug, $options->options);
+
+        // One file is one document → one record. Random uuid: import_export_batches.uuid is
+        // globally UNIQUE and rows outlive the job — the previous constant hash made every
+        // SECOND markdown import collide on insert.
         $batch = new ImportBatch(
-            uuid: substr(hash('sha256', 'markdown.content.import:1'), 0, 12),
+            uuid: Utils::generateNanoID(12),
             jobUuid: 'pending',
             sequence: 1,
             offset: 0,
@@ -169,6 +175,43 @@ final class MarkdownContentImporter implements ImporterInterface, RetryableAdapt
     }
 
     /**
+     * Reject a mapping/body_field that doesn't match the target schema at plan time. Without
+     * this, a typo'd body_field or field name was silently skipped at import time — a
+     * "successful" import of body-less entries with zero errors.
+     *
+     * @param array<string,mixed> $options
+     */
+    private function validateTargets(string $typeUuid, string $slug, array $options): void
+    {
+        $schema = $this->types->schemaFor($typeUuid);
+        if ($schema === null) {
+            throw new \InvalidArgumentException(sprintf('Schema for content type "%s" could not be loaded.', $slug));
+        }
+        $fieldNames = [];
+        foreach ($schema->fields() as $field) {
+            $fieldNames[$field->name()] = true;
+        }
+
+        $mapping = $this->mappingOption($options);
+        $bodyField = $this->stringOption($options, 'body_field');
+        if ($mapping === [] && $bodyField === '') {
+            throw new \InvalidArgumentException('A body_field or a front-matter mapping is required.');
+        }
+        if ($bodyField !== '' && !isset($fieldNames[$bodyField])) {
+            throw new \InvalidArgumentException(
+                sprintf('Content type "%s" has no field "%s" (body_field).', $slug, $bodyField),
+            );
+        }
+        foreach (array_keys($mapping) as $field) {
+            if (!isset($fieldNames[$field])) {
+                throw new \InvalidArgumentException(
+                    sprintf('Content type "%s" has no field "%s" (mapped).', $slug, $field),
+                );
+            }
+        }
+    }
+
+    /**
      * Split a document into its flat front matter (the leading `---` block, parsed as `key: value`)
      * and the remaining body. Only flat scalar front matter is supported in v1.
      *
@@ -232,35 +275,9 @@ final class MarkdownContentImporter implements ImporterInterface, RetryableAdapt
         return $this->markdown->convert($markdown)->getContent();
     }
 
-    /** Coerce a front-matter string to the field's type (front-matter values are strings). */
-    private function coerce(string $type, string $raw): mixed
-    {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return null;
-        }
-        return match ($type) {
-            'number' => is_numeric($raw)
-                ? ((string) (int) $raw === $raw ? (int) $raw : (float) $raw)
-                : $raw,
-            'boolean' => in_array(strtolower($raw), ['true', '1', 'yes', 'on'], true),
-            'json' => is_array($decoded = json_decode($raw, true)) ? $decoded : $raw,
-            default => $raw,
-        };
-    }
-
     private function readSource(string $jobUuid): string
     {
-        $file = $this->db->table('import_export_files')
-            ->where('job_uuid', '=', $jobUuid)
-            ->where('role', '=', 'source')
-            ->orderBy('id')
-            ->first();
-        if ($file === null) {
-            throw new \RuntimeException(sprintf('Import source file for job "%s" was not found.', $jobUuid));
-        }
-
-        $path = $this->resolveSourcePath((string) $file['disk'], (string) $file['path']);
+        $path = $this->sourcePathForJob($jobUuid);
         $contents = @file_get_contents($path);
         if ($contents === false) {
             throw new \RuntimeException(sprintf('Could not read Markdown file "%s".', $path));
@@ -268,47 +285,8 @@ final class MarkdownContentImporter implements ImporterInterface, RetryableAdapt
         return $contents;
     }
 
-    private function resolveSourcePath(string $disk, string $path): string
-    {
-        if ($path !== '' && $path[0] === '/') {
-            return $path;
-        }
-
-        $roots = config($this->context, 'import_export.source_roots', []);
-        $root = is_array($roots) && isset($roots[$disk]) && is_string($roots[$disk]) && $roots[$disk] !== ''
-            ? $roots[$disk]
-            : $this->context->getBasePath() . DIRECTORY_SEPARATOR . $disk;
-
-        return rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($path, DIRECTORY_SEPARATOR);
-    }
-
     private function extension(string $path): string
     {
         return strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
-    }
-
-    /** @param array<string,mixed> $options */
-    private function stringOption(array $options, string $key): string
-    {
-        return isset($options[$key]) && is_string($options[$key]) ? $options[$key] : '';
-    }
-
-    /**
-     * @param array<string,mixed> $options
-     * @return array<string,string> field name => front-matter key
-     */
-    private function mappingOption(array $options): array
-    {
-        $raw = $options['mapping'] ?? null;
-        if (!is_array($raw)) {
-            return [];
-        }
-        $mapping = [];
-        foreach ($raw as $field => $key) {
-            if (is_string($field) && is_string($key) && $field !== '' && $key !== '') {
-                $mapping[$field] = $key;
-            }
-        }
-        return $mapping;
     }
 }

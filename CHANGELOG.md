@@ -26,6 +26,11 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   make a collection world-readable/writable — is now fully audited: it stamps the acting admin on
   a `collection_schema_changes` row (`update_access`, policy payload) and dispatches
   `CollectionUpdated('access_updated')`.
+- Importers (from the `glueful/lemma-importers` package review): WordPress (WXR) HTML bodies are
+  now sanitized with `symfony/html-sanitizer` before storage (scripts, iframes, event handlers,
+  and `javascript:` URLs dropped; normal markup kept) — previously the WXR `content:encoded` HTML
+  was stored verbatim and served to delivery consumers, a stored-XSS vector the pack's own
+  Markdown importer already defended against.
 - SEO (from the `glueful/lemma-seo` package review): the public routes (`/v1/seo/meta/...`,
   `/sitemap.xml`, `/sitemap/{n}.xml`, `/robots.txt`) are now rate-limited like every other
   anonymous Lemma surface. Sitemap page numbers are bounded by the actual page count (404 beyond
@@ -33,6 +38,17 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   enumeration query, an anonymous cache-fill vector.
 
 ### Fixed
+- Importers (from the `glueful/lemma-importers` package review): import/export batch uuids are now
+  random — the deterministic `hash(adapter:sequence:offset)` uuids collided with the globally
+  UNIQUE `import_export_batches.uuid` column, so the SECOND import ever run with the same adapter
+  (including the core snapshot import/export in `app/Content/ImportExport/`) failed on its first
+  batch. Mappings and `body_field` are now validated against the target schema (and WXR keys
+  against the known set) at plan time — a typo'd field previously produced a "successful" import
+  that silently dropped that data. CSV user imports now reject intra-file duplicate
+  emails/usernames in dry-run (both rows, case-insensitive email — dry-run and commit report
+  identically) and unknown `status` values (`active`/`inactive`); the deliberate
+  email-verified-on-import behavior is now documented. The triplicated source-file/coercion
+  helpers were extracted to a shared `ReadsImportSource` trait.
 - SEO (from the `glueful/lemma-seo` package review): admin SEO-meta upserts are now validated
   (`SeoMetaUpsertDTO`) — non-string values, over-length fields, unknown `robots`/`twitter_card`
   values, and oversize locales are 422s instead of database-driver 500s. The upsert itself is now

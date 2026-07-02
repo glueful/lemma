@@ -14,12 +14,14 @@ use Glueful\Extensions\ImportExport\Support\ImportContext;
 use Glueful\Extensions\ImportExport\Support\ImportOptions;
 use Glueful\Extensions\ImportExport\Support\ImportPlan;
 use Glueful\Extensions\ImportExport\Support\ImportSource;
+use Glueful\Helpers\Utils;
 use Glueful\Lemma\Contracts\Authoring\ContentWriter;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
+use Glueful\Lemma\Importers\Concerns\ReadsImportSource;
 use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
-
-use function config;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 
 /**
  * Imports a WordPress export (WXR) into entries of one content type.
@@ -38,11 +40,14 @@ use function config;
  */
 final class WordpressContentImporter implements ImporterInterface, RetryableAdapterInterface
 {
+    use ReadsImportSource;
     use RequiresImportersCapability;
 
     /** WXR scalar keys a field can map to. */
     public const KEYS = ['title', 'excerpt', 'slug', 'date', 'status', 'author'];
     private const POST_TYPES = ['post', 'page'];
+
+    private ?HtmlSanitizer $sanitizer = null;
 
     public function __construct(
         private readonly ApplicationContext $context,
@@ -77,16 +82,21 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
         if ($slug === '') {
             throw new \InvalidArgumentException('A target content_type is required.');
         }
-        if ($this->types->findUuidBySlug($slug) === null) {
+        $typeUuid = $this->types->findUuidBySlug($slug);
+        if ($typeUuid === null) {
             throw new \InvalidArgumentException(sprintf('Unknown content type "%s".', $slug));
         }
+        $this->validateTargets($typeUuid, $slug, $options->options);
 
         $total = count($this->readItems($this->resolveSourcePath($source->disk, $source->path)));
         $batchSize = max(1, $options->batchSize);
         $batches = [];
         for ($offset = 0, $sequence = 1; $offset < $total; $offset += $batchSize, $sequence++) {
             $batches[] = new ImportBatch(
-                uuid: substr(hash('sha256', "wordpress.content.import:{$sequence}:{$offset}"), 0, 12),
+                // Random, not derived from adapter/sequence/offset: import_export_batches.uuid is
+                // globally UNIQUE and rows outlive the job, so a deterministic uuid makes the
+                // SECOND WXR import collide on its first batch.
+                uuid: Utils::generateNanoID(12),
                 jobUuid: 'pending',
                 sequence: $sequence,
                 offset: $offset,
@@ -142,9 +152,13 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
                     $payload[$field] = $this->coerce($def->type(), (string) $item[$wxrKey]);
                 }
                 if ($bodyField !== '' && isset($fieldsByName[$bodyField])) {
+                    // A WXR export is untrusted input (same threat model as the Markdown
+                    // importer): sanitize the HTML body so a <script>/onload/javascript: in the
+                    // source file can't become stored XSS served to delivery consumers. Normal
+                    // WordPress markup (headings, lists, links, images, embeds-as-links) survives.
                     $payload[$bodyField] = $fieldsByName[$bodyField]->format() === 'plain'
                         ? trim(strip_tags($item['content']))
-                        : $item['content'];
+                        : $this->sanitizeHtml($item['content']);
                 }
 
                 $clean = $this->writer->validate($typeUuid, $locale, $payload);
@@ -176,6 +190,66 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
     public function retryable(): bool
     {
         return true;
+    }
+
+    /**
+     * Reject a mapping/body_field that doesn't match the target schema (or an unknown WXR key)
+     * at plan time. Without this, a typo'd body_field or field name was silently skipped at
+     * import time — a "successful" import of body-less entries with zero errors.
+     *
+     * @param array<string,mixed> $options
+     */
+    private function validateTargets(string $typeUuid, string $slug, array $options): void
+    {
+        $schema = $this->types->schemaFor($typeUuid);
+        if ($schema === null) {
+            throw new \InvalidArgumentException(sprintf('Schema for content type "%s" could not be loaded.', $slug));
+        }
+        $fieldNames = [];
+        foreach ($schema->fields() as $field) {
+            $fieldNames[$field->name()] = true;
+        }
+
+        $mapping = $this->mappingOption($options);
+        $bodyField = $this->stringOption($options, 'body_field');
+        if ($mapping === [] && $bodyField === '') {
+            throw new \InvalidArgumentException('A body_field or a WXR-key mapping is required.');
+        }
+        if ($bodyField !== '' && !isset($fieldNames[$bodyField])) {
+            throw new \InvalidArgumentException(
+                sprintf('Content type "%s" has no field "%s" (body_field).', $slug, $bodyField),
+            );
+        }
+        foreach ($mapping as $field => $wxrKey) {
+            if (!isset($fieldNames[$field])) {
+                throw new \InvalidArgumentException(
+                    sprintf('Content type "%s" has no field "%s" (mapped).', $slug, $field),
+                );
+            }
+            if (!in_array($wxrKey, self::KEYS, true)) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Unknown WXR key "%s" (mapped to field "%s"); valid keys: %s.',
+                    $wxrKey,
+                    $field,
+                    implode(', ', self::KEYS),
+                ));
+            }
+        }
+    }
+
+    private function sanitizeHtml(string $html): string
+    {
+        if ($this->sanitizer === null) {
+            // allowSafeElements: standard content markup passes; script/iframe/event handlers and
+            // javascript:/data: URLs are dropped. The default 20k input cap would silently
+            // truncate long posts — raise it well past any real post body.
+            $this->sanitizer = new HtmlSanitizer(
+                (new HtmlSanitizerConfig())
+                    ->allowSafeElements()
+                    ->withMaxInputLength(1_000_000),
+            );
+        }
+        return $this->sanitizer->sanitize($html);
     }
 
     /**
@@ -228,76 +302,11 @@ final class WordpressContentImporter implements ImporterInterface, RetryableAdap
      */
     private function readItemsForJob(string $jobUuid): array
     {
-        $file = $this->db->table('import_export_files')
-            ->where('job_uuid', '=', $jobUuid)
-            ->where('role', '=', 'source')
-            ->orderBy('id')
-            ->first();
-        if ($file === null) {
-            throw new \RuntimeException(sprintf('Import source file for job "%s" was not found.', $jobUuid));
-        }
-
-        return $this->readItems($this->resolveSourcePath((string) $file['disk'], (string) $file['path']));
-    }
-
-    /** Coerce a raw WXR string to the field's type. */
-    private function coerce(string $type, string $raw): mixed
-    {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return null;
-        }
-        return match ($type) {
-            'number' => is_numeric($raw)
-                ? ((string) (int) $raw === $raw ? (int) $raw : (float) $raw)
-                : $raw,
-            'boolean' => in_array(strtolower($raw), ['true', '1', 'yes', 'on'], true),
-            'json' => is_array($decoded = json_decode($raw, true)) ? $decoded : $raw,
-            default => $raw,
-        };
-    }
-
-    private function resolveSourcePath(string $disk, string $path): string
-    {
-        if ($path !== '' && $path[0] === '/') {
-            return $path;
-        }
-
-        $roots = config($this->context, 'import_export.source_roots', []);
-        $root = is_array($roots) && isset($roots[$disk]) && is_string($roots[$disk]) && $roots[$disk] !== ''
-            ? $roots[$disk]
-            : $this->context->getBasePath() . DIRECTORY_SEPARATOR . $disk;
-
-        return rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($path, DIRECTORY_SEPARATOR);
+        return $this->readItems($this->sourcePathForJob($jobUuid));
     }
 
     private function extension(string $path): string
     {
         return strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
-    }
-
-    /** @param array<string,mixed> $options */
-    private function stringOption(array $options, string $key): string
-    {
-        return isset($options[$key]) && is_string($options[$key]) ? $options[$key] : '';
-    }
-
-    /**
-     * @param array<string,mixed> $options
-     * @return array<string,string> field name => WXR key
-     */
-    private function mappingOption(array $options): array
-    {
-        $raw = $options['mapping'] ?? null;
-        if (!is_array($raw)) {
-            return [];
-        }
-        $mapping = [];
-        foreach ($raw as $field => $key) {
-            if (is_string($field) && is_string($key) && $field !== '' && $key !== '') {
-                $mapping[$field] = $key;
-            }
-        }
-        return $mapping;
     }
 }

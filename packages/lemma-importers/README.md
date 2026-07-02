@@ -25,7 +25,15 @@ the `glueful/import-export` engine:
 The content adapters resolve the target content type and its schema through `ContentTypeReader`,
 map and coerce each row, then write via `ContentWriter` (`validate()` for dry-run previews,
 `createDraft()` + optional `publish()` on commit). Validation failures surface as the contract
-`ValidationFailed` exception — so the pack carries **no** reference to the engine.
+`ValidationFailed` exception — so the pack carries **no** reference to the engine. Mappings and
+`body_field` are validated against the target schema at **plan** time, so a typo'd field fails
+fast instead of silently importing entries with missing data.
+
+**Imported files are treated as untrusted.** Markdown bodies are rendered with raw HTML stripped
+and unsafe link schemes dropped; WordPress HTML bodies are run through `symfony/html-sanitizer`
+(safe elements only — scripts, iframes, event handlers, and `javascript:` URLs are removed) before
+being stored. **User provisioning note:** imported accounts are stamped email-verified (bulk
+provisioning by an admin who vouches for the addresses) — don't import unvetted address lists.
 
 ## The capability
 

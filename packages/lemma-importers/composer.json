@@ -17,7 +17,8 @@
     "glueful/import-export": "^1.1.1",
     "glueful/users": "^2.3.0",
     "glueful/aegis": "^1.13.1",
-    "league/commonmark": "^2.8"
+    "league/commonmark": "^2.8",
+    "symfony/html-sanitizer": "^7.0 || ^8.0"
   },
   "autoload": {
     "psr-4": {

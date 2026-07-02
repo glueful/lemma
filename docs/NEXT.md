@@ -99,7 +99,11 @@ Shape" as post‑V1 and have **no** design doc yet:
   that genuinely warrants a `V2_DESIGN.md`** (rendering model, theme/template storage,
   route→render path, render caching) — write it when this phase is actually picked up.
 - **Block / page builder** — architectural (how blocks compose + persist).
-- **Approval / review workflow** — a state machine layered on draft/publish.
+- **Approval / review workflow** — ✅ **shipped** (2026‑07‑02) as the `glueful/lemma-workflow`
+  capability pack: single-stage state machine (draft → in_review → approved/changes_requested)
+  over draft/publish, `PublishGate` core seam, `workflow.review`/`workflow.bypass` permissions,
+  review-queue + editor panel in the admin SPA. Spec:
+  `docs/superpowers/specs/2026-07-02-approval-workflow-design.md`.
 - **Localization UI** — ✅ **shipped** (2026‑06‑27). The visual locale workflow is complete; see
   the "Shipped since" list above. Remaining localization work is the *field-localization
   copy-on-change* follow-up in the per-feature table below, not editor UX.

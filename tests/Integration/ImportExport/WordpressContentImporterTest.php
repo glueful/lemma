@@ -90,7 +90,10 @@ final class WordpressContentImporterTest extends LemmaTestCase
 
         $result = $this->importer()->process(
             new ImportBatch('batchwp00001', 'jobwp000001', 1, 0, 20),
-            new ImportContext($this->appContext(), 'jobwp000001', 'commit', null, self::OPTIONS),
+            // Actor: in production createImport passes the authenticated admin's uuid; the
+            // publish step goes through the workflow gate, so a NULL actor cannot publish
+            // (no bypass). The seed actor holds workflow.bypass in this harness.
+            new ImportContext($this->appContext(), 'jobwp000001', 'commit', 'user00000001', self::OPTIONS),
         );
 
         self::assertSame(2, $result->processedRecords, json_encode($result->errors));

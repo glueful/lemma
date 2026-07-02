@@ -16,6 +16,7 @@ use App\Http\DTOs\ErrorResponse;
 use App\Support\ActorHelper;
 use Glueful\Auth\UserIdentity;
 use Glueful\Http\Response;
+use Glueful\Lemma\Contracts\Authoring\PublishBlocked;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -62,6 +63,12 @@ final class PublicationController
     #[ApiResponse(200, schema: VersionResultData::class, description: 'Entry published.')]
     #[ApiResponse(404, schema: ErrorResponse::class, envelope: false, description: 'No entry/draft to publish.')]
     #[ApiResponse(
+        409,
+        schema: ErrorResponse::class,
+        envelope: false,
+        description: 'A publish gate blocked the publish (e.g. review workflow: not approved).',
+    )]
+    #[ApiResponse(
         422,
         schema: ErrorResponse::class,
         envelope: false,
@@ -77,6 +84,11 @@ final class PublicationController
             $versionUuid = $this->publisher->publish($uuid, $locale, $this->actor($request));
         } catch (ValidationException $e) {
             return Response::validation($e->errors());
+        } catch (PublishBlocked $e) {
+            // MUST precede the RuntimeException catch (PublishBlocked extends it). Spec-pinned
+            // shape: the message is the SPA-ready sentence; details.workflow_state drives the
+            // editor badge without message parsing.
+            return Response::error($e->reason, 409, ['workflow_state' => $e->state]);
         } catch (\RuntimeException $e) {
             return Response::notFound($e->getMessage());
         }

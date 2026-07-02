@@ -14,6 +14,7 @@ use App\Content\Repositories\VersionRepository;
 use App\Content\Schema\Migration\SchemaProjector;
 use App\Content\Validation\FieldValidator;
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Lemma\Contracts\Authoring\PublishGate;
 
 final class PublishService
 {
@@ -26,6 +27,8 @@ final class PublishService
         private readonly ReferenceProjectionRepository $references,
         private readonly ?PublishEventEmitter $events = null,
         private readonly ?SchemaProjector $projector = null,
+        /** @var list<PublishGate> Tag-discovered (`lemma.publish_gate`); empty = ungated. */
+        private readonly array $publishGates = [],
     ) {
     }
 
@@ -47,6 +50,15 @@ final class PublishService
         if ($draft === null) {
             throw new \RuntimeException("no draft for {$entryUuid}/{$locale}");
         }
+
+        // Ask every registered publish gate (workflow pack etc.) BEFORE any write — after the
+        // existence checks so 404s beat 409s. The first PublishBlocked stops the publish;
+        // unexpected exceptions bubble (a broken gate must not silently allow publishes).
+        // No gates → exactly the pre-seam behaviour.
+        foreach ($this->publishGates as $gate) {
+            $gate->assertCanPublish($entryUuid, $locale, $actor);
+        }
+
         $typeUuid = (string) $entry['content_type_uuid'];
         $schema = $this->types->schemaFor($typeUuid);
 

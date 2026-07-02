@@ -117,6 +117,11 @@ $manager->addMigrationPath(
     'lemma-seo'
 );
 $manager->addMigrationPath(
+    $root . '/packages/lemma-workflow/migrations',
+    MigrationPriority::DEPENDENT,
+    'lemma-workflow'
+);
+$manager->addMigrationPath(
     $root . '/database/dependent-migrations',
     MigrationPriority::DEPENDENT,
     'app:dependent'

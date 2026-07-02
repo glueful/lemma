@@ -6,6 +6,23 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 
 ## [Unreleased]
 
+### Added
+- **Approval / review workflow** (`glueful/lemma-workflow`, new capability pack): a
+  single-stage editorial state machine over draft/publish — submit → in_review →
+  approved / changes_requested, per entry+locale. Publishing requires an approved review
+  or the new `workflow.bypass` permission (409 with `details.workflow_state` otherwise);
+  bypass publishes are recorded as `published_with_bypass` in the append-only
+  `workflow_transitions` history. Edits invalidate active review/approval
+  (`changes_requested` survives; resubmit clears it); self-review is blocked
+  (`lemma_workflow.allow_self_review` escape hatch); scheduled publishes follow the same
+  gate at run time with the schedule's stored creator. Core gained one seam:
+  `PublishGate`/`PublishBlocked`/`DraftSummaryReader` in `lemma-contracts`, consulted by
+  `PublishService` via the `lemma.publish_gate` container tag — no gates registered means
+  byte-for-byte pre-seam behaviour. New permissions `workflow.review`/`workflow.bypass`
+  (granted to `administrator`); admin API under `/v1/admin/workflow` (submit / approve /
+  request-changes / withdraw / state+history / review queue). Admin SPA: workflow panel in
+  the entry editor + a capability-gated Review queue page.
+
 ### Security
 - Admin routes (`lemma_permission` gate) now require API-key principals to carry a key scope
   satisfying the required permission slug (wildcards via fnmatch; empty scope list = deny), on top
@@ -38,6 +55,12 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   enumeration query, an anonymous cache-fill vector.
 
 ### Fixed
+- Admin SPA: capability-gated nav/panels now converge WITHOUT manual reloads when a pack is
+  toggled. Enable/disable on the extension detail page polls the capabilities endpoint until
+  the answer actually changes (the backend serves the pre-toggle list for a few seconds — the
+  dev extension-cache TTL — so a single refetch loses the race), and the capabilities store
+  re-fetches on window focus for toggles made outside the UI (CLI). Background refetches keep
+  the previous set on transient failure instead of blanking the gated nav.
 - Importers (from the `glueful/lemma-importers` package review): import/export batch uuids are now
   random — the deterministic `hash(adapter:sequence:offset)` uuids collided with the globally
   UNIQUE `import_export_batches.uuid` column, so the SECOND import ever run with the same adapter

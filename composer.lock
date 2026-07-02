@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d1cb7d786c47d4487becd3e17a1b6ed0",
+    "content-hash": "c23be51964cfde3854246ff64a55d6dd",
     "packages": [
         {
             "name": "composer/semver",
@@ -1134,6 +1134,44 @@
                 }
             ],
             "description": "SEO for Lemma: sitemaps, per-entry meta, and robots.txt as a removable capability pack.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "glueful/lemma-workflow",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/lemma-workflow",
+                "reference": "a0b1d64ed5c5294d3ee7e560de43b44d95b8d363"
+            },
+            "require": {
+                "glueful/framework": "^1.65.0",
+                "glueful/lemma-contracts": "*",
+                "php": "^8.3"
+            },
+            "type": "glueful-extension",
+            "extra": {
+                "glueful": {
+                    "provider": "Glueful\\Lemma\\Workflow\\LemmaWorkflowServiceProvider"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Glueful\\Lemma\\Workflow\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Michael Tawiah Sowah",
+                    "email": "michael@glueful.dev"
+                }
+            ],
+            "description": "Editorial approval workflow for Lemma: single-stage review state machine over draft/publish, as a removable capability pack.",
             "transport-options": {
                 "relative": true
             }

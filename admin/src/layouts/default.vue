@@ -1,16 +1,41 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { open, useVisibleNav } from '../navigation/sidebar'
 import { registerCoreModule } from '@/registry/coreModule'
 import { registerCollectionsModule } from '@/registry/collectionsModule'
 import { registerAnalyticsModule } from '@/registry/analyticsModule'
+import { registerWorkflowModule } from '@/registry/workflowModule'
 import { useCapabilitiesStore } from '@/stores/capabilities'
 import { useContentTypes } from '@/queries/contentTypes'
 
 registerCoreModule()
 registerCollectionsModule()
 registerAnalyticsModule()
-useCapabilitiesStore().ensureLoaded() // post-auth: this layout only renders for authenticated users
+registerWorkflowModule()
+const caps = useCapabilitiesStore()
+caps.ensureLoaded() // post-auth: this layout only renders for authenticated users
+
+// Converge an open tab on server-side pack enable/disable without a manual reload:
+// re-fetch capabilities whenever the window regains focus (the toggle usually happens in a
+// terminal — alt-tabbing back is the natural "is it gone yet?" moment). Throttled so focus
+// flapping doesn't spam the endpoint; the nav is a computed over the store, so a changed
+// set re-renders the sidebar immediately.
+let lastCapsRefresh = 0
+function refreshCapsOnFocus(): void {
+  if (document.visibilityState === 'hidden') return
+  const now = Date.now()
+  if (now - lastCapsRefresh < 5_000) return
+  lastCapsRefresh = now
+  void caps.refresh()
+}
+onMounted(() => {
+  window.addEventListener('focus', refreshCapsOnFocus)
+  document.addEventListener('visibilitychange', refreshCapsOnFocus)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshCapsOnFocus)
+  document.removeEventListener('visibilitychange', refreshCapsOnFocus)
+})
 
 const nav = useVisibleNav()
 const { data: contentTypes } = useContentTypes()

@@ -1,20 +1,50 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { visibleNav, resetAdminModules } from '@/registry/adminModules'
+import { visibleNav, resetAdminModules, registerAdminModule } from '@/registry/adminModules'
 import { registerNavigationModule } from '@/registry/navigationModule'
 
 describe('navigation admin module gating (lemma.navigation capability)', () => {
   beforeEach(() => resetAdminModules())
 
-  it('omits the Navigation nav when lemma.navigation is disabled', () => {
+  it('omits the Site group entirely when lemma.navigation is disabled', () => {
     registerNavigationModule()
     const [main] = visibleNav(() => false)
     expect(main).toEqual([])
   })
 
-  it('includes the Navigation nav linking to /navigation when enabled', () => {
+  it('nests Navigation under the expandable Site group when enabled', () => {
     registerNavigationModule()
     const [main] = visibleNav((id) => id === 'lemma.navigation')
-    expect(main.map((i) => i.label)).toEqual(['Navigation'])
-    expect(main[0].to).toBe('/navigation')
+
+    expect(main.map((i) => i.label)).toEqual(['Site'])
+    const site = main[0]!
+    expect(site.icon).toBe('i-lucide-globe')
+    expect((site.children ?? []).map((c) => c.label)).toEqual(['Navigation'])
+    expect(site.children?.[0]?.to).toBe('/navigation')
+  })
+
+  it('multiple site-contributing modules share ONE Site group', () => {
+    registerNavigationModule()
+    registerAdminModule({
+      id: 'render',
+      requires: ['lemma.render'],
+      nav: { site: [{ label: 'Themes', to: '/themes' }] },
+    })
+    const [main] = visibleNav(() => true)
+
+    const siteGroups = main.filter((i) => i.label === 'Site')
+    expect(siteGroups).toHaveLength(1)
+    expect((siteGroups[0]!.children ?? []).map((c) => c.label)).toEqual(['Navigation', 'Themes'])
+  })
+
+  it('a disabled contributor is excluded from the shared Site group', () => {
+    registerNavigationModule()
+    registerAdminModule({
+      id: 'render',
+      requires: ['lemma.render'],
+      nav: { site: [{ label: 'Themes', to: '/themes' }] },
+    })
+    const [main] = visibleNav((id) => id === 'lemma.navigation')
+
+    expect((main[0]!.children ?? []).map((c) => c.label)).toEqual(['Navigation'])
   })
 })

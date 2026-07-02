@@ -1,0 +1,149 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Glueful\Lemma\Render\Http\Middleware;
+
+use Glueful\Cache\CacheStore;
+use Glueful\Routing\RouteMiddleware;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Full-page cache for the rendered site (render caching spec §2–§3, §5).
+ *
+ * PER-PATH entries store ONLY 200 responses whose Content-Type is text/html (a
+ * content render), keyed render:{theme}:{normalizedPath}. The themed 404/410 bodies
+ * are NOT stored here — RenderErrorCache holds them under fixed keys and is consulted
+ * by the controller BEFORE Twig renders (spec §2 amendment: a middleware sees a 404
+ * only after the render already happened). This middleware still applies the uniform
+ * HTTP validators (ETag / If-None-Match 304 / Cache-Control) to 404/410 text/html
+ * responses so hit and miss carry identical semantics. Reserved-path JSON 404s,
+ * redirects, 500s, and any non-HTML response pass through untouched.
+ *
+ * Storage goes through the SAME CacheStore binding InvalidateCacheTagsListener
+ * invalidates. Every cached 200 is tagged with the surrogate keys the controller
+ * emits in Cache-Tag (lemma:entry:{uuid}, lemma:type:{slug}) plus lemma:render:page.
+ * On a non-tag driver addTags() is a no-op and freshness degrades to the TTL window
+ * (spec §3 fallback) — nothing breaks.
+ */
+final class RenderPageCache implements RouteMiddleware
+{
+    public function __construct(
+        private readonly CacheStore $cache,
+        private readonly string $theme,
+        private readonly bool $enabled,
+        private readonly int $ttl,
+    ) {
+    }
+
+    public function handle(Request $request, callable $next, ...$params): mixed
+    {
+        if (!$this->enabled) {
+            return $next($request);
+        }
+
+        $key = $this->key($request->getPathInfo());
+        $hit = $this->cache->get($key);
+        if (is_array($hit)) {
+            return $this->respond($request, $hit);
+        }
+
+        $response = $next($request);
+        if (!$response instanceof Response) {
+            return $response;
+        }
+
+        $contentType = (string) $response->headers->get('Content-Type');
+        if (!str_contains($contentType, 'text/html')) {
+            return $response; // eligibility pin: JSON reserved 404s / redirects / non-HTML.
+        }
+
+        $status = $response->getStatusCode();
+        $body = (string) $response->getContent();
+        $cacheTag = (string) $response->headers->get('Cache-Tag', '');
+
+        if ($status === 200) {
+            $entry = $this->entry($body, 200, $contentType, $cacheTag);
+            $this->cache->set($key, $entry, $this->ttl);
+            $this->cache->addTags($key, [...$this->surrogateTags($cacheTag), 'lemma:render:page']);
+            // Serve stored entries on the miss path too, so hit and miss responses
+            // carry identical headers (ETag / Cache-Control).
+            return $this->respond($request, $entry);
+        }
+
+        if ($status === 404 || $status === 410) {
+            // Body already comes from RenderErrorCache's fixed key (or its first
+            // render) — no storage here, just the uniform validators.
+            return $this->respond($request, $this->entry($body, $status, $contentType, $cacheTag));
+        }
+
+        return $response; // 500s: never cached, untouched.
+    }
+
+    /**
+     * render:{theme}:{normalizedPath} — duplicate slashes collapsed, trailing slash
+     * trimmed (root stays '/'), mirroring the resolver's canonical rules. Normalized
+     * paths always start with '/', so per-path keys can never collide with the fixed
+     * render:{theme}:404 / render:{theme}:410 keys.
+     */
+    private function key(string $path): string
+    {
+        $collapsed = (string) preg_replace('#/{2,}#', '/', '/' . trim($path, " \t"));
+        $trimmed = rtrim($collapsed, '/');
+        $normalized = $trimmed === '' ? '/' : $trimmed;
+        return "render:{$this->theme}:{$normalized}";
+    }
+
+    /** @param array{body: string, status: int, contentType: string, cacheTag: string, etag: string} $entry */
+    private function respond(Request $request, array $entry): Response
+    {
+        $headers = [
+            'Content-Type' => $entry['contentType'],
+            'ETag' => $entry['etag'],
+            'Cache-Control' => 'public, max-age=0, must-revalidate',
+        ];
+        if ($entry['cacheTag'] !== '') {
+            $headers['Cache-Tag'] = $entry['cacheTag'];
+        }
+        if ($this->etagMatches($request, $entry['etag'])) {
+            return new Response('', 304, $headers);
+        }
+        return new Response($entry['body'], $entry['status'], $headers);
+    }
+
+    /** @return array{body: string, status: int, contentType: string, cacheTag: string, etag: string} */
+    private function entry(string $body, int $status, string $contentType, string $cacheTag): array
+    {
+        return [
+            'body' => $body,
+            'status' => $status,
+            'contentType' => $contentType,
+            'cacheTag' => $cacheTag,
+            'etag' => '"' . sha1($body) . '"',
+        ];
+    }
+
+    /** @return list<string> the surrogate keys from a Cache-Tag header value */
+    private function surrogateTags(string $cacheTag): array
+    {
+        if ($cacheTag === '') {
+            return [];
+        }
+        return array_values(array_filter(array_map('trim', explode(',', $cacheTag))));
+    }
+
+    private function etagMatches(Request $request, string $etag): bool
+    {
+        $ifNoneMatch = (string) $request->headers->get('If-None-Match', '');
+        if ($ifNoneMatch === '') {
+            return false;
+        }
+        foreach (array_map('trim', explode(',', $ifNoneMatch)) as $candidate) {
+            if ($candidate === $etag || $candidate === 'W/' . $etag || $candidate === '*') {
+                return true;
+            }
+        }
+        return false;
+    }
+}

@@ -7,6 +7,19 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 ## [Unreleased]
 
 ### Added
+- **Render page caching** (`glueful/lemma-render` — V2 sub-project 3): `RenderPageCache`
+  middleware keyed `render:{theme}:{normalizedPath}`; only `200 text/html` content
+  renders cached per path; single fixed 404/410 body per theme served via
+  `RenderErrorCache` BEFORE the template renders (bogus URLs cost resolver queries
+  only); ETag/304 with `Cache-Control: public, max-age=0, must-revalidate`; entry/type
+  purges ride the existing surrogate-tag listener; `MenuUpdated` purges broadly;
+  TTL-only fallback on non-tag cache drivers. Config: `RENDER_CACHE_ENABLED` /
+  `RENDER_CACHE_TTL`.
+- **`php glueful render:cache:clear`** — operator purge for the rendered-page cache
+  (theme file edits are not event-visible).
+- Rendered entry pages (and cached 404/410 bodies) now emit `Cache-Tag` surrogate
+  headers, so CDN purging composes with rendered pages via the existing
+  `PurgeCdnListener`.
 - **Rendered delivery core** (`glueful/lemma-render`, new capability pack — V2
   sub-project 2): Lemma serves real HTML pages from published content through filesystem
   Twig themes. One lowest-priority catch-all feeds raw paths into the new
@@ -19,7 +32,7 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   per-template fallback; `menu()`/`path()`/`asset()` context functions (navigation
   optional; no dead links; path-safe assets); reserved paths return standard JSON 404s;
   homepage via `index.twig` with loud-but-not-leaky config errors; Twig compile cache
-  with auto-reload. Uncached SSR — the render page cache is sub-project 3.
+  with auto-reload. Shipped uncached-first; the render page cache followed (above).
 - **Navigation / menu builder** (`glueful/lemma-navigation`, new capability pack — V2
   rendered-delivery sub-project 1): menu trees as data with per-locale label maps and
   published-only resolution. New `lemma-contracts` seams: `MenuReader` (menus for
@@ -48,6 +61,14 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
   (granted to `administrator`); admin API under `/v1/admin/workflow` (submit / approve /
   request-changes / withdraw / state+history / review queue). Admin SPA: workflow panel in
   the entry editor + a capability-gated Review queue page.
+
+### Changed
+- **lemma-contracts (BREAKING):** `MenuUpdated` moved from
+  `Glueful\Lemma\Navigation\Events\MenuUpdated` to
+  `Glueful\Lemma\Contracts\Navigation\MenuUpdated` (cross-pack seams live in
+  contracts; lemma-render subscribes without depending on lemma-navigation). No
+  deprecated alias — subscribers must re-import the contracts FQCN (none existed
+  in-repo before this change).
 
 ### Security
 - Admin routes (`lemma_permission` gate) now require API-key principals to carry a key scope

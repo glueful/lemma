@@ -116,16 +116,21 @@ implementation.
 
 ## 4. Render caching: full-page, tag-invalidated (its own sub-project)
 
-**Decision:** render core ships **uncached SSR first**; caching is the next
-sub-project, not a blocker. When it lands: full-page cache via the framework
-`CacheStore`, keyed **`render:{theme}:{locale}:{path}`** — the theme is part
-of the key so a theme switch can never serve stale markup — tagged with the
+**Decision:** render core shipped **uncached SSR first**; caching followed as
+sub-project 3 (**shipped 2026-07-02**). When it lands: full-page cache via the framework
+`CacheStore`, keyed **`render:{theme}:{normalizedPath}`** — the theme is part
+of the key so a theme switch can never serve stale markup; the `{locale}`
+component originally sketched here proved redundant (locale is a pure
+function of the path — amended with the sub-project 3 spec) — tagged with the
 same entry/type tags the delivery cache uses. Invalidation rides the existing
 `ContentLifecycleEvent` listener pattern (`InvalidateCacheTagsListener`):
-entry/type events purge targeted pages; menu, theme, and settings changes
-purge broadly. ETag on responses; cache bypassed for preview tokens and
-authenticated admin requests; TTL as a safety net (config, default 1h). CDN
-purge composes via the existing `PurgeCdnListener` seam.
+entry/type events purge targeted pages; menu changes purge broadly; theme
+file edits have an operator command (`render:cache:clear`). ETag on
+responses; TTL as a safety net (config, default 1h). *User/preview cache
+bypass is deferred to preview-through-theme* (amended: an anonymous page GET
+carries nothing to detect, and event-driven purges make editor staleness
+moot). CDN purge composes via the existing `PurgeCdnListener` seam. Full
+detail: `docs/superpowers/specs/2026-07-02-lemma-render-caching-design.md`.
 
 ## 5. Navigation: `lemma-navigation` pack, soft-consumed by render
 

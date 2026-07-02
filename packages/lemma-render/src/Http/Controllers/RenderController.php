@@ -9,6 +9,7 @@ use Glueful\Http\Response as ApiResponse;
 use Glueful\Lemma\Contracts\Delivery\PublicRouteResolver;
 use Glueful\Lemma\Render\HomepageConfigError;
 use Glueful\Lemma\Render\RenderContextExtension;
+use Glueful\Lemma\Render\RenderErrorCache;
 use Glueful\Lemma\Render\ReservedPaths;
 use Glueful\Lemma\Render\TwigFactory;
 use Psr\Log\LoggerInterface;
@@ -34,6 +35,7 @@ final class RenderController
         private readonly TwigFactory $twigFactory,
         private readonly RenderContextExtension $extension,
         private readonly ReservedPaths $reserved,
+        private readonly RenderErrorCache $errors,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -43,6 +45,7 @@ final class RenderController
         $homepageEntry = (string) config($this->context, 'lemma_render.homepage_entry', '');
         $locale = (string) config($this->context, 'i18n.default_locale', 'en');
         $entry = null;
+        $typeSlug = '';
 
         if ($homepageEntry !== '') {
             $result = $this->resolver->resolveEntry($homepageEntry);
@@ -51,11 +54,16 @@ final class RenderController
             }
             $entry = $result['content'];
             $locale = (string) $result['locale'];
+            $typeSlug = (string) ($result['type'] ?? '');
         }
 
         // Homepage ALWAYS renders index.twig (spec §4) — the entry, when configured,
         // arrives as context; routed pages use the entry hierarchy instead.
-        return $this->render('index.twig', $locale, $entry, 200);
+        $response = $this->render('index.twig', $locale, $entry, 200);
+        if ($entry !== null) {
+            $this->tagResponse($response, $entry, $typeSlug);
+        }
+        return $response;
     }
 
     public function page(Request $request, string $path): Response
@@ -72,9 +80,13 @@ final class RenderController
             'redirect' => new Response('', $result['redirect']['status'], [
                 'Location' => $result['redirect']['location'],
             ]),
-            'gone' => $this->render('error.twig', $this->defaultLocale(), null, 410),
+            'gone' => $this->errors->themed410(
+                fn (): Response => $this->render('error.twig', $this->defaultLocale(), null, 410),
+            ),
             'content' => $this->renderEntry($result),
-            default => $this->render('404.twig', $this->defaultLocale(), null, 404),
+            default => $this->errors->themed404(
+                fn (): Response => $this->render('404.twig', $this->defaultLocale(), null, 404),
+            ),
         };
     }
 
@@ -91,7 +103,25 @@ final class RenderController
         $template = $candidate !== '' && $this->twig()->getLoader()->exists($candidate)
             ? $candidate
             : 'entry.twig';
-        return $this->render($template, $locale, $entry, 200);
+        $response = $this->render($template, $locale, $entry, 200);
+        $this->tagResponse($response, $entry ?? [], $typeSlug);
+        return $response;
+    }
+
+    /**
+     * Stamp the surrogate Cache-Tag header (same strings the delivery API emits and
+     * InvalidateCacheTagsListener invalidates) so the page cache and the CDN can both
+     * purge this page on entry/type events.
+     *
+     * @param array<string,mixed> $entry
+     */
+    private function tagResponse(Response $response, array $entry, string $typeSlug): void
+    {
+        $uuid = is_string($entry['uuid'] ?? null) ? $entry['uuid'] : '';
+        if ($uuid === '' || $typeSlug === '') {
+            return;
+        }
+        $response->headers->set('Cache-Tag', "lemma:entry:{$uuid}, lemma:type:{$typeSlug}");
     }
 
     /** @param array<string,mixed>|null $entry */

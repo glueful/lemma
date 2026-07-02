@@ -21,8 +21,10 @@ final class RenderPipelineTest extends LemmaTestCase
 
     protected function tearDown(): void
     {
-        // Hygiene: any sitemap entry cached during a render request must not leak into the
-        // Seo suite (the store is process-shared and sitemap entries carry no TTL).
+        // Hygiene: the render page cache and any sitemap entry cached during a render
+        // request must not leak into later tests (the store is process-shared; sitemap
+        // entries carry no TTL, and cached pages would serve earlier tests' seeds).
+        $this->container()->get(\Glueful\Cache\CacheStore::class)->deletePattern('render:*');
         $this->container()->get(\Glueful\Lemma\Seo\Cache\SitemapCache::class)->forgetAll();
         parent::tearDown();
     }

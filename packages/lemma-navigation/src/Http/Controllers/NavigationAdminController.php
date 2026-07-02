@@ -8,7 +8,7 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Events\EventService;
 use Glueful\Http\Response;
 use Glueful\Lemma\Contracts\Delivery\EntryTargetResolver;
-use Glueful\Lemma\Navigation\Events\MenuUpdated;
+use Glueful\Lemma\Contracts\Navigation\MenuUpdated;
 use Glueful\Lemma\Navigation\Http\MenuCreateDTO;
 use Glueful\Lemma\Navigation\Http\MenuTreeDTO;
 use Glueful\Lemma\Navigation\MenuRepository;

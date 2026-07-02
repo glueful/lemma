@@ -71,9 +71,42 @@ welcome. A set-but-unresolvable value (missing/unpublished/routeless/deleted) is
 | `lemma_render.site_name` (`RENDER_SITE_NAME`) | `Lemma` |
 | `lemma_render.reserved_prefixes` | `v1, admin, extensions, theme-assets` |
 | `lemma_render.reserved_exact` | `sitemap.xml, robots.txt` |
+| `lemma_render.cache_enabled` (`RENDER_CACHE_ENABLED`) | `true` |
+| `lemma_render.cache_ttl` (`RENDER_CACHE_TTL`) | `3600` |
 
 Page views are deliberately not rate-limited (this is the whole-site surface, not an
-API); the abuse posture and full-page caching belong to render sub-project 3.
+API); the abuse posture is the page cache below — bogus paths can neither fill the
+cache nor re-render templates.
+
+## Page caching
+
+Rendered pages are cached full-page in the framework `CacheStore`, keyed
+`render:{theme}:{normalizedPath}`. Only `200` responses with `Content-Type:
+text/html` are cached per path. The themed 404/410 bodies are stored once per
+theme (`render:{theme}:404` / `render:{theme}:410`) and checked BEFORE the
+template renders, so unique bogus URLs cost only the resolver's indexed queries —
+they can neither fill the cache nor re-render `404.twig`. Redirects, JSON
+responses, and errors are never cached.
+
+| Env | Default | Meaning |
+|---|---|---|
+| `RENDER_CACHE_ENABLED` | `true` | `false` = uncached SSR (set in dev while theming) |
+| `RENDER_CACHE_TTL` | `3600` | safety-net TTL per entry; tags do the real invalidation |
+
+**Invalidation.** Every cached page is tagged with the same surrogate keys the
+delivery API uses (`lemma:entry:{uuid}`, `lemma:type:{slug}`) plus
+`lemma:render:page`. Publishing, unpublishing, or deleting content purges the
+affected pages through the engine's existing cache listener — no render-specific
+wiring. Menu changes (`MenuUpdated`) purge every cached page. Theme FILE edits
+are not event-visible: run `php glueful render:cache:clear` (or wait out the
+TTL). A theme NAME switch needs no purge — the theme is part of the key.
+
+**Non-tag cache drivers.** If the configured cache driver does not support tags
+(e.g. the file driver), targeted purges become no-ops and the page cache
+degrades to TTL-only freshness: entries still store and expire by
+`RENDER_CACHE_TTL`, and `php glueful render:cache:clear` remains the manual
+escape hatch. A tag-capable driver (Redis) is recommended for production render
+caching.
 
 ## Install / remove
 
@@ -84,6 +117,7 @@ the headless product is untouched.
 
 ## Out of scope (v1 — see V2_DESIGN §6)
 
-Render page caching (sub-project 3), listing/archive pages, taxonomy term pages,
-DB-edited templates, page/block builder, preview-through-theme, admin theme/homepage
-switching UI.
+Listing/archive pages, taxonomy term pages, DB-edited templates, page/block builder,
+preview-through-theme, admin theme/homepage switching UI. Per-page TTL overrides,
+stale-while-revalidate, and user/preview cache bypass are deferred with them (render
+caching spec §8).

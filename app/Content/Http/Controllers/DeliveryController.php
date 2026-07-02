@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Content\Http\Controllers;
 
 use App\Content\Delivery\Cursor;
+use App\Content\Delivery\DeliveryItemShaper;
 use App\Content\Delivery\DeliveryRepository;
 use App\Content\Delivery\FilterCompiler;
 use App\Content\Delivery\ReferenceResolver;
@@ -68,7 +69,21 @@ final class DeliveryController
         private readonly RouteResolver $resolver,
         private readonly CanonicalProjector $canonical,
         private readonly ?SchemaProjector $schemaProjector = null,
+        private readonly ?DeliveryItemShaper $shaper = null,
     ) {
+    }
+
+    private function itemShaper(): DeliveryItemShaper
+    {
+        // Shaping lives in DeliveryItemShaper so PublicRouteResolver serves the identical
+        // shape; nullable + lazily built only to keep this constructor autowire-compatible.
+        return $this->shaper ?? new DeliveryItemShaper(
+            $this->types,
+            $this->references,
+            $this->projector,
+            $this->canonical,
+            $this->schemaProjector,
+        );
     }
 
     /**
@@ -299,42 +314,7 @@ final class DeliveryController
         string $typeUuid,
         ?array $grantedScopes,
     ): array {
-        if ($rows === []) {
-            return [];
-        }
-
-        if ($this->schemaProjector !== null) {
-            foreach ($rows as $i => $row) {
-                $rows[$i]['fields'] = $this->schemaProjector->project(
-                    $typeUuid,
-                    (int) ($row['schema_version'] ?? 0),
-                    (array) ($row['fields'] ?? []),
-                );
-            }
-        }
-
-        $rows = $this->references->expand(
-            $rows,
-            $schema,
-            $selector->empty() ? null : $selector,
-            $locale,
-            2,
-            $grantedScopes,
-        );
-
-        if ($selector->empty()) {
-            return $rows;
-        }
-
-        $allowed = array_map(static fn($f): string => $f->name, $schema->fields());
-        foreach ($rows as $i => $row) {
-            /** @var array<string,mixed> $fields */
-            $fields = $row['fields'] ?? [];
-            /** @var array<string,mixed> $projected */
-            $projected = (array) $this->projector->project($fields, $selector, $allowed);
-            $rows[$i]['fields'] = $projected;
-        }
-        return $rows;
+        return $this->itemShaper()->shape($rows, $schema, $selector, $locale, $typeUuid, $grantedScopes);
     }
 
     /**
@@ -345,13 +325,7 @@ final class DeliveryController
      */
     private function item(array $row): array
     {
-        return [
-            'uuid' => $row['entry_uuid'] ?? null,
-            'locale' => $row['locale'] ?? null,
-            'version' => $row['version'] ?? null,
-            'published_at' => $row['published_at'] ?? null,
-            'fields' => $row['fields'] ?? [],
-        ];
+        return $this->itemShaper()->item($row);
     }
 
     /**

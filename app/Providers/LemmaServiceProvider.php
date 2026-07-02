@@ -282,6 +282,16 @@ final class LemmaServiceProvider extends ServiceProvider
                 'shared'   => true,
                 'autowire' => true,
             ],
+            \App\Content\Delivery\DeliveryItemShaper::class => [
+                'class'    => \App\Content\Delivery\DeliveryItemShaper::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            \Glueful\Lemma\Contracts\Delivery\PublicRouteResolver::class => [
+                'class'    => \App\Content\Delivery\EnginePublicRouteResolver::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             ContentWriter::class => [
                 'class'    => EngineContentWriter::class,
                 'shared'   => true,

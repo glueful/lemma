@@ -1,0 +1,37 @@
+/* lemma-render default theme — a minimal, readable reference. Copy this theme into
+   your app's themes/ directory as a starting point. */
+:root {
+  --ink: #1a1a1a;
+  --muted: #666;
+  --line: #e5e5e5;
+  --accent: #2563eb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto;
+  max-width: 42rem;
+  padding: 0 1.25rem;
+  color: var(--ink);
+  font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.site-name { font-weight: 700; color: var(--ink); text-decoration: none; }
+nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover { color: var(--accent); }
+main { padding: 2rem 0; min-height: 60vh; }
+h1 { line-height: 1.25; }
+a { color: var(--accent); }
+.body { margin-top: 1rem; white-space: pre-wrap; }
+footer {
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}

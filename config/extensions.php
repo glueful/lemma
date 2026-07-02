@@ -29,6 +29,7 @@ return [
         'Glueful\Lemma\Collections\LemmaCollectionsServiceProvider',
         'Glueful\Lemma\Importers\LemmaImportersServiceProvider',
         'Glueful\Lemma\Navigation\LemmaNavigationServiceProvider',
+        'Glueful\Lemma\Render\LemmaRenderServiceProvider',
         'Glueful\Lemma\Seo\LemmaSeoServiceProvider',
         'Glueful\Lemma\Workflow\LemmaWorkflowServiceProvider',
     ],

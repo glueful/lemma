@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 return [
-    // Capability is gated; routes/listeners are active only when enabled.
-    'enabled' => env('SEO_ENABLED', true),
+    // NOTE: enable/disable is NOT configured here — the capability switchboard in the app's
+    // config/lemma.php ('capabilities' => ['lemma.seo' => false]) is the only gate.
 
     // Per-type fallback field mapping: which entry field feeds each meta slot when there
     // is no per-entry override. Keyed by content-type slug.

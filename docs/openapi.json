@@ -7,7 +7,7 @@
     },
     "servers": [
         {
-            "url": "https:\/\/getlemma.com",
+            "url": "http:\/\/localhost",
             "description": "Production"
         },
         {
@@ -6970,7 +6970,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Current MAIL_* values from .env. The password is never returned \u2014 only `password_set`. Requires `content.manage`.",
+                "description": "Current MAIL_* values from .env. The password is never returned \u2014 only `password_set`. Requires `system.config`.",
                 "responses": {
                     "200": {
                         "description": "Current email settings (password omitted)."
@@ -7084,7 +7084,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Writes the submitted MAIL_* values to .env. MAIL_PASSWORD is only rewritten when a non-empty `password` is supplied. Requires `content.manage`.",
+                "description": "Writes the submitted MAIL_* values to .env. MAIL_PASSWORD is only rewritten when a non-empty `password` is supplied. Requires `system.config`.",
                 "responses": {
                     "200": {
                         "description": "Settings saved."
@@ -7203,7 +7203,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Sends a test email to `to` using a transport built from the CURRENT .env MAIL_* values (so it verifies just-saved SMTP settings). Requires `content.manage`.",
+                "description": "Sends a test email to `to` using a transport built from the CURRENT .env MAIL_* values (so it verifies just-saved SMTP settings). Requires `system.config`.",
                 "responses": {
                     "200": {
                         "description": "Test email sent."
@@ -14451,6 +14451,58 @@
                                 }
                             }
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests.",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds to wait before retrying.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Request quota for the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests remaining in the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -14546,6 +14598,58 @@
                     },
                     "500": {
                         "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests.",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds to wait before retrying.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Request quota for the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests remaining in the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
                         "content": {
                             "application\/json": {
                                 "schema": {
@@ -14713,6 +14817,58 @@
                                 }
                             }
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests.",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds to wait before retrying.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Request quota for the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests remaining in the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -14817,6 +14973,58 @@
                     },
                     "500": {
                         "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests.",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds to wait before retrying.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Request quota for the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests remaining in the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
                         "content": {
                             "application\/json": {
                                 "schema": {
@@ -14953,6 +15161,58 @@
                     },
                     "500": {
                         "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests.",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds to wait before retrying.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Request quota for the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests remaining in the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
                         "content": {
                             "application\/json": {
                                 "schema": {
@@ -15363,7 +15623,7 @@
             },
             "delete": {
                 "operationId": "deleteV1AdminCollectionsByNameRows",
-                "summary": "Delete all rows in a collection",
+                "summary": "Delete all rows in a collection (guarded)",
                 "tags": [
                     "Collections"
                 ],
@@ -26183,6 +26443,58 @@
                     },
                     "500": {
                         "description": "Unexpected server error.",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string"
+                                                },
+                                                "request_id": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests.",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds to wait before retrying.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Limit": {
+                                "description": "Request quota for the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-RateLimit-Remaining": {
+                                "description": "Requests remaining in the current window.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
                         "content": {
                             "application\/json": {
                                 "schema": {

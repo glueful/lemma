@@ -44,6 +44,33 @@ final class AnalyticsApiTest extends LemmaTestCase
         self::assertSame([['day' => '2025-06-10', 'count' => 1]], $body['data']['series']);
     }
 
+    public function testSeriesNormalizesNonIsoDatesBeforeQuerying(): void
+    {
+        $this->container()->get(AnalyticsRecorder::class)->record(new AnalyticsFact(
+            event: 'collections.row.created',
+            category: 'collections',
+            subjectType: 'collection',
+            subjectId: 'posts',
+            actorType: 'user',
+            actorId: 'u-1',
+            occurredAt: 1749556800.0, // 2025-06-10
+        ));
+
+        // PHP parses '06/10/2025' fine, but the raw string must never reach the SQL date
+        // comparison (string-compared on SQLite, DateStyle-dependent cast on Postgres).
+        $controller = $this->container()->get(AnalyticsController::class);
+        $req = Request::create('/v1/admin/analytics/series', 'GET', [
+            'metric' => 'collections.row.created', 'from' => '06/10/2025', 'to' => '06/10/2025',
+        ]);
+        $res = $controller->series($req);
+
+        self::assertSame(200, $res->getStatusCode());
+        $body = json_decode((string) $res->getContent(), true);
+        self::assertSame('2025-06-10', $body['data']['from']);
+        self::assertSame('2025-06-10', $body['data']['to']);
+        self::assertSame([['day' => '2025-06-10', 'count' => 1]], $body['data']['series']);
+    }
+
     public function testBreakdownEndpointReturnsRankedSubjects(): void
     {
         $rec = $this->container()->get(AnalyticsRecorder::class);
@@ -98,6 +125,19 @@ final class AnalyticsApiTest extends LemmaTestCase
         // A multi-century span would zero-fill millions of buckets; the span cap rejects it.
         $req = Request::create('/v1/admin/analytics/series', 'GET', [
             'metric' => 'collections.row.created', 'from' => '2000-01-01', 'to' => '2999-12-31',
+        ]);
+
+        self::assertSame(422, $controller->series($req)->getStatusCode());
+    }
+
+    public function testSeriesRejectsSubjectDimensionWithoutSubjectWith422(): void
+    {
+        $controller = $this->container()->get(AnalyticsController::class);
+        // Without this, the missing subject would silently fall back to the '__total__' row and
+        // return totals mislabeled as a subject breakdown.
+        $req = Request::create('/v1/admin/analytics/series', 'GET', [
+            'metric' => 'collections.row.created', 'from' => '2025-06-10', 'to' => '2025-06-10',
+            'dimension' => 'subject',
         ]);
 
         self::assertSame(422, $controller->series($req)->getStatusCode());

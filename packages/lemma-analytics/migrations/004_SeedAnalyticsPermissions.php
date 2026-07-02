@@ -10,7 +10,7 @@ use Glueful\Helpers\Utils;
 final class SeedAnalyticsPermissions implements MigrationInterface
 {
     private const PERMISSIONS = [
-        'analytics.read' => 'Read analytics (series + summary)',
+        'analytics.read' => 'Read analytics (series, summary, breakdown)',
     ];
 
     public function up(SchemaBuilderInterface $schema): void

@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 return [
-    // The capability is gated; routes + listeners are active only when enabled.
-    'enabled' => env('ANALYTICS_ENABLED', true),
+    // NOTE: enable/disable is NOT configured here — the capability switchboard in the app's
+    // config/lemma.php ('capabilities' => ['lemma.analytics' => false]) is the only gate.
 
     // Raw analytics_facts older than this many days are pruned; rollups are kept forever.
     'retention_days' => (int) env('ANALYTICS_RETENTION_DAYS', 90),

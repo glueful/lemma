@@ -20,6 +20,7 @@ use Glueful\Lemma\Analytics\Query\AnalyticsQuery;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 
 final class LemmaAnalyticsServiceProvider extends ServiceProvider
 {
@@ -62,7 +63,17 @@ final class LemmaAnalyticsServiceProvider extends ServiceProvider
     public static function makeActorHasher(ContainerInterface $container): ActorHasher
     {
         $context = $container->get(ApplicationContext::class);
-        return new ActorHasher((string) config($context, 'analytics.hash_key', ''));
+        $key = (string) config($context, 'analytics.hash_key', '');
+        if ($key === '') {
+            // Warn, don't throw: the hasher is resolved during boot (via the auth listener), and
+            // analytics must stay best-effort. An empty key still yields a one-way digest — it is
+            // just unsalted, so equal actor ids hash identically across instances.
+            $container->get(LoggerInterface::class)->warning(
+                'analytics.hash_key is empty (ANALYTICS_HASH_KEY and APP_KEY both unset); '
+                . 'actor hashes are unsalted.'
+            );
+        }
+        return new ActorHasher($key);
     }
 
     public function register(ApplicationContext $context): void

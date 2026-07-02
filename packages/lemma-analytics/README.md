@@ -27,8 +27,9 @@ trends**; audit and analytics are independent consumers of the same pure events.
   `Collection*`/`CollectionRow*` and content `Entry*` events — into the recorder (the audit-listener
   pattern).
 - **Read API** — `GET /v1/admin/analytics/series` (zero-filled daily time-series for a metric,
-  optionally by subject) and `GET /v1/admin/analytics/summary` (KPI totals + distinct active users
-  over a range), behind `auth` + `lemma_permission:analytics.read`.
+  optionally by subject), `GET /v1/admin/analytics/summary` (KPI totals + distinct active users
+  over a range), and `GET /v1/admin/analytics/breakdown` (top subjects for one event over a range),
+  behind `auth` + `lemma_permission:analytics.read`.
 - **Retention** — `./lemma analytics:prune` deletes raw `analytics_facts` past
   `analytics.retention_days` (default 90); the rollups and the distinct-actor table are never pruned.
 

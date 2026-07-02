@@ -11,6 +11,7 @@ use App\Setup\SetupService;
 use App\Tests\Support\LemmaTestCase;
 use Glueful\Extensions\Users\Repositories\UserRepository;
 use Glueful\Validation\RequestDataHydrator;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Integration tests for `POST /admin/setup`.
@@ -130,5 +131,54 @@ final class SetupApiTest extends LemmaTestCase
         $route = $this->findRoute('POST', '/admin/setup');
         self::assertNotNull($route, 'POST /admin/setup must be registered');
         self::assertNotContains('auth', (array) ($route['middleware'] ?? []), 'setup must be unauthenticated');
+    }
+
+    public function testHttpSetupWithConfiguredTokenRefusesWithoutHeader(): void
+    {
+        $restore = $this->forceSetupToken('s3cret-token');
+        try {
+            // A real HTTP request (not the null CLI path) with no X-Setup-Token is refused.
+            $resp = $this->controller()->setup(
+                $this->setupData($this->validBody()),
+                Request::create('/admin/setup', 'POST'),
+            );
+            self::assertSame(403, $resp->getStatusCode());
+            self::assertFalse($this->service()->isInstalled(), 'a token-less request must not install');
+        } finally {
+            $restore();
+        }
+    }
+
+    public function testHttpSetupWithCorrectTokenSucceeds(): void
+    {
+        $restore = $this->forceSetupToken('s3cret-token');
+        try {
+            $resp = $this->controller()->setup(
+                $this->setupData($this->validBody()),
+                Request::create('/admin/setup', 'POST', [], [], [], ['HTTP_X_SETUP_TOKEN' => 's3cret-token']),
+            );
+            self::assertSame(200, $resp->getStatusCode(), (string) $resp->getContent());
+            self::assertTrue($this->service()->isInstalled());
+        } finally {
+            $restore();
+        }
+    }
+
+    /** Set config `lemma.setup.token` in the process-shared context cache; returns a restore closure. */
+    private function forceSetupToken(string $token): \Closure
+    {
+        $context = $this->appContext();
+        $ref = new \ReflectionProperty($context, 'configCache');
+        $ref->setAccessible(true);
+        /** @var array<string,mixed> $previous */
+        $previous = $ref->getValue($context);
+
+        $patched = $previous;
+        $patched['lemma.setup.token'] = $token;
+        $ref->setValue($context, $patched);
+
+        return static function () use ($ref, $context, $previous): void {
+            $ref->setValue($context, $previous);
+        };
     }
 }

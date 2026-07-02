@@ -22,6 +22,17 @@ export interface SessionUser {
 // short token lifetimes + rotation are the real defense. The router guard always re-checks
 // isAuthenticated, so restore is best-effort.
 //
+// SECURITY DECISION (accepted risk, v1). localStorage tokens mean an XSS can steal credentials,
+// including the durable refresh token.
+//   Reason:     Lemma admin uses Glueful's cookieless token flow (tokens returned in the JSON body,
+//               refresh sent in the request body). A real fix needs framework-level httpOnly
+//               refresh-cookie support — it cannot be done as a SPA-only patch, and half-measures
+//               (encrypting localStorage "harder", or moving only the access token to memory while
+//               the refresh token stays persisted) do not change the threat model, so we don't.
+//   Mitigation: prioritize XSS prevention, keep access-token lifetime short, rotate refresh tokens,
+//               and never log tokens.
+//   Future:     design a framework auth mode for an httpOnly refresh cookie + in-memory access token.
+//
 // Declared as a named const (not a fresh object literal at the defineStore call site) so the
 // `persist` key — contributed by the pinia-persist-plugin module augmentation — passes the
 // options type structurally without tripping an excess-property check.

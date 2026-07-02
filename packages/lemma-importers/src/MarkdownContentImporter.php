@@ -20,6 +20,7 @@ use Glueful\Lemma\Contracts\Schema\ContentTypeReader;
 use Glueful\Lemma\Importers\Concerns\RequiresImportersCapability;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
+use League\CommonMark\Extension\DisallowedRawHtml\DisallowedRawHtmlExtension;
 use League\CommonMark\MarkdownConverter;
 
 use function config;
@@ -216,8 +217,16 @@ final class MarkdownContentImporter implements ImporterInterface, RetryableAdapt
     private function toHtml(string $markdown): string
     {
         if ($this->markdown === null) {
-            $environment = new Environment();
+            // Imported markdown is untrusted → the rendered HTML is stored and later served as a
+            // content body. Strip raw HTML blocks and drop unsafe (javascript:/data:) link schemes
+            // so a `<script>` or `javascript:` href in a source file can't become stored XSS.
+            // Normal markdown still renders identically.
+            $environment = new Environment([
+                'html_input' => 'strip',
+                'allow_unsafe_links' => false,
+            ]);
             $environment->addExtension(new CommonMarkCoreExtension());
+            $environment->addExtension(new DisallowedRawHtmlExtension());
             $this->markdown = new MarkdownConverter($environment);
         }
         return $this->markdown->convert($markdown)->getContent();

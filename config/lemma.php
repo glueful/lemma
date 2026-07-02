@@ -7,6 +7,16 @@ return [
     // Glueful storage disk that backs media blob references (see docs/V1_DESIGN.md §8).
     'media_disk' => env('LEMMA_MEDIA_DISK', 'local'),
 
+    // First-run web setup (POST /admin/setup) guard. The endpoint is unauthenticated by design
+    // (no admin exists yet), so on a public deploy it must not be "first caller owns the instance":
+    //   - When a token is set, the request must carry it via the X-Setup-Token header (hash_equals).
+    //   - It is REQUIRED in production: with no token set, POST /admin/setup is refused (403) so the
+    //     operator provisions via `LEMMA_SETUP_TOKEN` (or the CLI admin command).
+    //   - In non-production, an unset token keeps zero-config local setup working.
+    'setup' => [
+        'token' => env('LEMMA_SETUP_TOKEN'),
+    ],
+
     // Seeded role names (see docs/V1_DESIGN.md §7).
     'roles' => [
         // The first admin uses Aegis's standard `administrator` role; `editor` is Lemma-owned.

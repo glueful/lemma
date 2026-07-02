@@ -140,8 +140,10 @@ final class DeliveryRepository
             fn (int $take, int $cursor): array => $this->db->table('entry_publications as p')
                 ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
                 ->join('entry_routes as r', 'r.entry_uuid', '=', 'p.entry_uuid')
+                ->join('content_types as ct', 'ct.uuid', '=', 'e.content_type_uuid')
                 ->select(['p.entry_uuid', 'e.content_type_uuid', 'p.locale', 'r.slug', 'p.published_at'])
                 ->where('e.status', '=', 'active')            // never enumerate archived/deleted
+                ->where('ct.public_delivery', '=', true)      // sitemap is anonymous — public types only
                 ->whereRaw('r.content_type_uuid = e.content_type_uuid')
                 ->whereRaw('r.locale = p.locale')
                 ->orderByRaw('p.published_at DESC, p.entry_uuid ASC, p.locale ASC')
@@ -156,7 +158,9 @@ final class DeliveryRepository
         $total = $this->db->table('entry_publications as p')
             ->join('entries as e', 'e.uuid', '=', 'p.entry_uuid')
             ->join('entry_routes as r', 'r.entry_uuid', '=', 'p.entry_uuid')
+            ->join('content_types as ct', 'ct.uuid', '=', 'e.content_type_uuid')
             ->where('e.status', '=', 'active')
+            ->where('ct.public_delivery', '=', true)
             ->whereRaw('r.content_type_uuid = e.content_type_uuid')
             ->whereRaw('r.locale = p.locale')
             ->count();

@@ -14,6 +14,7 @@ vi.mock('@/queries/collections', async () => {
 })
 
 import FieldCard from '@/pages/collections/components/FieldCard.vue'
+import FieldSettingsPanel from '@/pages/collections/components/FieldSettingsPanel.vue'
 import DropConfirmModal from '@/pages/collections/components/DropConfirmModal.vue'
 
 describe('collections FieldCard', () => {
@@ -49,6 +50,30 @@ describe('collections FieldCard', () => {
 
     expect(wrapper.text()).toContain('System')
     expect(wrapper.find('[aria-label="Remove field"]').exists()).toBe(false)
+  })
+})
+
+describe('collections FieldSettingsPanel enum guard', () => {
+  it('flags an editable enum with no allowed values and clears once values are entered', async () => {
+    const settings: Record<string, unknown> = {}
+    const wrapper = mount(FieldSettingsPanel, {
+      props: { type: 'collections.enum', settings },
+    })
+
+    expect(wrapper.text()).toContain('Add at least one allowed value.')
+
+    await wrapper.find('[data-test="enum-values"]').setValue('draft, published')
+
+    expect(wrapper.text()).not.toContain('Add at least one allowed value.')
+    expect(settings.values).toEqual(['draft', 'published'])
+  })
+
+  it('does not flag a read-only (existing) enum field', () => {
+    const wrapper = mount(FieldSettingsPanel, {
+      props: { type: 'collections.enum', settings: {}, disabled: true },
+    })
+
+    expect(wrapper.text()).not.toContain('Add at least one allowed value.')
   })
 })
 

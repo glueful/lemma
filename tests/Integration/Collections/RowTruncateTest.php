@@ -48,7 +48,7 @@ final class RowTruncateTest extends LemmaTestCase
         $repo->create($this->def, ['title' => 'a'], $actor);
         $repo->create($this->def, ['title' => 'b'], $actor);
 
-        $cleared = $repo->truncate($this->def);
+        $cleared = $repo->truncate($this->def, $actor);
         self::assertSame(2, $cleared);
 
         $remaining = (int) $this->connection()->table($this->def->tableName)->count();

@@ -19,12 +19,19 @@ use Symfony\Component\HttpFoundation\Request;
  * an `?expand`, so reading a public/low-scoped collection can't pull a scoped collection's rows).
  *
  * An operation is allowed when the collection's policy makes it public, OR the request's api-key
- * scopes satisfy the `{name}.{operation}` capability, OR (no api-key) a session user holds the
- * matching Aegis permission. api-key and session are mutually exclusive: a key's scopes are its
- * sole authority. Fail-closed everywhere.
+ * scopes satisfy the `collections.{name}.{operation}` capability, OR (no api-key) a session user
+ * holds the matching Aegis permission. api-key and session are mutually exclusive: a key's scopes
+ * are its sole authority. Fail-closed everywhere.
+ *
+ * The `collections.` prefix namespaces the capability: without it, a collection named `users`
+ * would be gated by the bare `users.read` — silently satisfied by any unrelated `users.*` scope
+ * or Aegis permission from another subsystem (fails open on name collision).
  */
 final class CollectionAccessResolver
 {
+    /** The admin data-browser permission; implies every per-collection capability for sessions. */
+    private const ADMIN_DATA_PERMISSION = 'collections.data.manage';
+
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly AuthenticationManager $auth,
@@ -42,15 +49,23 @@ final class CollectionAccessResolver
             return true;
         }
 
-        $capability = $name . '.' . $operation;
+        $capability = 'collections.' . $name . '.' . $operation;
 
         // scoped — api-key path (scopes are the sole authority) vs session path, mutually exclusive.
         if ($request->attributes->has('api_key_scopes')) {
             return $this->apiKeyGrants($request, $capability);
         }
 
+        // Session path: the per-collection capability, or the admin data-browser god-mode
+        // permission (the same one the admin routes gate on) — so an admin browsing
+        // /v1/admin/.../rows?expand=... isn't 403'd on scoped expand targets they can
+        // already read directly. Never applies to api keys (scopes above are exhaustive).
         $user = $this->resolveSessionUser($request);
-        return $user !== null && $this->userGrants($user, $capability, $request);
+
+        return $user !== null && (
+            $this->userGrants($user, $capability, $request)
+            || $this->userGrants($user, self::ADMIN_DATA_PERMISSION, $request)
+        );
     }
 
     /** True when the request's api-key scopes satisfy the capability. */
@@ -61,6 +76,13 @@ final class CollectionAccessResolver
             (array) $request->attributes->get('api_key_scopes', []),
             'is_string',
         ));
+
+        // ApiKeyService::scopeSatisfies() treats an empty grant list as "full access" —
+        // the framework's legacy-key semantics. Collections are default-deny: a key with
+        // no scopes holds no collection capabilities at all.
+        if ($granted === []) {
+            return false;
+        }
 
         return ApiKeyService::scopeSatisfies($granted, $capability);
     }
@@ -79,8 +101,16 @@ final class CollectionAccessResolver
         }
         try {
             $authenticated = $this->auth->authenticate($request);
+            if (!is_array($authenticated) || !isset($authenticated['uuid'])) {
+                return null;
+            }
 
-            return is_array($authenticated) && isset($authenticated['uuid']) ? $authenticated : null;
+            // Memoize onto the request as the standard post-auth attribute: repeat gates
+            // (?expand target checks) skip re-authentication, and downstream consumers
+            // (ActorResolver, rate limiting by 'user') see the principal.
+            $request->attributes->set('user', $authenticated);
+
+            return $authenticated;
         } catch (\Throwable) {
             return null;
         }

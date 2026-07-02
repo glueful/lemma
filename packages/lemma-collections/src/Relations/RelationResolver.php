@@ -114,26 +114,32 @@ final class RelationResolver
         $isMulti = !empty($field->settings['multi']);
         $uuids   = $isMulti ? (array) $value : [$value];
 
-        foreach ($uuids as $uuid) {
-            if (!is_string($uuid) || $uuid === '') {
-                continue;
-            }
+        // One batched lookup, not one COUNT per element — the element count is already
+        // capped by RowValidator, so the IN list stays small.
+        $uuids = array_values(array_unique(array_filter(
+            $uuids,
+            static fn (mixed $u): bool => is_string($u) && $u !== '',
+        )));
+        if ($uuids === []) {
+            return;
+        }
 
-            $exists = $this->connection
-                ->table($table)
-                ->where('uuid', $uuid)
-                ->count() > 0;
+        $rows = $this->connection
+            ->table($table)
+            ->select(['uuid'])
+            ->whereIn('uuid', $uuids)
+            ->get();
 
-            if (!$exists) {
-                throw RowValidationException::make([
-                    $field->name => sprintf(
-                        "Field '%s' references a non-existent row uuid '%s' in '%s'.",
-                        $field->name,
-                        $uuid,
-                        $label,
-                    ),
-                ]);
-            }
+        $missing = array_diff($uuids, array_column($rows, 'uuid'));
+        if ($missing !== []) {
+            throw RowValidationException::make([
+                $field->name => sprintf(
+                    "Field '%s' references a non-existent row uuid '%s' in '%s'.",
+                    $field->name,
+                    (string) reset($missing),
+                    $label,
+                ),
+            ]);
         }
     }
 
@@ -270,9 +276,12 @@ final class RelationResolver
 
                 if ($isMulti) {
                     // JSON array stored as text: search for the quoted uuid element.
+                    // LIKE metacharacters must be escaped — row uuids are nanoids whose
+                    // alphabet includes '_' (match-any-char), so an unescaped pattern can
+                    // spuriously match a different stored uuid.
                     $count = $this->connection
                         ->table($def->tableName)
-                        ->where($field->name, 'LIKE', '%"' . $uuid . '"%')
+                        ->where($field->name, 'LIKE', '%"' . addcslashes($uuid, '\\%_') . '"%')
                         ->count();
                 } else {
                     $count = $this->connection
@@ -392,8 +401,13 @@ final class RelationResolver
                 $row[$fieldName] = [];
                 continue;
             }
+            // Elements are typed mixed, not string: legacy/hand-seeded JSON can hold
+            // non-string members, which must be skipped — not a read-path TypeError.
             $row[$fieldName] = array_values(array_filter(
-                array_map(static fn (string $u): ?array => $byUuid[$u] ?? null, $decoded),
+                array_map(
+                    static fn (mixed $u): ?array => is_string($u) ? ($byUuid[$u] ?? null) : null,
+                    $decoded,
+                ),
                 static fn (?array $v): bool => $v !== null,
             ));
         }

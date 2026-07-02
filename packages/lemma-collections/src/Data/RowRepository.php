@@ -9,6 +9,7 @@ use Glueful\Events\EventService;
 use Glueful\Lemma\Collections\Events\CollectionRowCreated;
 use Glueful\Lemma\Collections\Events\CollectionRowDeleted;
 use Glueful\Lemma\Collections\Events\CollectionRowUpdated;
+use Glueful\Lemma\Collections\Events\CollectionTruncated;
 use Glueful\Lemma\Collections\Exceptions\RowNotFoundException;
 use Glueful\Lemma\Collections\Relations\RelationResolver;
 use Glueful\Lemma\Collections\Schema\CollectionDefinition;
@@ -53,8 +54,6 @@ final class RowRepository
     {
         $coerced = $this->validator->validate($def, $input, false);
 
-        $this->assertRelationTargets($def, $input);
-
         $now  = date('Y-m-d H:i:s');
         $uuid = PublicId::generate('row');
 
@@ -68,10 +67,18 @@ final class RowRepository
             'updated_by_id'   => $actor->id,
         ]);
 
-        $this->connection->table($def->tableName)->insert($row);
+        // Target-existence check + insert share one transaction for atomic visibility.
+        // This narrows (not closes — plain MVCC reads don't block) the race with a
+        // concurrent delete of a referenced target; closing it fully needs FOR SHARE /
+        // FOR UPDATE row locks, which the framework query builder does not expose yet.
+        $stored = $this->connection->transaction(function () use ($def, $input, $row, $uuid): array {
+            $this->assertRelationTargets($def, $input);
+            $this->connection->table($def->tableName)->insert($row);
 
-        $stored = $this->fetchOrFail($def, $uuid);
+            return $this->fetchOrFail($def, $uuid);
+        });
 
+        // After commit — listeners must never observe a row that can still roll back.
         $this->events->dispatch(new CollectionRowCreated($def->name, $uuid, $stored, $actor));
 
         return $stored;
@@ -97,19 +104,21 @@ final class RowRepository
 
         $coerced = $this->validator->validate($def, $input, true, $uuid);
 
-        $this->assertRelationTargets($def, $input);
-
         $changes = array_merge($coerced, [
             'updated_at'      => date('Y-m-d H:i:s'),
             'updated_by_type' => $actor->type,
             'updated_by_id'   => $actor->id,
         ]);
 
-        $this->connection->table($def->tableName)
-            ->where('uuid', $uuid)
-            ->update($changes);
+        // Same transaction bracket as create() (see the comment there).
+        $stored = $this->connection->transaction(function () use ($def, $input, $uuid, $changes): array {
+            $this->assertRelationTargets($def, $input);
+            $this->connection->table($def->tableName)
+                ->where('uuid', $uuid)
+                ->update($changes);
 
-        $stored = $this->fetchOrFail($def, $uuid);
+            return $this->fetchOrFail($def, $uuid);
+        });
 
         $this->events->dispatch(new CollectionRowUpdated($def->name, $uuid, $stored, $actor));
 
@@ -130,29 +139,38 @@ final class RowRepository
     {
         $this->fetchOrFail($def, $uuid);
 
-        $this->resolver->assertNotReferenced($def, $uuid);
-
-        $this->connection->table($def->tableName)
-            ->where('uuid', $uuid)
-            ->delete();
+        // Reference check + delete share one transaction (see create() for the residual
+        // race caveat — a referencing row committed between the check and the delete).
+        $this->connection->transaction(function () use ($def, $uuid): void {
+            $this->resolver->assertNotReferenced($def, $uuid);
+            $this->connection->table($def->tableName)
+                ->where('uuid', $uuid)
+                ->delete();
+        });
 
         $this->events->dispatch(new CollectionRowDeleted($def->name, $uuid, $actor));
     }
 
     /**
      * Empty the collection's table — a real TRUNCATE that also resets the auto-increment id —
-     * keeping the schema. A deliberate bulk admin action: no per-row events or reference checks.
-     * The table name is a derived `collection_<hash>` slug (no user input), so it is safe to
-     * interpolate. Returns the number of rows that were cleared.
+     * keeping the schema. A deliberate bulk admin action: no per-row events or reference
+     * checks; a single CollectionTruncated event carries the actor and count for audit.
+     *
+     * Interpolating the table name is safe ONLY because it is 'coll_' + the collection
+     * name, which CollectionManager validates against /^[a-z][a-z0-9_]*$/ at create time —
+     * that gate is load-bearing for this method. No CASCADE: collection relations are
+     * loose uuids by design, and if a real FK ever appeared, CASCADE would silently
+     * truncate the referencing table too.
      */
-    public function truncate(CollectionDefinition $def): int
+    public function truncate(CollectionDefinition $def, Actor $actor): int
     {
         $table = $def->tableName;
         $count = (int) $this->connection->table($table)->count();
 
-        // PostgreSQL: RESTART IDENTITY resets the auto-increment id; CASCADE is harmless here
-        // (collection relations are loose uuids, not FK constraints).
-        $this->connection->getPDO()->exec("TRUNCATE TABLE \"{$table}\" RESTART IDENTITY CASCADE");
+        // PostgreSQL: RESTART IDENTITY resets the auto-increment id.
+        $this->connection->getPDO()->exec("TRUNCATE TABLE \"{$table}\" RESTART IDENTITY");
+
+        $this->events->dispatch(new CollectionTruncated($def->name, $count, $actor));
 
         return $count;
     }

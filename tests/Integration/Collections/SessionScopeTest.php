@@ -14,7 +14,8 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
  * The session branch of CollectionScopeMiddleware: a scoped write is authorized by a logged-in
- * user's Aegis permission ({collection}.write on resource 'lemma'), not only by an api-key scope.
+ * user's Aegis permission (collections.{collection}.write on resource 'lemma'), not only by an
+ * api-key scope.
  *
  * The public routes carry no auth middleware, so the gate authenticates on demand; here we pre-set
  * the `user` request attribute (the gate reads it before calling AuthenticationManager), which lets
@@ -44,10 +45,10 @@ final class SessionScopeTest extends LemmaTestCase
     public function testSessionUserWithPermissionCanWriteScopedCollection(): void
     {
         // The Aegis provider grants by looking up the permission slug, so it must exist first.
-        $this->seedPermission(self::COL . '.write');
-        $this->permissions()->assignPermission('u-author', self::COL . '.write', 'lemma');
+        $this->seedPermission('collections.' . self::COL . '.write');
+        $this->permissions()->assignPermission('u-author', 'collections.' . self::COL . '.write', 'lemma');
         self::assertTrue(
-            $this->permissions()->can('u-author', self::COL . '.write', 'lemma'),
+            $this->permissions()->can('u-author', 'collections.' . self::COL . '.write', 'lemma'),
             'the granted permission should make can() true',
         );
 

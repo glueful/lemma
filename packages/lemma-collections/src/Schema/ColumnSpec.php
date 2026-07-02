@@ -9,7 +9,8 @@ namespace Glueful\Lemma\Collections\Schema;
  *
  * - type   : schema-builder method name (e.g. 'string', 'bigInteger', 'decimal', 'text')
  * - params : positional arguments to the builder call (e.g. [255], [12, 2])
- * - nullable / unique : column modifiers
+ * - nullable / unique / index : column modifiers (index = plain index; created only
+ *   when the column is not already unique — a unique constraint serves lookups)
  */
 final class ColumnSpec
 {
@@ -22,6 +23,7 @@ final class ColumnSpec
         public readonly array $params = [],
         public readonly bool $nullable = true,
         public readonly bool $unique = false,
+        public readonly bool $index = false,
     ) {
     }
 }

@@ -13,7 +13,9 @@ const keys = computed<ApiKey[]>(() => data.value?.api_keys ?? [])
 const ACTIONS = ['read', 'write', 'delete'] as const
 
 function scopeFor(action: string): string {
-  return `${props.collectionName}.${action}`
+  // Capabilities are namespaced `collections.{name}.{action}` (the backend
+  // CollectionAccessResolver form) — the bare `{name}.{action}` no longer grants access.
+  return `collections.${props.collectionName}.${action}`
 }
 function hasScope(key: ApiKey, action: string): boolean {
   return key.scopes.includes(scopeFor(action))
@@ -38,8 +40,8 @@ async function toggle(key: ApiKey, action: string) {
     <div>
       <h3 class="text-sm font-medium text-default">API-key access</h3>
       <p class="text-xs text-muted">
-        Grant each key the <code>{{ collectionName }}.read</code> / <code>write</code> /
-        <code>delete</code> scopes for this collection's public API.
+        Grant each key the <code>collections.{{ collectionName }}.read</code> /
+        <code>write</code> / <code>delete</code> scopes for this collection's public API.
       </p>
     </div>
 

@@ -32,6 +32,13 @@ final class SeedCollectionsPermissions implements MigrationInterface
 
     public function up(SchemaBuilderInterface $schema): void
     {
+        // The permissions table belongs to the RBAC provider (Aegis). On a host without
+        // one there is nothing to seed into — skip rather than die mid-migration-run;
+        // re-running migrations after installing the provider seeds the rows.
+        if (!$schema->hasTable('permissions')) {
+            return;
+        }
+
         $this->db = new Connection();
 
         $existing = [];

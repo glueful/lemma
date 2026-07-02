@@ -18,21 +18,29 @@ use Glueful\Repository\BlobRepository;
  * Throws RowValidationException carrying per-field errors on any failure.
  *
  * Validation rules per field type:
- *   collections.string/text/json    — cast to string, no further validation
- *   collections.integer             — "42" → 42; decimal strings are rejected
- *   collections.decimal             — kept as string; must be numeric
+ *   collections.string              — scalar → string, capped at settings.length (default 255)
+ *   collections.text                — scalar → string, no length cap (TEXT column)
+ *   collections.json                — array/object → encoded; string must be valid JSON
+ *   collections.integer             — "42" → 42; decimal strings rejected; 32-bit range unless bigint
+ *   collections.decimal             — plain decimal notation; integer digits must fit precision-scale
  *   collections.boolean             — "true"/"1"/true → true; "false"/"0"/false → false
  *   collections.date                — Y-m-d format only
  *   collections.datetime            — Y-m-d H:i:s format only
- *   collections.email               — filter_var FILTER_VALIDATE_EMAIL
- *   collections.url                 — filter_var FILTER_VALIDATE_URL
- *   collections.enum                — must be in settings['values']
+ *   collections.email               — string, valid email, ≤ 255 chars (column width)
+ *   collections.url                 — string, valid URL, ≤ 2048 chars (column width)
+ *   collections.enum                — string in settings['values']
  *   collections.relation            — shape only: string (single) or string[] (multi); target not checked
- *   collections.asset               — blob uuid(s) must resolve via BlobRepository::findByUuid
+ *   collections.asset               — blob uuid(s) must resolve to a non-deleted blob
  *   unique constraint               — queried against the collection's table; current row excluded on update
+ *
+ * Length/range checks mirror the materialized column types so oversized values become
+ * per-field 422s here instead of raw driver errors at insert time.
  */
 final class RowValidator
 {
+    /** Maximum elements accepted in a multi relation/asset value. */
+    private const MAX_MULTI_REFS = 100;
+
     public function __construct(
         private readonly Connection $connection,
         private readonly BlobRepository $blobRepository,
@@ -46,8 +54,8 @@ final class RowValidator
      * @param bool                 $partial      When true, absent fields are skipped (partial update).
      * @param string|null          $currentUuid  UUID of the row being updated; used to exclude the
      *                                           current row from unique-constraint checks.
-     * @return array<string, mixed> Coerced column map, containing only fields present in $input
-     *                              (plus explicit null values for nullable absent fields on full writes).
+     * @return array<string, mixed> Coerced column map, containing only fields present in $input;
+     *                              absent nullable fields are omitted (their columns default to NULL).
      * @throws RowValidationException on any per-field validation failure.
      */
     public function validate(
@@ -127,23 +135,69 @@ final class RowValidator
         switch ($field->type) {
             case 'collections.string':
             case 'collections.text':
-            case 'collections.json':
+                if (!is_string($value) && !is_int($value) && !is_float($value)) {
+                    return [null, sprintf("Field '%s' must be a string.", $name)];
+                }
                 $coerced = (string) $value;
+                if ($field->type === 'collections.string') {
+                    $max = isset($field->settings['length']) ? (int) $field->settings['length'] : 255;
+                    if (mb_strlen($coerced) > $max) {
+                        return [null, sprintf("Field '%s' must be at most %d characters.", $name, $max)];
+                    }
+                }
                 break;
+
+            case 'collections.json':
+                if (is_array($value)) {
+                    $coerced = (string) json_encode($value, JSON_THROW_ON_ERROR);
+                    break;
+                }
+                if (is_string($value) && json_validate($value)) {
+                    $coerced = $value;
+                    break;
+                }
+                return [null, sprintf(
+                    "Field '%s' must be a JSON object/array or a valid JSON string.",
+                    $name,
+                )];
 
             case 'collections.integer':
                 $filtered = filter_var($value, FILTER_VALIDATE_INT);
                 if ($filtered === false) {
                     return [null, sprintf("Field '%s' must be an integer.", $name)];
                 }
+                // The column is a 32-bit INTEGER unless settings.bigint was set at
+                // definition time — reject here instead of a driver overflow error.
+                if (empty($field->settings['bigint']) && ($filtered > 2147483647 || $filtered < -2147483648)) {
+                    return [null, sprintf(
+                        "Field '%s' exceeds the 32-bit integer range (define the field with"
+                        . " settings.bigint to store larger values).",
+                        $name,
+                    )];
+                }
                 $coerced = $filtered;
                 break;
 
             case 'collections.decimal':
-                if (!is_numeric($value)) {
-                    return [null, sprintf("Field '%s' must be a decimal number.", $name)];
+                if (!is_numeric($value) || preg_match('/^[+-]?\d+(\.\d+)?$/', (string) $value) !== 1) {
+                    return [null, sprintf(
+                        "Field '%s' must be a decimal number in plain notation.",
+                        $name,
+                    )];
                 }
-                $coerced = (string) $value;
+                $coerced   = (string) $value;
+                $precision = isset($field->settings['precision']) ? (int) $field->settings['precision'] : 10;
+                $scale     = isset($field->settings['scale']) ? (int) $field->settings['scale'] : 2;
+                $intPart   = ltrim(explode('.', ltrim($coerced, '+-'))[0], '0');
+                if (strlen($intPart) > $precision - $scale) {
+                    return [null, sprintf(
+                        "Field '%s' must fit %d integer digit(s) (precision %d, scale %d).",
+                        $name,
+                        $precision - $scale,
+                        $precision,
+                        $scale,
+                    )];
+                }
                 break;
 
             case 'collections.boolean':
@@ -168,27 +222,41 @@ final class RowValidator
                 break;
 
             case 'collections.email':
-                $coerced = (string) $value;
-                if (!Utils::isValidEmail($coerced)) {
+                if (!is_string($value)) {
+                    return [null, sprintf("Field '%s' must be a string.", $name)];
+                }
+                $coerced = $value;
+                if (mb_strlen($coerced) > 255 || !Utils::isValidEmail($coerced)) {
                     return [null, sprintf("Field '%s' must be a valid email address.", $name)];
                 }
                 break;
 
             case 'collections.url':
-                $coerced = (string) $value;
+                if (!is_string($value)) {
+                    return [null, sprintf("Field '%s' must be a string.", $name)];
+                }
+                $coerced = $value;
+                if (mb_strlen($coerced) > 2048) {
+                    return [null, sprintf("Field '%s' must be at most 2048 characters.", $name)];
+                }
                 if (Utils::validateUrl($coerced) === null) {
                     return [null, sprintf("Field '%s' must be a valid URL.", $name)];
                 }
                 break;
 
             case 'collections.enum':
-                $coerced  = (string) $value;
-                $allowed  = (array) ($field->settings['values'] ?? []);
-                if ($allowed !== [] && !in_array($coerced, $allowed, true)) {
+                if (!is_string($value)) {
+                    return [null, sprintf("Field '%s' must be a string.", $name)];
+                }
+                $coerced = $value;
+                $allowed = (array) ($field->settings['values'] ?? []);
+                // A missing/empty values list is a definition bug (create/addField now
+                // reject it); fail closed rather than degrade to free text.
+                if (!in_array($coerced, $allowed, true)) {
                     return [null, sprintf(
                         "Field '%s' must be one of: %s.",
                         $name,
-                        implode(', ', $allowed),
+                        implode(', ', array_filter($allowed, 'is_string')),
                     )];
                 }
                 break;
@@ -196,22 +264,15 @@ final class RowValidator
             case 'collections.relation':
                 $isMulti = !empty($field->settings['multi']);
                 if ($isMulti) {
-                    if (!is_array($value)) {
-                        return [null, sprintf("Field '%s' must be an array of UUIDs.", $name)];
+                    $error = $this->validateUuidList($name, $value, 'UUIDs');
+                    if ($error !== null) {
+                        return [null, $error];
                     }
-                    foreach ($value as $i => $uuid) {
-                        if (!is_string($uuid)) {
-                            return [null, sprintf(
-                                "Field '%s' element %d must be a string UUID.",
-                                $name,
-                                (int) $i,
-                            )];
-                        }
-                    }
+                    /** @var array<int, string> $value */
                     $coerced = (string) json_encode(array_values($value), JSON_THROW_ON_ERROR);
                 } else {
-                    if (!is_string($value)) {
-                        return [null, sprintf("Field '%s' must be a string UUID.", $name)];
+                    if (!is_string($value) || $value === '') {
+                        return [null, sprintf("Field '%s' must be a non-empty string UUID.", $name)];
                     }
                     $coerced = $value;
                 }
@@ -220,18 +281,13 @@ final class RowValidator
             case 'collections.asset':
                 $isMulti = !empty($field->settings['multi']);
                 if ($isMulti) {
-                    if (!is_array($value)) {
-                        return [null, sprintf("Field '%s' must be an array of blob UUIDs.", $name)];
+                    $error = $this->validateUuidList($name, $value, 'blob UUIDs');
+                    if ($error !== null) {
+                        return [null, $error];
                     }
+                    /** @var array<int, string> $value */
                     foreach ($value as $i => $uuid) {
-                        if (!is_string($uuid)) {
-                            return [null, sprintf(
-                                "Field '%s' element %d must be a string UUID.",
-                                $name,
-                                (int) $i,
-                            )];
-                        }
-                        if ($this->blobRepository->findByUuid($uuid) === null) {
+                        if ($this->blobRepository->findByUuidWithDeleteFilter($uuid, false) === null) {
                             return [null, sprintf(
                                 "Field '%s' element %d references a non-existent blob UUID '%s'.",
                                 $name,
@@ -242,10 +298,12 @@ final class RowValidator
                     }
                     $coerced = (string) json_encode(array_values($value), JSON_THROW_ON_ERROR);
                 } else {
-                    if (!is_string($value)) {
-                        return [null, sprintf("Field '%s' must be a string blob UUID.", $name)];
+                    if (!is_string($value) || $value === '') {
+                        return [null, sprintf("Field '%s' must be a non-empty string blob UUID.", $name)];
                     }
-                    if ($this->blobRepository->findByUuid($value) === null) {
+                    // The delete-filtering lookup: plain findByUuid() returns soft-deleted
+                    // blobs, which would let a row reference a dead asset.
+                    if ($this->blobRepository->findByUuidWithDeleteFilter($value, false) === null) {
                         return [null, sprintf(
                             "Field '%s' references a non-existent blob UUID '%s'.",
                             $name,
@@ -286,6 +344,34 @@ final class RowValidator
         }
 
         return [$coerced, null];
+    }
+
+    /**
+     * Shape-check a multi relation/asset value: an array of at most MAX_MULTI_REFS
+     * non-empty strings. Returns the error message, or null when valid. The cap bounds
+     * the per-element existence checks — without it a single request could trigger tens
+     * of thousands of lookups.
+     */
+    private function validateUuidList(string $name, mixed $value, string $what): ?string
+    {
+        if (!is_array($value)) {
+            return sprintf("Field '%s' must be an array of %s.", $name, $what);
+        }
+        if (count($value) > self::MAX_MULTI_REFS) {
+            return sprintf(
+                "Field '%s' must reference at most %d %s.",
+                $name,
+                self::MAX_MULTI_REFS,
+                $what,
+            );
+        }
+        foreach ($value as $i => $uuid) {
+            if (!is_string($uuid) || $uuid === '') {
+                return sprintf("Field '%s' element %d must be a non-empty string UUID.", $name, (int) $i);
+            }
+        }
+
+        return null;
     }
 
     private function coerceBoolean(mixed $value): ?bool

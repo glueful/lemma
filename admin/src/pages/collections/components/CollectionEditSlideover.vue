@@ -215,9 +215,9 @@ async function confirmDropCollection(token: string | undefined) {
 }
 
 const truncateOpen = ref(false)
-async function confirmTruncate() {
+async function confirmTruncate(token: string | undefined) {
   try {
-    await truncate.mutateAsync({ name: props.name })
+    await truncate.mutateAsync({ name: props.name, confirm: token })
     success('Collection truncated', `All rows in “${props.name}” were deleted.`)
     truncateOpen.value = false
   } catch (e) {

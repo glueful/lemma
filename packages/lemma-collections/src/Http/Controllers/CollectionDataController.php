@@ -161,6 +161,9 @@ final class CollectionDataController
         }
 
         $input = $this->body($request);
+        if ($input === null) {
+            return $this->malformedBody();
+        }
         $actor = $this->actor->resolve($request);
 
         try {
@@ -193,6 +196,9 @@ final class CollectionDataController
         }
 
         $body = $this->body($request);
+        if ($body === null) {
+            return $this->malformedBody();
+        }
         $rows = isset($body['rows']) && is_array($body['rows']) ? array_values($body['rows']) : [];
 
         if ($rows === []) {
@@ -256,6 +262,9 @@ final class CollectionDataController
         }
 
         $input = $this->body($request);
+        if ($input === null) {
+            return $this->malformedBody();
+        }
         $actor = $this->actor->resolve($request);
 
         try {
@@ -295,8 +304,14 @@ final class CollectionDataController
         return Response::noContent();
     }
 
-    /** DELETE /collections/{name}/rows — delete every row (keeps the schema). */
-    #[ApiOperation(summary: 'Delete all rows in a collection', tags: ['Collections'])]
+    /**
+     * DELETE /collections/{name}/rows — delete every row (keeps the schema).
+     *
+     * Destructive and unrecoverable, so it carries the same confirmation contract as
+     * dropField/dropCollection: when the table has rows, the JSON body must include
+     * `confirm` equal to the collection name; an empty table waives the confirmation.
+     */
+    #[ApiOperation(summary: 'Delete all rows in a collection (guarded)', tags: ['Collections'])]
     #[ApiResponse(200, description: 'Rows deleted.')]
     public function truncate(Request $request, string $name): Response
     {
@@ -305,7 +320,22 @@ final class CollectionDataController
             return Response::notFound("Collection '{$name}' not found.");
         }
 
-        $deleted = $this->rows->truncate($def);
+        $body = $this->body($request);
+        if ($body === null) {
+            return $this->malformedBody();
+        }
+
+        $hasRows = (int) $this->connection->table($def->tableName)->count() > 0;
+        if ($hasRows && ($body['confirm'] ?? null) !== $name) {
+            return Response::error(sprintf(
+                "Deleting all rows of '%s' requires confirmation: pass body field 'confirm' = '%s'."
+                . ' This collection has existing data rows.',
+                $name,
+                $name,
+            ), 409);
+        }
+
+        $deleted = $this->rows->truncate($def, $this->actor->resolve($request));
 
         return Response::success(['deleted' => $deleted], "Cleared {$deleted} row(s) from '{$name}'.");
     }
@@ -313,11 +343,13 @@ final class CollectionDataController
     // ── private helpers ───────────────────────────────────────────────────────
 
     /**
-     * Decode the JSON request body; returns [] on empty or non-JSON.
+     * Decode the JSON request body: [] when the body is empty, null when a body is present
+     * but is not a JSON object/array. Callers turn null into a 400 — silently treating a
+     * malformed body as {} used to make a typo'd PATCH proceed as an empty update.
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed>|null
      */
-    private function body(Request $request): array
+    private function body(Request $request): ?array
     {
         $raw = (string) $request->getContent();
         if ($raw === '') {
@@ -325,7 +357,12 @@ final class CollectionDataController
         }
 
         $decoded = json_decode($raw, true);
-        return is_array($decoded) ? $decoded : [];
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function malformedBody(): Response
+    {
+        return Response::error('Malformed JSON request body.', 400);
     }
 
     /**

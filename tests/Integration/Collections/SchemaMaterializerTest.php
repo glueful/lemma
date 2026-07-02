@@ -225,7 +225,7 @@ final class SchemaMaterializerTest extends LemmaTestCase
             'updated_by_id'   => null,
         ]);
 
-        // add_index (unique=true) on a column containing duplicates must be rejected.
+        // A planned unique add_index on a column containing duplicates must be rejected.
         $uniqueIndexOp = new SchemaChange(
             'add_index',
             CollectionField::fromArray([
@@ -234,6 +234,7 @@ final class SchemaMaterializerTest extends LemmaTestCase
                 'settings' => ['unique' => true],
             ]),
             true,
+            'unique',
         );
 
         $threw = false;

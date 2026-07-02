@@ -113,6 +113,28 @@ final class CsvUserImporterTest extends LemmaTestCase
         self::assertSame(2, $this->connection()->table('users')->count()); // existing jane + new john
     }
 
+    public function testRowWithUnknownRoleFailsAtomicallyLeavingNoOrphanAccount(): void
+    {
+        // Map a `roles` column pointing at a role slug that does not exist. assignRole() fails after
+        // the account+profile were written; the row must roll back so no orphaned active account is
+        // left (which the uniqueness pre-check would otherwise make permanently un-retryable).
+        $csv = "Username,Email,Roles\nzoe,zoe@example.com,does-not-exist\n";
+        $this->seedJob($this->writeCsv($csv));
+
+        $result = $this->importer()->process(
+            new ImportBatch('batchusr0001', 'jobusr00001', 1, 0, 20),
+            new ImportContext($this->appContext(), 'jobusr00001', 'commit', null, [
+                'mapping' => ['username' => 'Username', 'email' => 'Email', 'roles' => 'Roles'],
+            ]),
+        );
+
+        self::assertSame(0, $result->processedRecords);
+        self::assertSame(1, $result->failedRecords);
+        self::assertMatchesRegularExpression('/role/i', (string) $result->errors[0]['message']);
+        // The account was rolled back — no orphan, and a corrected re-import can recreate it.
+        self::assertSame(0, $this->connection()->table('users')->where('email', '=', 'zoe@example.com')->count());
+    }
+
     private function importer(): CsvUserImporter
     {
         return $this->container()->get(CsvUserImporter::class);

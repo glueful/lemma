@@ -73,18 +73,50 @@ final class BackfillRunner
     {
         $entry = (string) $item['entry_uuid'];
         $locale = (string) $item['locale'];
+        $expectedLock = (int) $item['lock_version'];
 
         try {
             $fields = $this->decodeFields($item['fields'] ?? []);
             $migrated = $opSet->apply($fields);
-            $this->db->table('entry_drafts')
+            // Optimistic CAS mirroring EntryRepository::saveDraft: only migrate the row we read.
+            // The lock_version guard makes a concurrent editor save (which bumps lock_version) lose
+            // the race here instead of being silently overwritten; the schema_version guard stops a
+            // second pass from re-applying the op-set. Bumping lock_version means an editor still
+            // holding the pre-migration draft gets a 409 on their next save and re-syncs — the
+            // correct optimistic-lock behaviour, not a lost update.
+            $affected = $this->db->table('entry_drafts')
                 ->where('entry_uuid', '=', $entry)
                 ->where('locale', '=', $locale)
+                ->where('lock_version', '=', $expectedLock)
+                ->where('schema_version', '<', $toVersion)
                 ->update([
                     'fields' => json_encode($migrated, JSON_THROW_ON_ERROR),
                     'schema_version' => $toVersion,
+                    'lock_version' => $expectedLock + 1,
                     'updated_at' => date('Y-m-d H:i:s'),
                 ]);
+            if ($affected < 1) {
+                // The draft changed under us (editor save) or was already migrated. Do NOT clobber
+                // the newer content. If it still sits below the target it's genuinely remaining —
+                // record a re-runnable failure so the end-of-run recount marks the migration
+                // 'failed'; if it was concurrently migrated/deleted it isn't remaining, so stay
+                // quiet (the recount is authoritative either way).
+                $current = $this->db->table('entry_drafts')
+                    ->select(['schema_version'])
+                    ->where('entry_uuid', '=', $entry)
+                    ->where('locale', '=', $locale)
+                    ->first();
+                if ($current !== null && (int) $current['schema_version'] < $toVersion) {
+                    $this->migrations->recordFailure(
+                        $migrationUuid,
+                        $entry,
+                        $locale,
+                        'draft',
+                        'draft changed concurrently during backfill; re-run to migrate the latest content',
+                    );
+                }
+                return;
+            }
             $this->migrations->incrementDone($migrationUuid);
         } catch (\Throwable $e) {
             $this->migrations->recordFailure($migrationUuid, $entry, $locale, 'draft', $e->getMessage());
@@ -111,14 +143,39 @@ final class BackfillRunner
                 throw new \RuntimeException('pinned version missing');
             }
             $migrated = $opSet->apply((array) $version['fields']);
+            $pinnedVersionUuid = (string) $item['version_uuid'];
 
-            $this->db->transaction(function () use ($entry, $locale, $migrated, $toVersion, $actor, $schema): void {
+            $skipped = false;
+            $this->db->transaction(function () use (
+                $entry,
+                $locale,
+                $migrated,
+                $toVersion,
+                $actor,
+                $schema,
+                $pinnedVersionUuid,
+                &$skipped,
+            ): void {
+                // Acquire the per-(entry,locale) advisory lock FIRST (same lock PublishService takes),
+                // then re-read the pin under it. If a concurrent publish/unpublish moved the pin after
+                // publishedItems() read it, re-pinning a migrated copy of the now-stale version would
+                // revert that publish — so skip instead. The reserved number is simply not used.
                 $number = $this->versions->reserveNextVersionNumber($entry, $locale);
+                $current = $this->versions->findPublication($entry, $locale);
+                if ($current === null || (string) $current['version_uuid'] !== $pinnedVersionUuid) {
+                    $skipped = true;
+                    return;
+                }
                 $newUuid = $this->versions->appendVersion($entry, $locale, $number, $migrated, $toVersion, $actor);
                 $this->versions->pin($entry, $locale, $newUuid, $actor);
                 $this->references->rebuildForEntry($entry, $schema, $migrated, $locale);
             });
 
+            if ($skipped) {
+                // Not counted as done; the end-of-run recount decides completion. The concurrently
+                // published version carries the current schema, so it won't be remaining.
+                return;
+            }
             $this->migrations->incrementDone($migrationUuid);
         } catch (\Throwable $e) {
             $this->migrations->recordFailure($migrationUuid, $entry, $locale, 'published', $e->getMessage());
@@ -132,7 +189,7 @@ final class BackfillRunner
     {
         return $this->db->table('entry_drafts as d')
             ->join('entries as e', 'e.uuid', '=', 'd.entry_uuid')
-            ->select(['d.entry_uuid', 'd.locale', 'd.fields', 'd.schema_version'])
+            ->select(['d.entry_uuid', 'd.locale', 'd.fields', 'd.schema_version', 'd.lock_version'])
             ->where('e.content_type_uuid', '=', $typeUuid)
             ->where('e.status', '=', 'active')
             ->where('d.schema_version', '<', $toVersion)

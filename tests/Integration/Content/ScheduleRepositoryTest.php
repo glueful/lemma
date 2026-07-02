@@ -102,11 +102,11 @@ final class ScheduleRepositoryTest extends LemmaTestCase
         $due = $repo->schedule('e1abcdefghij', 'en', ScheduleAction::Publish, '2020-01-01T00:00:00Z', null);
         $repo->schedule('e2abcdefghij', 'en', ScheduleAction::Publish, '2999-01-01T00:00:00Z', null);
 
-        $claimed = $repo->claimDuePending(10);
+        $claimed = $repo->claimDuePending(10, 'tok-a');
 
         self::assertSame([$due['uuid']], array_column($claimed, 'uuid'));
         self::assertSame('processing', $repo->find($due['uuid'])['status']);
-        self::assertSame([], $repo->claimDuePending(10));
+        self::assertSame([], $repo->claimDuePending(10, 'tok-b'));
     }
 
     public function testConcurrentClaimSkipsLockedRow(): void
@@ -120,7 +120,7 @@ final class ScheduleRepositoryTest extends LemmaTestCase
         $stmt->execute([$row['uuid']]);
 
         try {
-            self::assertSame([], $repo->claimDuePending(10));
+            self::assertSame([], $repo->claimDuePending(10, 'tok-a'));
         } finally {
             $pdo->commit();
         }
@@ -144,14 +144,65 @@ final class ScheduleRepositoryTest extends LemmaTestCase
     {
         $repo = $this->repo();
         $row = $repo->schedule('e1abcdefghij', 'en', ScheduleAction::Publish, '2020-01-01T00:00:00Z', null);
-        $claimed = $repo->claimDuePending(10)[0];
+        $claimed = $repo->claimDuePending(10, 'tok-a')[0];
 
-        $repo->markOutcome((int) $claimed['id'], \App\Content\Enums\ScheduleStatus::Failed, 'invalid draft');
+        $repo->markOutcome((int) $claimed['id'], \App\Content\Enums\ScheduleStatus::Failed, 'invalid draft', 'tok-a');
 
         $stored = $repo->find($row['uuid']);
         self::assertSame('failed', $stored['status']);
         self::assertSame('invalid draft', $stored['failure_reason']);
         self::assertSame(1, (int) $stored['attempts']);
+    }
+
+    public function testMarkOutcomeFromNonOwningRunNoOps(): void
+    {
+        $repo = $this->repo();
+        $row = $repo->schedule('e1abcdefghij', 'en', ScheduleAction::Publish, '2020-01-01T00:00:00Z', null);
+        $claimed = $repo->claimDuePending(10, 'owner-run')[0];
+
+        // A different run (e.g. after a stale-lease reclaim) must not be able to finalise this row.
+        $repo->markOutcome((int) $claimed['id'], \App\Content\Enums\ScheduleStatus::Done, null, 'other-run');
+
+        self::assertSame('processing', $repo->find($row['uuid'])['status'], 'wrong-token outcome must no-op');
+
+        // The owning run still can.
+        $repo->markOutcome((int) $claimed['id'], \App\Content\Enums\ScheduleStatus::Done, null, 'owner-run');
+        self::assertSame('done', $repo->find($row['uuid'])['status']);
+    }
+
+    public function testReclaimClearsLockOwnerSoOriginalRunCannotFinalise(): void
+    {
+        $repo = $this->repo();
+        $row = $repo->schedule('e1abcdefghij', 'en', ScheduleAction::Publish, '2020-01-01T00:00:00Z', null);
+        $claimed = $repo->claimDuePending(10, 'owner-run')[0];
+
+        // Age the claim past the lease and reclaim it (clears locked_by, back to pending).
+        $this->connection()->getPDO()->prepare(
+            "UPDATE entry_schedules SET updated_at = now() - interval '10 minutes' WHERE id = ?"
+        )->execute([(int) $claimed['id']]);
+        self::assertSame(1, $repo->reclaimStale(300));
+
+        // The original run's outcome write finds no matching processing row → no-op; the row stays
+        // pending (re-claimable), so it can't be double-finalised.
+        $repo->markOutcome((int) $claimed['id'], \App\Content\Enums\ScheduleStatus::Done, null, 'owner-run');
+        self::assertSame('pending', $repo->find($row['uuid'])['status']);
+    }
+
+    public function testClaimedRowsAreReturnedInChronologicalOrder(): void
+    {
+        $repo = $this->repo();
+        // Insert the later action first so a naive RETURNING order would surface it before the
+        // earlier one; the repository must re-sort by (run_at, id).
+        $later = $repo->schedule('e1abcdefghij', 'en', ScheduleAction::Unpublish, '2020-01-02T00:00:00Z', null);
+        $earlier = $repo->schedule('e1abcdefghij', 'en', ScheduleAction::Publish, '2020-01-01T00:00:00Z', null);
+
+        $claimed = $repo->claimDuePending(10, 'tok-a');
+
+        self::assertSame(
+            [$earlier['uuid'], $later['uuid']],
+            array_column($claimed, 'uuid'),
+            'due rows must run oldest run_at first',
+        );
     }
 
     private function repo(): ScheduleRepository

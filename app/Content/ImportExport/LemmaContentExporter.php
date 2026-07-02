@@ -67,7 +67,7 @@ final class LemmaContentExporter implements ExporterInterface
 
     public function process(ExportBatch $batch, ExportContext $context): ExportBatchResult
     {
-        $records = array_slice($this->records(), $batch->offset, $batch->limit);
+        $records = $this->windowedRecords($batch->offset, $batch->limit);
         $path = $this->resultPath($context->jobUuid, $batch->sequence);
         $absolute = $this->context->getBasePath() . '/storage/' . $path;
         $directory = dirname($absolute);
@@ -96,25 +96,58 @@ final class LemmaContentExporter implements ExporterInterface
     }
 
     /**
+     * Materialize only the [offset, offset+limit) slice of the global record sequence
+     * (all tables in TABLES order, then the asset manifest). Each overlapping table segment is read
+     * with its own LIMIT/OFFSET so peak memory is O(limit) rather than the whole dataset — the old
+     * array_slice(records()) loaded every table in full on every batch. Ordering and content are
+     * identical to the full sequence.
+     *
      * @return list<array{kind:string,data:array<string,mixed>}>
      */
-    private function records(): array
+    private function windowedRecords(int $offset, int $limit): array
     {
+        if ($limit < 1) {
+            return [];
+        }
+
+        $end = $offset + $limit;
         $records = [];
+        $segmentStart = 0;
+
         foreach (self::TABLES as $table => $spec) {
-            foreach ($this->rows($table) as $row) {
-                $records[] = [
-                    'kind' => $spec['kind'],
-                    'data' => $this->decodeJsonColumns($row, $spec['json']),
-                ];
+            $count = $this->db->table($table)->count();
+            $from = max($offset, $segmentStart);
+            $to = min($end, $segmentStart + $count);
+            if ($from < $to) {
+                $rows = $this->db->table($table)
+                    ->orderBy('id', 'ASC')
+                    ->limit($to - $from)
+                    ->offset($from - $segmentStart)
+                    ->get();
+                foreach ($rows as $row) {
+                    $records[] = [
+                        'kind' => $spec['kind'],
+                        'data' => $this->decodeJsonColumns($row, $spec['json']),
+                    ];
+                }
+            }
+            $segmentStart += $count;
+            if ($segmentStart >= $end) {
+                return $records;
             }
         }
-        foreach ($this->assetManifestRows() as $row) {
-            $records[] = [
-                'kind' => 'asset_manifest',
-                'data' => $row,
-            ];
+
+        // Asset manifest is the final segment. Its referenced-uuid set is small, so windowing it in
+        // memory is fine; the expensive part (scanning drafts/versions to build it) is chunked in
+        // referencedAssetUuids().
+        $localFrom = max(0, $offset - $segmentStart);
+        $localLen = ($end - $segmentStart) - $localFrom;
+        if ($localLen > 0) {
+            foreach (array_slice($this->assetManifestRows(), $localFrom, $localLen) as $row) {
+                $records[] = ['kind' => 'asset_manifest', 'data' => $row];
+            }
         }
+
         return $records;
     }
 
@@ -160,25 +193,36 @@ final class LemmaContentExporter implements ExporterInterface
 
         $assets = [];
         foreach (['entry_drafts', 'entry_versions'] as $table) {
-            foreach ($this->rows($table) as $row) {
-                $typeUuid = $entryTypes[(string) ($row['entry_uuid'] ?? '')] ?? '';
-                $schema = $types[$typeUuid] ?? null;
-                if ($schema === null) {
-                    continue;
-                }
-                $fields = is_string($row['fields'] ?? null)
-                    ? (json_decode((string) $row['fields'], true) ?: [])
-                    : (array) ($row['fields'] ?? []);
-
-                foreach ($schema->fields() as $field) {
-                    if ($field->type !== 'asset') {
+            // Keyset-chunk the scan so the drafts/versions `fields` columns (the bulk of the data)
+            // are never all resident at once — only the small accumulated asset-uuid set is kept.
+            $lastId = 0;
+            do {
+                $rows = $this->db->table($table)
+                    ->where('id', '>', $lastId)
+                    ->orderBy('id', 'ASC')
+                    ->limit(500)
+                    ->get();
+                foreach ($rows as $row) {
+                    $lastId = (int) ($row['id'] ?? $lastId);
+                    $typeUuid = $entryTypes[(string) ($row['entry_uuid'] ?? '')] ?? '';
+                    $schema = $types[$typeUuid] ?? null;
+                    if ($schema === null) {
                         continue;
                     }
-                    foreach (ReferenceProjectionRepository::targets($fields[$field->name] ?? null) as $asset) {
-                        $assets[$asset] = true;
+                    $fields = is_string($row['fields'] ?? null)
+                        ? (json_decode((string) $row['fields'], true) ?: [])
+                        : (array) ($row['fields'] ?? []);
+
+                    foreach ($schema->fields() as $field) {
+                        if ($field->type !== 'asset') {
+                            continue;
+                        }
+                        foreach (ReferenceProjectionRepository::targets($fields[$field->name] ?? null) as $asset) {
+                            $assets[$asset] = true;
+                        }
                     }
                 }
-            }
+            } while (count($rows) === 500);
         }
 
         $out = array_keys($assets);

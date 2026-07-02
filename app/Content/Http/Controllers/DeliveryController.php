@@ -510,7 +510,10 @@ final class DeliveryController
      */
     private function stringQuery(Request $request, string $key): ?string
     {
-        $value = $request->query->get($key);
+        // Read via all(), not get(): InputBag::get() throws a BadRequestException on an array-valued
+        // param (`key[]=`) before any is_string() guard could run — a 500 on this public endpoint.
+        // all() hands back the raw value so a non-string simply reads as absent (null).
+        $value = $request->query->all()[$key] ?? null;
         return is_string($value) ? $value : null;
     }
 
@@ -521,9 +524,11 @@ final class DeliveryController
     private function selectionKey(Request $request): string
     {
         $parts = [
-            'fields=' . (string) $request->query->get('fields', ''),
-            'expand=' . (string) $request->query->get('expand', ''),
-            'sort=' . (string) $request->query->get('sort', ''),
+            // Read through stringQuery (all()-based): a `fields[]=`/`expand[]=`/`sort[]=` array param
+            // must not throw here — this runs at ETag time on the public delivery path.
+            'fields=' . ($this->stringQuery($request, 'fields') ?? ''),
+            'expand=' . ($this->stringQuery($request, 'expand') ?? ''),
+            'sort=' . ($this->stringQuery($request, 'sort') ?? ''),
             'locale=' . $this->locale($this->stringQuery($request, 'locale')),
             'filter=' . json_encode($request->query->all('filter')),
             // Scoped responses can expand references anonymous callers can't see, so the

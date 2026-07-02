@@ -120,7 +120,7 @@ final class ScheduleRepository
     /**
      * @return list<array<string,mixed>>
      */
-    public function claimDuePending(int $limit): array
+    public function claimDuePending(int $limit, string $lockToken): array
     {
         if ($limit < 1) {
             return [];
@@ -130,10 +130,14 @@ final class ScheduleRepository
         $pdo->beginTransaction();
 
         try {
+            // run_at is TIMESTAMP WITHOUT TIME ZONE holding a UTC wall-clock (normalizeRunAt stores
+            // UTC). Comparing it to the tz-aware now() would promote it in the SESSION timezone and
+            // fire schedules off by the session's UTC offset — so compare against now() reduced to
+            // UTC wall-clock, which is what the stored values are.
             $select = $pdo->prepare(
                 "SELECT id
                  FROM entry_schedules
-                 WHERE status = 'pending' AND run_at <= now()
+                 WHERE status = 'pending' AND run_at <= (now() AT TIME ZONE 'UTC')
                  ORDER BY run_at ASC
                  LIMIT :limit
                  FOR UPDATE SKIP LOCKED"
@@ -151,16 +155,25 @@ final class ScheduleRepository
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
             $update = $pdo->prepare(
                 "UPDATE entry_schedules
-                 SET status = 'processing', updated_at = now()
+                 SET status = 'processing', locked_by = ?, updated_at = (now() AT TIME ZONE 'UTC')
                  WHERE id IN ({$placeholders})
                  RETURNING *"
             );
-            $update->execute($ids);
+            $update->execute([$lockToken, ...$ids]);
             /** @var list<array<string,mixed>> $rows */
             $rows = $update->fetchAll(\PDO::FETCH_ASSOC);
             $pdo->commit();
 
-            return $this->normalizeRows($rows);
+            // Postgres does not guarantee RETURNING row order, so re-establish chronological order
+            // (run_at, then id) in PHP: a publish+unpublish for one entry claimed in the same batch
+            // must run oldest-first, or the later-scheduled action could be applied before the
+            // earlier one and leave the wrong terminal state.
+            $rows = $this->normalizeRows($rows);
+            usort($rows, static function (array $a, array $b): int {
+                return [$a['run_at'], (int) $a['id']] <=> [$b['run_at'], (int) $b['id']];
+            });
+
+            return $rows;
         } catch (\Throwable $e) {
             $pdo->rollBack();
 
@@ -174,11 +187,13 @@ final class ScheduleRepository
             return 0;
         }
 
+        // Clear locked_by on reclaim so the previous owner can no longer finalise the row via
+        // markOutcome. UTC-explicit comparison/write for the same reason as claimDuePending.
         $stmt = $this->db->getPDO()->prepare(
             "UPDATE entry_schedules
-             SET status = 'pending', updated_at = now()
+             SET status = 'pending', locked_by = NULL, updated_at = (now() AT TIME ZONE 'UTC')
              WHERE status = 'processing'
-               AND updated_at < (now() - (:seconds::int * interval '1 second'))"
+               AND updated_at < ((now() AT TIME ZONE 'UTC') - (:seconds::int * interval '1 second'))"
         );
         $stmt->bindValue(':seconds', $olderThanSeconds, \PDO::PARAM_INT);
         $stmt->execute();
@@ -186,25 +201,33 @@ final class ScheduleRepository
         return $stmt->rowCount();
     }
 
-    public function markOutcome(int $id, ScheduleStatus $status, ?string $failureReason = null): void
-    {
+    public function markOutcome(
+        int $id,
+        ScheduleStatus $status,
+        ?string $failureReason,
+        string $lockToken,
+    ): void {
         if (!in_array($status, [ScheduleStatus::Done, ScheduleStatus::Failed, ScheduleStatus::Canceled], true)) {
             throw new \InvalidArgumentException('Schedule outcome must be terminal.');
         }
 
+        // Scope to the claiming run's token: if a stale-lease reclaim handed this row to another run
+        // (which cleared/replaced locked_by), this write no-ops instead of clobbering that run's
+        // outcome.
         $stmt = $this->db->getPDO()->prepare(
             "UPDATE entry_schedules
              SET status = :status,
                  attempts = attempts + 1,
                  failure_reason = :failure_reason,
                  updated_at = :updated_at
-             WHERE id = :id AND status = 'processing'"
+             WHERE id = :id AND status = 'processing' AND locked_by = :lock_token"
         );
         $stmt->execute([
             ':status' => $status->value,
             ':failure_reason' => $failureReason,
             ':updated_at' => $this->now(),
             ':id' => $id,
+            ':lock_token' => $lockToken,
         ]);
     }
 

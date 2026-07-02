@@ -47,6 +47,42 @@ final class FieldValidatorMediaDiskTest extends LemmaTestCase
         }
     }
 
+    public function testStrictReferenceValidationRejectsDanglingTargetButAcceptsExistingEntry(): void
+    {
+        // A real entry to point at, and a soft-deleted one that must not satisfy the reference.
+        $types = new \App\Content\Repositories\ContentTypeRepository($this->connection());
+        $type = $types->create([
+            'slug' => 'refs-target',
+            'name' => 'Refs Target',
+            'schema' => [['name' => 'title', 'type' => 'string', 'required' => true]],
+        ]);
+        $entries = new \App\Content\Repositories\EntryRepository($this->connection(), $this->appContext(), $types);
+        $live = $entries->createEntry($type, 'en', 1, 'user00000001');
+        $deleted = $entries->createEntry($type, 'en', 1, 'user00000001');
+        $entries->softDelete($deleted);
+
+        $schema = ContentTypeSchema::fromArray([
+            ['name' => 'author', 'type' => 'reference', 'reference_type' => 'refs-target'],
+        ]);
+        $validator = $this->container()->get(FieldValidator::class);
+        self::assertInstanceOf(FieldValidator::class, $validator);
+
+        // Draft (permissive): any non-empty string passes — existence is a publish-time rule.
+        self::assertSame(['author' => 'ghostuuid001'], $validator->validate($schema, ['author' => 'ghostuuid001']));
+
+        // Publish (strict): an existing live entry passes; a nonexistent or deleted target is rejected.
+        self::assertSame(['author' => $live], $validator->validate($schema, ['author' => $live], true));
+
+        foreach (['ghostuuid001', $deleted] as $bad) {
+            try {
+                $validator->validate($schema, ['author' => $bad], true);
+                self::fail('expected a dangling reference to fail strict validation');
+            } catch (ValidationException $e) {
+                self::assertArrayHasKey('author', $e->errors());
+            }
+        }
+    }
+
     private function assetSchema(): ContentTypeSchema
     {
         return ContentTypeSchema::fromArray([

@@ -61,7 +61,7 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
 
     public function plan(ImportSource $source, ImportOptions $options): ImportPlan
     {
-        $total = count($this->read($source->path));
+        $total = $this->countRecords($source->path);
         $batchSize = max(1, $options->batchSize);
         $batches = [];
         for ($offset = 0, $sequence = 1; $offset < $total; $offset += $batchSize, $sequence++) {
@@ -82,7 +82,7 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
 
     public function process(ImportBatch $batch, ImportContext $context): ImportBatchResult
     {
-        $records = array_slice($this->recordsForJob($context->jobUuid), $batch->offset, $batch->limit);
+        $records = $this->readWindow($this->sourcePathForJob($context->jobUuid), $batch->offset, $batch->limit);
         $errors = [];
         $processed = 0;
 
@@ -157,8 +157,16 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
             // Hard delete (bypass soft-delete): this upserts a blob by uuid, so the old row must
             // physically go before the re-insert below — forceDelete() skips the soft-delete that
             // delete() applies to the deleted_at-bearing `blobs` table.
-            $this->db->table('blobs')->where('uuid', '=', (string) $data['uuid'])->forceDelete();
-            $this->db->table($table)->insert($data);
+            //
+            // Wrap the delete+insert in one transaction: process() catches per-record failures and
+            // keeps going, so without atomicity a failing insert (constraint/malformed row) — or a
+            // crash between the two statements — would leave the live blob metadata permanently
+            // deleted while the file it points at is orphaned. The transaction rolls the delete back
+            // so the original row survives an unsuccessful re-import.
+            $this->db->transaction(function () use ($table, $data): void {
+                $this->db->table('blobs')->where('uuid', '=', (string) $data['uuid'])->forceDelete();
+                $this->db->table($table)->insert($data);
+            });
             return;
         }
 
@@ -187,10 +195,7 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
         $query->update($update);
     }
 
-    /**
-     * @return list<array<string,mixed>>
-     */
-    private function recordsForJob(string $jobUuid): array
+    private function sourcePathForJob(string $jobUuid): string
     {
         $file = $this->db->table('import_export_files')
             ->where('job_uuid', '=', $jobUuid)
@@ -201,15 +206,46 @@ final class LemmaContentImporter implements ImporterInterface, RetryableAdapterI
             throw new \RuntimeException(sprintf('Import source file for job "%s" was not found.', $jobUuid));
         }
 
-        return $this->read($this->resolveSourcePath((string) $file['disk'], (string) $file['path']));
+        return $this->resolveSourcePath((string) $file['disk'], (string) $file['path']);
     }
 
     /**
+     * Read only the [offset, offset+limit) window of NDJSON records by streaming the reader (a
+     * generator) rather than materializing the whole file per batch — peak memory is O(limit), not
+     * O(file). Ordering is the file's own line order, so batch boundaries are stable.
+     *
      * @return list<array<string,mixed>>
      */
-    private function read(string $path): array
+    private function readWindow(string $path, int $offset, int $limit): array
     {
-        return iterator_to_array((new NdjsonReader())->read($path), false);
+        if ($limit < 1) {
+            return [];
+        }
+
+        $out = [];
+        $index = 0;
+        $end = $offset + $limit;
+        foreach ((new NdjsonReader())->read($path) as $record) {
+            if ($index >= $end) {
+                break;
+            }
+            if ($index >= $offset) {
+                $out[] = $record;
+            }
+            $index++;
+        }
+
+        return $out;
+    }
+
+    private function countRecords(string $path): int
+    {
+        $count = 0;
+        foreach ((new NdjsonReader())->read($path) as $ignored) {
+            $count++;
+        }
+
+        return $count;
     }
 
     private function resolveSourcePath(string $disk, string $path): string

@@ -37,10 +37,15 @@ final class ScheduleRunner
 
         $this->schedules->reclaimStale(300);
 
+        // Per-run lease token: rows this run claims are stamped with it, and only this run can write
+        // their terminal outcome. If a slow batch overruns the reclaim window and another run takes
+        // a row over, our markOutcome for it no-ops instead of racing that run's result.
+        $lockToken = bin2hex(random_bytes(16));
+
         $fired = 0;
-        foreach ($this->schedules->claimDuePending($limit) as $row) {
+        foreach ($this->schedules->claimDuePending($limit, $lockToken) as $row) {
             [$status, $reason] = $this->fire($row);
-            $this->schedules->markOutcome((int) $row['id'], $status, $reason);
+            $this->schedules->markOutcome((int) $row['id'], $status, $reason, $lockToken);
             $fired++;
         }
 

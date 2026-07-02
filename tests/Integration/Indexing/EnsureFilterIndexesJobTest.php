@@ -131,6 +131,42 @@ final class EnsureFilterIndexesJobTest extends LemmaTestCase
         self::assertNotNull($this->findExpressionIndex("(fields ->> 'price'::text))::numeric"));
     }
 
+    public function testFailedConcurrentBuildIsNotFlippedToReadyOnRetry(): void
+    {
+        // A row whose `price` is non-numeric makes ((fields->>'price')::numeric) fail to build,
+        // leaving an INVALID index behind. Previously the retry's CREATE INDEX ... IF NOT EXISTS
+        // no-opped over that dead index without error and the registry was flipped to 'ready' — a
+        // silent seq-scan. It must stay 'failed' until a valid index actually builds.
+        $type = $this->createType([
+            ['name' => 'price', 'type' => 'number', 'filterable' => true, 'filter_type' => 'number'],
+        ]);
+        $this->connection()->table('entry_versions')->insert([
+            'uuid' => 'badver00001',
+            'entry_uuid' => 'badentry0001',
+            'locale' => 'en',
+            'version' => 1,
+            'fields' => json_encode(['price' => 'not-a-number'], JSON_THROW_ON_ERROR),
+            'schema_version' => 1,
+            'created_by' => 'user00000001',
+            'created_at' => '2026-06-16 00:00:00',
+        ]);
+
+        try {
+            $this->runJob($type); // first build fails → 'failed', invalid index left behind
+            $this->runJob($type); // retry must drop the invalid index and rebuild, not mark 'ready'
+
+            $reg = $this->connection()->table('lemma_filter_indexes')
+                ->where('content_type_uuid', '=', $type)
+                ->where('field', '=', 'price')
+                ->first();
+            self::assertNotNull($reg);
+            self::assertSame('failed', $reg['status'], 'a never-valid index must never be reported ready');
+        } finally {
+            // Remove the poison row so it can't break other tests' index builds on entry_versions.
+            $this->connection()->table('entry_versions')->where('uuid', '=', 'badver00001')->delete();
+        }
+    }
+
     public function testRemovingFilterableFieldDropsIndexAndRegistry(): void
     {
         $type = $this->createType([

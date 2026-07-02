@@ -112,28 +112,42 @@ final class CsvUserImporter extends AbstractCsvImporter
             return;
         }
 
-        $password = $this->value($row, $mapping, 'password');
-        $status = $this->value($row, $mapping, 'status');
-        $uuid = $this->users->create([
-            'username' => $username,
-            'email' => $email,
-            // create() does not hash; a missing password becomes a random one (user must reset).
-            'password' => (new PasswordHasher())->hash($password !== '' ? $password : Utils::generateSecurePassword()),
-            'status' => $status !== '' ? $status : 'active',
-            'email_verified_at' => date('Y-m-d H:i:s'),
-        ]);
+        // One CSV row is one logical unit: the account, its profile, and its role assignments must
+        // all land or none do. Without the transaction a failure after create() (a profile/role
+        // write error, or an unknown role slug) left an orphaned `active` account that the uniqueness
+        // pre-checks above then made permanently un-retryable. A rollback lets the row be re-imported
+        // cleanly.
+        $this->db->transaction(function () use ($row, $mapping, $username, $email): void {
+            $password = $this->value($row, $mapping, 'password');
+            $status = $this->value($row, $mapping, 'status');
+            $uuid = $this->users->create([
+                'username' => $username,
+                'email' => $email,
+                // create() does not hash; a missing password becomes a random one (user must reset).
+                'password' => (new PasswordHasher())->hash(
+                    $password !== '' ? $password : Utils::generateSecurePassword()
+                ),
+                'status' => $status !== '' ? $status : 'active',
+                'email_verified_at' => date('Y-m-d H:i:s'),
+            ]);
 
-        $profile = array_filter([
-            'first_name' => $this->value($row, $mapping, 'first_name'),
-            'last_name' => $this->value($row, $mapping, 'last_name'),
-        ], static fn(string $v): bool => $v !== '');
-        if ($profile !== []) {
-            $this->users->updateProfile($uuid, $profile);
-        }
+            $profile = array_filter([
+                'first_name' => $this->value($row, $mapping, 'first_name'),
+                'last_name' => $this->value($row, $mapping, 'last_name'),
+            ], static fn(string $v): bool => $v !== '');
+            if ($profile !== []) {
+                $this->users->updateProfile($uuid, $profile);
+            }
 
-        foreach ($this->roles($row, $mapping) as $slug) {
-            $this->aegis->assignRole($uuid, $slug);
-        }
+            foreach ($this->roles($row, $mapping) as $slug) {
+                // assignRole returns false on an unknown/invalid slug; previously that was silently
+                // swallowed. Surface it as a row error so a typo'd role is reported (and, inside the
+                // transaction, rolls the account back) instead of importing a user missing its role.
+                if (!$this->aegis->assignRole($uuid, $slug)) {
+                    throw new \RuntimeException(sprintf('Could not assign role "%s" (unknown or invalid).', $slug));
+                }
+            }
+        });
     }
 
     protected function errorCode(): string

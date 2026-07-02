@@ -134,9 +134,32 @@ final class EnsureFilterIndexesJob extends Job
             $d['expression']
         );
         try {
+            // A prior CONCURRENTLY build that failed/was interrupted leaves an INVALID index of this
+            // name behind (Postgres). `CREATE INDEX ... IF NOT EXISTS` would then silently no-op over
+            // it (no error), so the fresh build never happens — drop the dead one first so the create
+            // actually rebuilds. Postgres-only; other drivers keep their existing behaviour.
+            if ($this->pgIndexValidity($db, $name) === false) {
+                $this->dropIndex($db, $name, $logger);
+            }
+
             // CREATE INDEX CONCURRENTLY cannot run inside a transaction — execute on the
             // raw PDO outside any transaction.
             $db->getPDO()->exec($sql);
+
+            // Not throwing is NOT proof of a usable index: the IF NOT EXISTS path can skip over an
+            // invalid index, and CONCURRENTLY can leave one invalid. On Postgres, confirm the index
+            // is actually valid before marking it ready; if it is invalid, drop it and mark failed so
+            // a later reconcile rebuilds instead of the planner silently seq-scanning over a dead one.
+            if ($this->pgIndexValidity($db, $name) === false) {
+                $this->dropIndex($db, $name, $logger);
+                $this->markStatus($db, $typeUuid, $name, 'failed');
+                $logger?->warning('EnsureFilterIndexesJob: expression index built invalid', [
+                    'index' => $name,
+                    'content_type_uuid' => $typeUuid,
+                ]);
+                return;
+            }
+
             $this->markStatus($db, $typeUuid, $name, 'ready');
         } catch (\Throwable $e) {
             $this->markStatus($db, $typeUuid, $name, 'failed');
@@ -146,6 +169,34 @@ final class EnsureFilterIndexesJob extends Job
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Validity of a same-named index on Postgres: true = present and valid, false = present but
+     * invalid, null = not present (or not Postgres, where this check does not apply).
+     */
+    private function pgIndexValidity(Connection $db, string $name): ?bool
+    {
+        $pdo = $db->getPDO();
+        if ($pdo->getAttribute(\PDO::ATTR_DRIVER_NAME) !== 'pgsql') {
+            return null;
+        }
+
+        // Cast to int and fetch a row (not fetchColumn): fetchColumn() returns false both for "no
+        // row" and for a boolean-false value, which would make an INVALID index look absent.
+        $stmt = $pdo->prepare(
+            'SELECT i.indisvalid::int
+             FROM pg_class c
+             JOIN pg_index i ON i.indexrelid = c.oid
+             WHERE c.relname = :name'
+        );
+        $stmt->execute([':name' => $name]);
+        $row = $stmt->fetch(\PDO::FETCH_NUM);
+        if ($row === false) {
+            return null; // no such index
+        }
+
+        return (int) $row[0] === 1;
     }
 
     private function dropIndex(Connection $db, string $name, ?LoggerInterface $logger): void

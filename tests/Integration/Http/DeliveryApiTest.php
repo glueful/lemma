@@ -439,4 +439,36 @@ final class DeliveryApiTest extends LemmaTestCase
         self::assertNull($empty->page);
         self::assertFalse($empty->wantsPagination());
     }
+
+    /**
+     * Regression: an array-valued `fields`/`expand` param on the public delivery path must not 500.
+     * FieldSelector::fromRequest and selectionKey() (ETag time) both read these; InputBag::get()
+     * throws BadRequestException on an array, so both must read via all() and treat it as absent.
+     */
+    public function testArrayValuedFieldsParamDoesNotThrowOnShow(): void
+    {
+        $uuid = $this->publish(['title' => 'Hello']);
+
+        $resp = $this->controller()->show(
+            $this->get(['fields' => ['title'], 'expand' => ['author']]),
+            $this->showQuery(),
+            'post',
+            $uuid,
+        );
+
+        self::assertSame(200, $resp->getStatusCode());
+    }
+
+    public function testArrayValuedFieldsParamDoesNotThrowOnIndex(): void
+    {
+        $this->publish(['title' => 'Hello']);
+
+        $resp = $this->controller()->index(
+            $this->get(['fields' => ['title'], 'sort' => ['title:asc']]),
+            $this->listQuery(),
+            'post',
+        );
+
+        self::assertSame(200, $resp->getStatusCode());
+    }
 }

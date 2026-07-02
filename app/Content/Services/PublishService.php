@@ -36,7 +36,11 @@ final class PublishService
     public function publish(string $entryUuid, string $locale, ?string $actor): string
     {
         $entry = $this->entries->findEntry($entryUuid);
-        if ($entry === null) {
+        if ($entry === null || ($entry['status'] ?? null) === 'deleted') {
+            // A soft-deleted entry keeps its draft/version rows, so publishing would mint a new
+            // immutable version and re-pin content that is supposed to be gone. Guard here so both
+            // the HTTP path and any other caller share the check (ScheduleRunner already guards).
+            // The RuntimeException maps to a 404 in PublicationController.
             throw new \RuntimeException("entry {$entryUuid} not found");
         }
         $draft = $this->entries->findDraft($entryUuid, $locale);
@@ -63,8 +67,10 @@ final class PublishService
             }
         }
 
-        // Throws ValidationException before any write if the draft is invalid.
-        $clean = $this->validator->validate($schema, $fields);
+        // Throws ValidationException before any write if the draft is invalid. Publish is the strict
+        // gate: unlike draft saves, a present-but-empty required field or a dangling reference is
+        // rejected here so invalid content can't go live (draft saves stay permissive).
+        $clean = $this->validator->validate($schema, $fields, true);
 
         $version = 0;
         $versionUuid = db($this->context)->transaction(
@@ -126,6 +132,11 @@ final class PublishService
             throw new \RuntimeException('version does not belong to this entry/locale');
         }
         $entry = $this->entries->findEntry($entryUuid);
+        if ($entry !== null && ($entry['status'] ?? null) === 'deleted') {
+            // Same rule as publish(): don't re-pin a version onto a soft-deleted entry. Mapped to a
+            // 422 in PublicationController::rollback.
+            throw new \RuntimeException('entry has been deleted');
+        }
         $schema = $entry === null
             ? null
             : $this->types->schemaFor((string) $entry['content_type_uuid']);

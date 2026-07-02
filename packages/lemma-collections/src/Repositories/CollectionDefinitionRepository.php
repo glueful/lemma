@@ -45,11 +45,21 @@ final class CollectionDefinitionRepository
 
     /**
      * Overwrite all mutable columns for an existing row (matched by uuid).
+     *
+     * When $expectedSchemaVersion is given, the write only applies if the stored row still
+     * carries that version (optimistic concurrency for schema mutations). Returns the number
+     * of rows updated — 0 means the guard lost the race (or the row is gone).
      */
-    public function update(CollectionDefinition $def): void
+    public function update(CollectionDefinition $def, ?int $expectedSchemaVersion = null): int
     {
-        $this->connection->table('collection_definitions')
-            ->where('uuid', $def->uuid)
+        $query = $this->connection->table('collection_definitions')
+            ->where('uuid', $def->uuid);
+
+        if ($expectedSchemaVersion !== null) {
+            $query->where('schema_version', $expectedSchemaVersion);
+        }
+
+        return $query
             ->update([
                 'name'           => $def->name,
                 'label'          => $def->label,

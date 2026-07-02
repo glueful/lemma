@@ -51,6 +51,39 @@ final class RequireLemmaPermissionTest extends TestCase
         self::assertSame(403, $resp->getStatusCode());
     }
 
+    public function testApiKeyWithoutMatchingScopeIsForbidden(): void
+    {
+        // A fully authenticated api-key principal whose OWNER would pass the RBAC check,
+        // but whose key is scoped for something else — the scope gate must deny before
+        // owner permissions are ever consulted (leaked narrow keys can't reach admin).
+        $mw = new RequireLemmaPermission($this->contextWithoutContainer());
+        $resp = $mw->handle(
+            $this->apiKeyRequest(['products.read']),
+            fn() => new Response(),
+            'collections.schema.manage',
+        );
+        self::assertSame(403, $resp->getStatusCode());
+    }
+
+    public function testApiKeyWithEmptyScopesIsForbidden(): void
+    {
+        // The framework treats an empty scope list as "full access" (legacy keys); the
+        // admin gate must treat it as no authority at all.
+        $mw = new RequireLemmaPermission($this->contextWithoutContainer());
+        $resp = $mw->handle($this->apiKeyRequest([]), fn() => new Response(), 'content.view');
+        self::assertSame(403, $resp->getStatusCode());
+    }
+
+    private function apiKeyRequest(array $scopes): Request
+    {
+        $request = new Request();
+        $request->attributes->set('user', ['uuid' => 'usr_owner1', 'roles' => ['administrator']]);
+        $request->attributes->set('auth_method', 'api_key');
+        $request->attributes->set('api_key_scopes', $scopes);
+
+        return $request;
+    }
+
     public function testResourceForDerivesLocaleScopedResourceFromRouteParam(): void
     {
         $mw = new RequireLemmaPermission($this->contextWithoutContainer());

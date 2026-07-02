@@ -203,21 +203,53 @@ final class DdlPlannerTest extends TestCase
         self::assertContains('add_field', $opNames);
     }
 
-    // ----------------------------------------- planAlter: new field with unique — no separate add_index
+    // ----------------------------------------- planAlter: new field with unique — explicit add_index
 
-    public function testAddingNewFieldWithUniqueEmitsOnlyAddField(): void
+    public function testAddingNewFieldWithUniqueEmitsAddFieldPlusUniqueIndexOp(): void
     {
         $p     = new DdlPlanner();
         $empty = self::def([]);
         $next  = self::def(['slug' => self::text(['unique' => true])]);
 
-        $ops     = $p->planAlter($empty, $next);
-        $opNames = array_map(fn ($o) => $o->op, $ops);
+        $ops = $p->planAlter($empty, $next);
 
-        self::assertContains('add_field', $opNames);
-        // new field — the add_field carries the unique setting; add_index is NOT emitted
-        // separately for brand-new fields (the index is created with the column)
-        self::assertNotContains('add_index', $opNames);
+        // Indexes are never inline column modifiers: a separate add_index op with the
+        // kind fixed at plan time follows the add_field (see planner docblock).
+        self::assertSame(['add_field', 'add_index'], array_map(fn ($o) => $o->op, $ops));
+        self::assertSame('unique', $ops[1]->indexKind);
+        self::assertFalse($ops[1]->destructive, 'a brand-new column trivially passes the pre-flight');
+    }
+
+    public function testAddingNewFieldWithPlainIndexEmitsPlainIndexOp(): void
+    {
+        $p    = new DdlPlanner();
+        $ops  = $p->planAlter(self::def([]), self::def(['status' => self::text(['index' => true])]));
+
+        self::assertSame(['add_field', 'add_index'], array_map(fn ($o) => $o->op, $ops));
+        self::assertSame('plain', $ops[1]->indexKind);
+    }
+
+    public function testUniqueAndIndexOnNewFieldEmitsOnlyTheUniqueOp(): void
+    {
+        // Effective-plain rule: a unique constraint already serves lookups, so the
+        // redundant plain index is never planned.
+        $p   = new DdlPlanner();
+        $ops = $p->planAlter(self::def([]), self::def(['code' => self::text(['unique' => true, 'index' => true])]));
+
+        self::assertSame(['add_field', 'add_index'], array_map(fn ($o) => $o->op, $ops));
+        self::assertSame('unique', $ops[1]->indexKind);
+    }
+
+    public function testDroppingUniquePlansAUniqueKindDrop(): void
+    {
+        $p   = new DdlPlanner();
+        $ops = $p->planAlter(
+            self::def(['sku' => self::text(['unique' => true])]),
+            self::def(['sku' => self::text()]),
+        );
+
+        self::assertSame(['drop_index'], array_map(fn ($o) => $o->op, $ops));
+        self::assertSame('unique', $ops[0]->indexKind);
     }
 
     // ----------------------------------------- planAlter: storage-signature blocks (v1 rule)

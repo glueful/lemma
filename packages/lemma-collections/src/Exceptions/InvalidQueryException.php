@@ -12,6 +12,7 @@ namespace Glueful\Lemma\Collections\Exceptions;
  *   - filter on a field whose registry capability 'filterable' = false
  *   - sort on a field whose registry capability 'sortable' = false
  *   - unknown filter operator
+ *   - malformed parameter shapes (array where a scalar is expected, empty `in` list)
  */
 final class InvalidQueryException extends \InvalidArgumentException
 {
@@ -49,5 +50,10 @@ final class InvalidQueryException extends \InvalidArgumentException
             $op,
             $field,
         ));
+    }
+
+    public static function malformedParam(string $param, string $expected): self
+    {
+        return new self(sprintf('Malformed %s parameter: expected %s.', $param, $expected));
     }
 }

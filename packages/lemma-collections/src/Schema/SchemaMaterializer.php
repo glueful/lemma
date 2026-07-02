@@ -142,26 +142,25 @@ final class SchemaMaterializer
     }
 
     /**
-     * Pre-flight: for `add_index` with `unique=true`, abort if the column already has
+     * Pre-flight: for a planned unique `add_index`, abort if the column already has
      * duplicate values (applying the constraint would fail at the DB level).
      *
      * @throws PreflightFailedException
      */
     private function preflight(CollectionDefinition $def, SchemaChange $op): void
     {
-        if ($op->op !== 'add_index' || $op->field === null) {
-            return;
-        }
-
-        if (empty($op->field->settings['unique'])) {
+        if ($op->op !== 'add_index' || $op->field === null || $op->indexKind !== 'unique') {
             return;
         }
 
         $spec = $this->mapper->column($op->field);
 
+        // NULLs are excluded: the database allows any number of NULLs under a unique
+        // index (PostgreSQL default NULLS DISTINCT), so they are not duplicates.
         $dupes = $this->connection
             ->table($def->tableName)
             ->select([$spec->name])
+            ->whereNotNull($spec->name)
             ->groupBy($spec->name)
             ->havingRaw('COUNT(*) > 1')
             ->get();
@@ -198,13 +197,7 @@ final class SchemaMaterializer
                 $this->schema->alterTable(
                     $def->tableName,
                     function (TableBuilderInterface $t) use ($spec): void {
-                        $col = $this->buildColumn($t, $spec);
-                        if ($spec->nullable) {
-                            $col->nullable();
-                        }
-                        if ($spec->unique) {
-                            $col->unique();
-                        }
+                        $this->applyColumnSpec($t, $spec);
                     },
                 );
                 break;
@@ -229,7 +222,9 @@ final class SchemaMaterializer
                 throw new \LogicException("add_index op is missing its field");
                 $spec      = $this->mapper->column($field);
                 $colName   = $spec->name;
-                $isUnique  = !empty($field->settings['unique']);
+                // The kind was fixed at plan time — never re-derive it from the field's
+                // (post-change) settings, which describe the target state, not the op.
+                $isUnique  = $op->indexKind === 'unique';
 
             if ($isUnique) {
                 $this->schema->alterTable(
@@ -254,7 +249,7 @@ final class SchemaMaterializer
                 throw new \LogicException("drop_index op is missing its field");
                 $spec     = $this->mapper->column($field);
                 $colName  = $spec->name;
-                $isUnique = !empty($field->settings['unique']);
+                $isUnique = $op->indexKind === 'unique';
                 $table    = $def->tableName;
 
             if ($isUnique) {
@@ -318,14 +313,23 @@ final class SchemaMaterializer
      */
     private function addFieldColumn(TableBuilderInterface $t, CollectionField $field): void
     {
-        $spec = $this->mapper->column($field);
-        $col  = $this->buildColumn($t, $spec);
+        $this->applyColumnSpec($t, $this->mapper->column($field));
+    }
+
+    /**
+     * Add a ColumnSpec's column to the builder. Only `nullable` is applied inline —
+     * indexes (unique and plain) arrive as separate planned add_index ops. Inline
+     * `->unique()` at CREATE TABLE becomes a Postgres table constraint that the
+     * drop_index path (DROP INDEX) cannot remove, and inline `->index()` is silently
+     * discarded by the create-table SQL generator; the alter path produces real,
+     * droppable index artifacts for both.
+     */
+    private function applyColumnSpec(TableBuilderInterface $t, ColumnSpec $spec): void
+    {
+        $col = $this->buildColumn($t, $spec);
 
         if ($spec->nullable) {
             $col->nullable();
-        }
-        if ($spec->unique) {
-            $col->unique();
         }
     }
 

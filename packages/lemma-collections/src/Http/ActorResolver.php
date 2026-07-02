@@ -47,7 +47,10 @@ final class ActorResolver
 
         // Session-based auth (JWT or similar): derive type from the user's roles.
         // Prefer the UserIdentity set by AuthMiddleware on 'auth.user'; fall back to
-        // the plain 'user' array which AuthMiddleware also sets.
+        // the plain 'user' array, then to the provider-level 'user_data'/'user_id'
+        // attributes — on public routes no auth middleware runs, and the on-demand
+        // JWT authentication (CollectionAccessResolver) sets only the provider pair,
+        // which previously left scoped JWT writes stamped created_by_id = NULL.
         $identity = $request->attributes->get('auth.user');
 
         if ($identity instanceof UserIdentity) {
@@ -55,11 +58,20 @@ final class ActorResolver
             $roles    = $identity->roles();
         } else {
             $userData = (array) ($request->attributes->get('user') ?? []);
+            if ($userData === []) {
+                $userData = (array) ($request->attributes->get('user_data') ?? []);
+            }
             $userUuid = (string) ($userData['uuid'] ?? '');
-            $roles    = (array) ($userData['roles'] ?? []);
+            if ($userUuid === '') {
+                $userUuid = (string) ($request->attributes->get('user_id') ?? '');
+            }
+            $roles = (array) ($userData['roles'] ?? []);
         }
 
-        $isAdmin = in_array(self::ADMIN_ROLE, $roles, true);
+        // JWT user arrays often carry no 'roles' (the Aegis enricher is optional); the
+        // provider-level is_admin flag is the fallback signal for admin stamping.
+        $isAdmin = in_array(self::ADMIN_ROLE, $roles, true)
+            || (bool) (($userData ?? [])['is_admin'] ?? false);
 
         return new Actor(
             $isAdmin ? 'admin' : 'user',

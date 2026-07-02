@@ -10,6 +10,7 @@ use Glueful\Lemma\Collections\Events\CollectionCreated;
 use Glueful\Lemma\Collections\Events\CollectionDropped;
 use Glueful\Lemma\Collections\Events\CollectionUpdated;
 use Glueful\Lemma\Collections\Exceptions\CollectionValidationException;
+use Glueful\Lemma\Collections\Exceptions\ConcurrentSchemaChangeException;
 use Glueful\Lemma\Collections\Exceptions\DestructiveConfirmationRequiredException;
 use Glueful\Lemma\Collections\Repositories\CollectionDefinitionRepository;
 use Glueful\Lemma\Collections\Schema\AccessPolicy;
@@ -152,19 +153,18 @@ final class CollectionManager
             fieldOrder: $fieldOrder,
         );
 
-        $this->repo->insert($def);
-
-        try {
+        // One transaction covers the definition row AND the DDL: on PostgreSQL (and SQLite)
+        // DDL is transactional, so a failure anywhere rolls back both — no orphan table,
+        // no dangling definition. The materializer's own transaction nests as a savepoint.
+        $this->connection->transaction(function () use ($def, $actorType, $actorId): void {
+            $this->repo->insert($def);
             $this->materializer->apply(
                 $def,
                 $this->planner->planCreate($def),
                 $actorType,
                 $actorId,
             );
-        } catch (\Throwable $e) {
-            $this->repo->delete($def->uuid);
-            throw $e;
-        }
+        });
 
         $this->events->dispatch(new CollectionCreated($name, $actorType, $actorId));
 
@@ -186,9 +186,17 @@ final class CollectionManager
     ): CollectionDefinition {
         $current   = $this->loadOrFail($name);
         $fieldName = isset($field['name']) ? (string) $field['name'] : '';
-        $error     = $this->validateFieldName($fieldName);
-        if ($error !== null) {
-            throw CollectionValidationException::make(['name' => $error]);
+
+        $fieldErrors = $this->validateFieldSpec($field, $current->tableName);
+        if ($fieldErrors === [] && $this->findField($current, $fieldName) !== null) {
+            $fieldErrors['name'] = sprintf(
+                "Field '%s' already exists on collection '%s'.",
+                $fieldName,
+                $name,
+            );
+        }
+        if ($fieldErrors !== []) {
+            throw CollectionValidationException::make($fieldErrors);
         }
 
         $newField = CollectionField::fromArray($field);
@@ -196,8 +204,7 @@ final class CollectionManager
         $next = $this->rebuildWith($current, [...$current->fields, $newField]);
         $ops  = $this->planner->planAlter($current, $next);
 
-        $this->materializer->apply($next, $ops, $actorType, $actorId);
-        $this->repo->update($next);
+        $this->commitAlter($current, $next, $ops, $actorType, $actorId);
 
         $this->events->dispatch(new CollectionUpdated($name, 'field_added', $fieldName, $actorType, $actorId));
 
@@ -220,6 +227,7 @@ final class CollectionManager
         ?string $actorId,
     ): CollectionDefinition {
         $current = $this->loadOrFail($name);
+        $this->fieldOrFail($current, $field);
 
         $updatedFields = array_map(
             static fn (CollectionField $f): CollectionField => $f->name === $field
@@ -231,8 +239,17 @@ final class CollectionManager
         $next = $this->rebuildWith($current, array_values($updatedFields));
         $ops  = $this->planner->planAlter($current, $next);
 
-        $this->materializer->apply($next, $ops, $actorType, $actorId);
-        $this->repo->update($next);
+        if ($ops === []) {
+            // Nothing to do physically — bumping schema_version and dispatching an
+            // index_added event for a change that never happened would corrupt the audit.
+            throw CollectionValidationException::make(['index' => sprintf(
+                "Field '%s' already carries the requested index"
+                . ' (a unique constraint also serves lookups, so a separate plain index is never created).',
+                $field,
+            )]);
+        }
+
+        $this->commitAlter($current, $next, $ops, $actorType, $actorId);
 
         $this->events->dispatch(new CollectionUpdated($name, 'index_added', $field, $actorType, $actorId));
 
@@ -251,6 +268,7 @@ final class CollectionManager
         ?string $actorId,
     ): CollectionDefinition {
         $current = $this->loadOrFail($name);
+        $this->fieldOrFail($current, $field);
 
         $indexKeys     = ['index' => true, 'unique' => true];
         $updatedFields = array_map(
@@ -267,8 +285,14 @@ final class CollectionManager
         $next = $this->rebuildWith($current, array_values($updatedFields));
         $ops  = $this->planner->planAlter($current, $next);
 
-        $this->materializer->apply($next, $ops, $actorType, $actorId);
-        $this->repo->update($next);
+        if ($ops === []) {
+            throw CollectionValidationException::make(['index' => sprintf(
+                "Field '%s' has no indexes to remove.",
+                $field,
+            )]);
+        }
+
+        $this->commitAlter($current, $next, $ops, $actorType, $actorId);
 
         $this->events->dispatch(new CollectionUpdated($name, 'index_removed', $field, $actorType, $actorId));
 
@@ -295,6 +319,7 @@ final class CollectionManager
         ?string $actorId,
     ): CollectionDefinition {
         $current = $this->loadOrFail($name);
+        $this->fieldOrFail($current, $field);
 
         if (!$this->isTableEmpty($current->tableName)) {
             $confirm = $opts['confirm'] ?? null;
@@ -311,8 +336,7 @@ final class CollectionManager
         $next = $this->rebuildWith($current, $updatedFields);
         $ops  = $this->planner->planAlter($current, $next);
 
-        $this->materializer->apply($next, $ops, $actorType, $actorId);
-        $this->repo->update($next);
+        $this->commitAlter($current, $next, $ops, $actorType, $actorId);
 
         $this->events->dispatch(new CollectionUpdated($name, 'field_dropped', $field, $actorType, $actorId));
 
@@ -347,25 +371,36 @@ final class CollectionManager
             }
         }
 
-        $this->materializer->apply(
-            $current,
-            [new SchemaChange('drop_table', null, true)],
-            $actorType,
-            $actorId,
-        );
-
-        $this->repo->delete($current->uuid);
+        // Definition delete + DROP TABLE in one transaction: a failure in either rolls
+        // back both, so the definition can never point at a missing table (which would
+        // also break the isTableEmpty() guard on a retry).
+        $this->connection->transaction(function () use ($current, $actorType, $actorId): void {
+            $this->repo->delete($current->uuid);
+            $this->materializer->apply(
+                $current,
+                [new SchemaChange('drop_table', null, true)],
+                $actorType,
+                $actorId,
+            );
+        });
 
         $this->events->dispatch(new CollectionDropped($name, $actorType, $actorId));
     }
 
     /**
-     * Replace a collection's access policy. Metadata only — no table DDL, no schema-version bump.
+     * Replace a collection's access policy. Metadata only — no table DDL, no schema-version
+     * bump — but fully audited: this is the mutation that can make a collection
+     * world-readable/writable, so it stamps the actor on a schema-change audit row and
+     * dispatches a CollectionUpdated event like every structural change.
      *
      * @throws \DomainException when no collection with $name exists.
      */
-    public function setAccessPolicy(string $name, AccessPolicy $policy): CollectionDefinition
-    {
+    public function setAccessPolicy(
+        string $name,
+        AccessPolicy $policy,
+        string $actorType,
+        ?string $actorId,
+    ): CollectionDefinition {
         $current = $this->loadOrFail($name);
         $next    = new CollectionDefinition(
             uuid: $current->uuid,
@@ -379,7 +414,25 @@ final class CollectionManager
             accessPolicy: $policy,
             fieldOrder: $current->fieldOrder,
         );
-        $this->repo->update($next);
+
+        $now = date('Y-m-d H:i:s');
+        $this->connection->transaction(function () use ($current, $next, $policy, $actorType, $actorId, $now): void {
+            $this->repo->update($next);
+            $this->connection->table('collection_schema_changes')->insert([
+                'uuid'            => PublicId::generate('sc'),
+                'collection_uuid' => $current->uuid,
+                'change_type'     => 'update_access',
+                'payload'         => (string) json_encode($policy->toArray(), JSON_THROW_ON_ERROR),
+                'actor_type'      => $actorType,
+                'actor_id'        => $actorId,
+                'destructive'     => 0,
+                'status'          => 'applied',
+                'created_at'      => $now,
+                'applied_at'      => $now,
+            ]);
+        });
+
+        $this->events->dispatch(new CollectionUpdated($name, 'access_updated', null, $actorType, $actorId));
 
         return $next;
     }
@@ -439,24 +492,96 @@ final class CollectionManager
             throw CollectionValidationException::make($errors);
         }
 
-        // fields: validate each field's name (format, system-column, SQL-keyword) and type.
-        $supportedTypes = $this->columnMapper->supportedTypes();
+        // A taken name is a validation error, not a raw unique-constraint 500. The DB
+        // constraint still backs the rare create/create race.
+        if ($this->repo->findByName($name) !== null) {
+            throw CollectionValidationException::make([
+                'name' => sprintf("A collection named '%s' already exists.", $name),
+            ]);
+        }
+
+        // fields: full per-field validation plus duplicate-name detection across the payload.
+        $tableName = self::tableNameFor($name);
+        $seen      = [];
         foreach ((array) ($payload['fields'] ?? []) as $i => $fieldData) {
-            $fieldName = isset($fieldData['name']) ? (string) $fieldData['name'] : '';
-            $error     = $this->validateFieldName($fieldName);
-            if ($error !== null) {
-                $errors["fields.{$i}.name"] = $error;
+            foreach ($this->validateFieldSpec((array) $fieldData, $tableName) as $key => $message) {
+                $errors["fields.{$i}.{$key}"] = $message;
             }
 
-            $fieldType = isset($fieldData['type']) ? (string) $fieldData['type'] : '';
-            if (!in_array($fieldType, $supportedTypes, true)) {
-                $errors["fields.{$i}.type"] = sprintf("Unsupported field type '%s'.", $fieldType);
+            $fieldName = isset($fieldData['name']) ? (string) $fieldData['name'] : '';
+            if ($fieldName !== '' && isset($seen[$fieldName])) {
+                $errors["fields.{$i}.name"] = sprintf("Duplicate field name '%s'.", $fieldName);
             }
+            $seen[$fieldName] = true;
         }
 
         if ($errors !== []) {
             throw CollectionValidationException::make($errors);
         }
+    }
+
+    /**
+     * Validate a full field descriptor (name, type, settings) for creation on $tableName.
+     *
+     * Shared by create() and addField(). Returns error messages keyed by the offending
+     * part ('name', 'type', 'settings.length', ...); empty when the field is acceptable.
+     *
+     * @param array<string, mixed> $fieldData
+     *
+     * @return array<string, string>
+     */
+    private function validateFieldSpec(array $fieldData, string $tableName): array
+    {
+        $errors = [];
+
+        $name  = isset($fieldData['name']) ? (string) $fieldData['name'] : '';
+        $error = $this->validateFieldName($name);
+        if ($error !== null) {
+            $errors['name'] = $error;
+        } elseif (strlen($tableName) + strlen($name) + 8 > 63) {
+            // The longest derived identifier is the unique-index name
+            // "{table}_{field}_unique"; PostgreSQL silently truncates identifiers at
+            // 63 bytes, which would make two long names collide.
+            $errors['name'] = sprintf(
+                "Field name '%s' is too long: the derived index name '%s_%s_unique' must fit"
+                . ' the 63-character identifier limit.',
+                $name,
+                $tableName,
+                $name,
+            );
+        }
+
+        $type = isset($fieldData['type']) ? (string) $fieldData['type'] : '';
+        if (!in_array($type, $this->columnMapper->supportedTypes(), true)) {
+            $errors['type'] = sprintf("Unsupported field type '%s'.", $type);
+        }
+
+        $s = isset($fieldData['settings']) && is_array($fieldData['settings']) ? $fieldData['settings'] : [];
+
+        if (isset($s['length']) && ((int) $s['length'] < 1 || (int) $s['length'] > 10485760)) {
+            $errors['settings.length'] = 'length must be between 1 and 10485760.';
+        }
+
+        if (isset($s['precision']) || isset($s['scale'])) {
+            $precision = isset($s['precision']) ? (int) $s['precision'] : 10;
+            $scale     = isset($s['scale']) ? (int) $s['scale'] : 2;
+            if ($precision < 1 || $precision > 1000) {
+                $errors['settings.precision'] = 'precision must be between 1 and 1000.';
+            } elseif ($scale < 0 || $scale > $precision) {
+                $errors['settings.scale'] = 'scale must be between 0 and the precision.';
+            }
+        }
+
+        if ($type === 'collections.enum') {
+            $values = $s['values'] ?? null;
+            $strings = is_array($values) ? array_filter($values, 'is_string') : [];
+            if (!is_array($values) || $values === [] || count($strings) !== count($values)) {
+                // Without a values list the enum degrades to free text.
+                $errors['settings.values'] = 'Enum fields require a non-empty settings.values list of strings.';
+            }
+        }
+
+        return $errors;
     }
 
     /**
@@ -489,6 +614,33 @@ final class CollectionManager
         }
 
         return $def;
+    }
+
+    /** The named field on the definition, or null. */
+    private function findField(CollectionDefinition $def, string $field): ?CollectionField
+    {
+        foreach ($def->fields as $f) {
+            if ($f->name === $field) {
+                return $f;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Assert the named field exists on the definition — a typo'd field name must 404,
+     * not silently "succeed" while bumping schema_version and dispatching a phantom event.
+     *
+     * @throws \DomainException
+     */
+    private function fieldOrFail(CollectionDefinition $def, string $field): CollectionField
+    {
+        return $this->findField($def, $field) ?? throw new \DomainException(sprintf(
+            "Field '%s' not found on collection '%s'.",
+            $field,
+            $def->name,
+        ));
     }
 
     /**
@@ -525,6 +677,35 @@ final class CollectionManager
         }
 
         return null;
+    }
+
+    /**
+     * Commit a planned schema alter: the version-guarded definition write and the DDL in
+     * one transaction.
+     *
+     * The guarded UPDATE runs FIRST — it takes the definition row's lock, so concurrent
+     * alters serialize here (the loser's WHERE re-evaluates against the committed row,
+     * matches zero rows, and throws) before any DDL has run. A DDL failure afterwards
+     * rolls back the definition write together with the DDL (transactional on PostgreSQL
+     * and SQLite), so the definition and the physical table never diverge.
+     *
+     * @param list<SchemaChange> $ops
+     *
+     * @throws ConcurrentSchemaChangeException when another change won the version race.
+     */
+    private function commitAlter(
+        CollectionDefinition $current,
+        CollectionDefinition $next,
+        array $ops,
+        string $actorType,
+        ?string $actorId,
+    ): void {
+        $this->connection->transaction(function () use ($current, $next, $ops, $actorType, $actorId): void {
+            if ($this->repo->update($next, expectedSchemaVersion: $current->schemaVersion) === 0) {
+                throw ConcurrentSchemaChangeException::forCollection($current->name);
+            }
+            $this->materializer->apply($next, $ops, $actorType, $actorId);
+        });
     }
 
     /**

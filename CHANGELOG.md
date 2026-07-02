@@ -6,7 +6,62 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 
 ## [Unreleased]
 
+### Security
+- Admin routes (`lemma_permission` gate) now require API-key principals to carry a key scope
+  satisfying the required permission slug (wildcards via fnmatch; empty scope list = deny), on top
+  of the owner's RBAC. Previously any leaked key — however narrowly scoped — inherited its owner's
+  full admin rights, including schema DDL.
+- Collections: an API key minted with an empty scope list no longer gets full read/write/delete on
+  every scoped collection (the framework's `scopeSatisfies([]) === true` legacy semantics are
+  overridden to default-deny in `CollectionAccessResolver`).
+- Collections capabilities are now namespaced `collections.{name}.{op}` (was the bare
+  `{name}.{op}`, as `products.write`): a collection named after another scope/permission family —
+  e.g. `users` — no longer fails open to that family's unrelated `users.read` grants. **Breaking
+  for pre-release keys/permissions minted with the unprefixed form** — re-mint with the
+  `collections.` prefix.
+- Collections public data routes are now rate-limited (reads 120/min, writes/deletes 60/min,
+  bulk-create 20/min; keyed by the authenticated principal, per-IP for anonymous public reads),
+  matching every other public Lemma surface.
+- Access-policy replacement (`PATCH /v1/admin/collections/{name}/access`) — the mutation that can
+  make a collection world-readable/writable — is now fully audited: it stamps the acting admin on
+  a `collection_schema_changes` row (`update_access`, policy payload) and dispatches
+  `CollectionUpdated('access_updated')`.
+
 ### Fixed
+- Collections (pre-release hardening of `glueful/lemma-collections`, from the package review):
+  every schema mutation (create, add/drop field, add/remove index, drop collection) now commits
+  the definition write and its DDL in ONE transaction with an optimistic `schema_version` guard —
+  a mid-operation failure can no longer leave the definition and the physical table permanently
+  diverged (previously un-retryable: duplicate-column/missing-table DDL errors forever), a failed
+  create no longer orphans the table (making the name uncreatable), and concurrent alters now get
+  a 409 instead of silently losing one admin's field. Index ops carry their kind (`unique`/`plain`)
+  fixed at plan time — dropping a unique constraint used to be impossible (and one path silently
+  dropped the unique while metadata still claimed it), and `settings.index` on new fields was
+  silently never materialized (inline indexes are discarded/constraint-ified by the create-table
+  SQL path; all indexes are now planned as explicit alter ops). Admin truncate now requires the
+  same `confirm` token as the other destructive ops, resolves the actor, dispatches a
+  `CollectionTruncated` audit event, and no longer uses `CASCADE`. Validation hardening turns a
+  raft of raw-driver 500s into per-field 422s: field type/duplicate-name/taken-collection-name
+  checks, identifier length budgets (63-char Postgres limit incl. derived index names), enum
+  `values` required, string/email/url length caps, 32-bit integer range, decimal precision fit,
+  JSON fields actually validated (arrays encoded instead of stored as the literal `"Array"`),
+  relation/asset lists capped at 100 and batch-verified (was one query per element), soft-deleted
+  blobs rejected as asset targets, LIKE metacharacters escaped in the reference check, typo'd
+  field names on index/drop ops now 404 instead of phantom-succeeding (bumping `schema_version`
+  and dispatching events for no-op changes), the unique-index preflight no longer false-positives
+  on NULLs, and array-valued query params / `filter[f][null]=false` truthiness no longer crash or
+  invert list queries. Scoped JWT writes on the public data API are now attributed: the on-demand
+  session auth memoizes the principal onto the request and `ActorResolver` reads the provider-level
+  `user_data`/`user_id` attributes, so rows no longer stamp `created_by_id = NULL` for session
+  users. Row create/update/delete now bracket their check-then-act pairs (relation-target
+  existence, restrict-delete reference check) in a transaction with events dispatched after
+  commit; malformed JSON bodies are a 400 instead of silently proceeding as `{}`; corrupt
+  persisted `fields` JSON fails loudly instead of degrading to "zero fields"; `?expand` of
+  multi-relations tolerates legacy non-string JSON members; session admins holding
+  `collections.data.manage` can expand scoped targets in the admin data browser (previously
+  403'd on targets they could already read directly); admin rows stamp
+  `created_by_type='admin'` via the provider-level `is_admin` flag when roles are absent; and
+  the permissions seed migration skips gracefully on hosts without an RBAC `permissions` table.
 - Search (pre-release hardening of the unreleased `/v1/search` feature, from the branch review):
   Meilisearch-safe document ids (`{uuid}_{locale}` — colons are invalid Meilisearch ids, so
   nothing could ever be indexed against a real server); `entry_uuid` added to the filterable

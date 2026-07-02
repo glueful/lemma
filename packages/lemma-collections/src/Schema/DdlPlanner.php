@@ -11,28 +11,39 @@ use Glueful\Lemma\Collections\Exceptions\BlockedSchemaChangeException;
  * and emits the list of SchemaChange operations required to converge the schema.
  *
  * Rules (v1):
- *  - planCreate always emits exactly one `create_table` op.
+ *  - planCreate emits one `create_table` op followed by an `add_index` op per indexed field.
  *  - planAlter diffs field lists by name:
- *      · name only in $next       → add_field (destructive: false)
+ *      · name only in $next       → add_field (destructive: false) + its add_index ops
  *      · name only in $current    → drop_field (destructive: true)
  *      · same name, changed storage signature → throws BlockedSchemaChangeException.
  *        Storage signature = type + (nullable, length, precision, scale, bigint, target, multi).
  *        `index` and `unique` are explicitly excluded and diffed separately (see below).
  *      · same name, only index/unique changed → add_index / drop_index (not blocked)
- *  - Adding a unique index (false→true) is flagged destructive: true (needs data pre-flight).
- *  - Index ops for brand-new fields are NOT emitted separately; the add_field op already
- *    carries the field's settings; the materializer creates the index with the column.
+ *  - Adding a unique index to an EXISTING field (false→true) is flagged destructive: true
+ *    (needs data pre-flight); on a brand-new column the pre-flight is trivially satisfied.
+ *  - Indexes are ALWAYS separate ops, never inline column modifiers. Inline unique at
+ *    CREATE TABLE becomes a Postgres table CONSTRAINT that `dropUnique` (DROP INDEX)
+ *    cannot remove, and inline plain indexes are silently discarded by the create-table
+ *    SQL generator. Routing every index through the alter path yields real, droppable
+ *    CREATE [UNIQUE] INDEX artifacts with the framework's auto-names.
  */
 final class DdlPlanner
 {
     /**
-     * Plan the operations required to create a collection's table from scratch.
+     * Plan the operations required to create a collection's table from scratch:
+     * the create_table op, then one add_index op per indexed field.
      *
      * @return list<SchemaChange>
      */
     public function planCreate(CollectionDefinition $definition): array
     {
-        return [new SchemaChange('create_table', null, false)];
+        $ops = [new SchemaChange('create_table', null, false)];
+
+        foreach ($definition->fields as $field) {
+            $ops = array_merge($ops, $this->indexOpsForNewField($field));
+        }
+
+        return $ops;
     }
 
     /**
@@ -89,12 +100,11 @@ final class DdlPlanner
             }
         }
 
-        // Fields added in $next → non-destructive add.
-        // Index ops are NOT emitted separately for new fields; the materializer
-        // creates the index alongside the column using the field's settings.
+        // Fields added in $next → non-destructive add, plus the new column's index ops.
         foreach ($nextMap as $name => $field) {
             if (!isset($currentMap[$name])) {
                 $ops[] = new SchemaChange('add_field', $field, false);
+                $ops   = array_merge($ops, $this->indexOpsForNewField($field));
             }
         }
 
@@ -142,7 +152,39 @@ final class DdlPlanner
     }
 
     /**
+     * The add_index ops for a brand-new column, applying the same effective-plain rule
+     * as {@see self::diffIndexOps}: a unique constraint already serves lookups, so the
+     * plain index is only created when the field is not unique. Not flagged destructive —
+     * a freshly added column trivially passes the unique pre-flight.
+     *
+     * @return list<SchemaChange>
+     */
+    private function indexOpsForNewField(CollectionField $field): array
+    {
+        if (!empty($field->settings['unique'])) {
+            return [new SchemaChange('add_index', $field, false, 'unique')];
+        }
+        if (!empty($field->settings['index'])) {
+            return [new SchemaChange('add_index', $field, false, 'plain')];
+        }
+
+        return [];
+    }
+
+    /**
      * Produce add_index / drop_index ops for a field whose storage signature is unchanged.
+     *
+     * Each op carries its `indexKind` ('unique' | 'plain') fixed at plan time — the
+     * materializer executes exactly the kind planned and never re-derives it from the
+     * field's post-change settings.
+     *
+     * A unique constraint already serves lookups, so a plain index on the same column is
+     * physically redundant — and the framework's column builder skips creating one when
+     * the column is unique. The planner mirrors that rule: the EFFECTIVE plain index is
+     * `index && !unique`, on both sides of the diff. This keeps the physical state and
+     * the plan in agreement across every transition (e.g. dropping `unique` on a field
+     * whose settings keep `index: true` re-creates the plain index; adding `unique` to a
+     * plainly-indexed field drops the now-redundant plain index).
      *
      * @return list<SchemaChange>
      */
@@ -155,18 +197,18 @@ final class DdlPlanner
 
         if (!$currentUnique && $nextUnique) {
             // Adding a unique constraint requires a data pre-flight (destructive: true).
-            $ops[] = new SchemaChange('add_index', $next, true);
+            $ops[] = new SchemaChange('add_index', $next, true, 'unique');
         } elseif ($currentUnique && !$nextUnique) {
-            $ops[] = new SchemaChange('drop_index', $next, false);
+            $ops[] = new SchemaChange('drop_index', $next, false, 'unique');
         }
 
-        $currentIndex = !empty($current->settings['index']);
-        $nextIndex    = !empty($next->settings['index']);
+        $currentPlain = !empty($current->settings['index']) && !$currentUnique;
+        $nextPlain    = !empty($next->settings['index']) && !$nextUnique;
 
-        if (!$currentIndex && $nextIndex) {
-            $ops[] = new SchemaChange('add_index', $next, false);
-        } elseif ($currentIndex && !$nextIndex) {
-            $ops[] = new SchemaChange('drop_index', $next, false);
+        if (!$currentPlain && $nextPlain) {
+            $ops[] = new SchemaChange('add_index', $next, false, 'plain');
+        } elseif ($currentPlain && !$nextPlain) {
+            $ops[] = new SchemaChange('drop_index', $next, false, 'plain');
         }
 
         return $ops;

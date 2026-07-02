@@ -98,6 +98,10 @@ final class QueryCompiler
         $qb = $this->connection->table($def->tableName);
 
         // --- SELECT projection ---
+        // Array-valued params (?fields[]=x) would fatally string-cast — reject as 422s.
+        if (isset($params['fields']) && !is_scalar($params['fields'])) {
+            throw InvalidQueryException::malformedParam('fields', 'a comma-separated string');
+        }
         $select = $this->resolveSelect($def, isset($params['fields']) ? (string) $params['fields'] : null);
         $qb->select($select);
 
@@ -112,6 +116,9 @@ final class QueryCompiler
         }
 
         // --- Sort ---
+        if (isset($params['sort']) && !is_scalar($params['sort'])) {
+            throw InvalidQueryException::malformedParam('sort', 'a comma-separated string');
+        }
         $sortParam = isset($params['sort']) ? trim((string) $params['sort']) : '';
         if ($sortParam !== '') {
             foreach (explode(',', $sortParam) as $sortToken) {
@@ -246,24 +253,30 @@ final class QueryCompiler
      */
     private function applyFilter(QueryBuilder $qb, string $field, string $op, mixed $value): void
     {
-        if ($op === 'eq') {
-            $qb->where($field, '=', $value);
-        } elseif ($op === 'ne') {
-            $qb->where($field, '!=', $value);
-        } elseif ($op === 'lt') {
-            $qb->where($field, '<', $value);
-        } elseif ($op === 'lte') {
-            $qb->where($field, '<=', $value);
-        } elseif ($op === 'gt') {
-            $qb->where($field, '>', $value);
-        } elseif ($op === 'gte') {
-            $qb->where($field, '>=', $value);
+        $scalarOps = ['eq' => '=', 'ne' => '!=', 'lt' => '<', 'lte' => '<=', 'gt' => '>', 'gte' => '>='];
+
+        if (isset($scalarOps[$op])) {
+            if (!is_scalar($value) && $value !== null) {
+                throw InvalidQueryException::malformedParam("filter[{$field}][{$op}]", 'a scalar value');
+            }
+            $qb->where($field, $scalarOps[$op], $value);
         } elseif ($op === 'like') {
+            if (!is_scalar($value)) {
+                throw InvalidQueryException::malformedParam("filter[{$field}][like]", 'a scalar value');
+            }
             $qb->whereLike($field, '%' . (string) $value . '%');
         } elseif ($op === 'in') {
-            $qb->whereIn($field, (array) $value);
+            $values = array_values(array_filter((array) $value, 'is_scalar'));
+            if ($values === []) {
+                throw InvalidQueryException::malformedParam(
+                    "filter[{$field}][in]",
+                    'a non-empty list of scalar values',
+                );
+            }
+            $qb->whereIn($field, $values);
         } elseif ($op === 'null') {
-            if ($value) {
+            // Truthiness would read the string "false" as true and invert the intent.
+            if (filter_var($value, FILTER_VALIDATE_BOOLEAN)) {
                 $qb->whereNull($field);
             } else {
                 $qb->whereNotNull($field);

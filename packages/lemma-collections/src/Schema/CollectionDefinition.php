@@ -40,15 +40,35 @@ final class CollectionDefinition
      */
     public static function fromRow(array $row): self
     {
+        $name = (string) ($row['name'] ?? '?');
+
+        // Corrupt persisted schema must fail loudly. Degrading to "zero fields" would make
+        // a later alter plan add_field for every column (duplicate-column DDL errors) and
+        // hide the real problem behind downstream noise.
         $rawFields = $row['fields'] ?? '[]';
         if (is_string($rawFields)) {
-            $rawFields = json_decode($rawFields, true) ?? [];
+            try {
+                $rawFields = json_decode($rawFields, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                throw new \RuntimeException(
+                    sprintf("Corrupt fields JSON on collection '%s': %s", $name, $e->getMessage()),
+                    0,
+                    $e,
+                );
+            }
         }
 
-        $fields = array_values(array_map(
-            static fn (array $f): CollectionField => CollectionField::fromArray($f),
-            (array) $rawFields,
-        ));
+        $fields = [];
+        foreach ((array) $rawFields as $f) {
+            if (!is_array($f)) {
+                throw new \RuntimeException(sprintf(
+                    "Corrupt fields entry on collection '%s': expected object, got %s.",
+                    $name,
+                    get_debug_type($f),
+                ));
+            }
+            $fields[] = CollectionField::fromArray($f);
+        }
 
         $rawPolicy = $row['access_policy'] ?? null;
         if (is_string($rawPolicy) && $rawPolicy !== '') {

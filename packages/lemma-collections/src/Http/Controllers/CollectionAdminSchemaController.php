@@ -8,7 +8,9 @@ use Glueful\Http\Response;
 use Glueful\Lemma\Collections\CollectionManager;
 use Glueful\Lemma\Collections\Exceptions\BlockedSchemaChangeException;
 use Glueful\Lemma\Collections\Exceptions\CollectionValidationException;
+use Glueful\Lemma\Collections\Exceptions\ConcurrentSchemaChangeException;
 use Glueful\Lemma\Collections\Exceptions\DestructiveConfirmationRequiredException;
+use Glueful\Lemma\Collections\Exceptions\PreflightFailedException;
 use Glueful\Lemma\Collections\Http\ActorResolver;
 use Glueful\Lemma\Collections\Http\DTOs\AddIndexData;
 use Glueful\Lemma\Collections\Http\DTOs\CreateCollectionData;
@@ -26,9 +28,10 @@ use Symfony\Component\HttpFoundation\Request;
  * indexes, replace the access policy, and drop a collection.
  *
  * A thin HTTP layer over {@see CollectionManager}; the actor is resolved from the request and stamped
- * on every structural change. Domain failures map to HTTP: CollectionValidationException and
- * BlockedSchemaChangeException → 422, DestructiveConfirmationRequiredException → 409, an unknown
- * collection (\DomainException from the manager) → 404.
+ * on every structural change. Domain failures map to HTTP: CollectionValidationException,
+ * BlockedSchemaChangeException and PreflightFailedException → 422;
+ * DestructiveConfirmationRequiredException and ConcurrentSchemaChangeException → 409; an unknown
+ * collection or field (\DomainException from the manager) → 404.
  */
 final class CollectionAdminSchemaController
 {
@@ -137,8 +140,14 @@ final class CollectionAdminSchemaController
     #[ApiResponse(200, description: 'Access policy updated.')]
     public function updateAccess(UpdateAccessData $data, Request $request, string $name): Response
     {
+        $actor = $this->actors->resolve($request);
         try {
-            $definition = $this->manager->setAccessPolicy($name, AccessPolicy::fromArray($data->toArray()));
+            $definition = $this->manager->setAccessPolicy(
+                $name,
+                AccessPolicy::fromArray($data->toArray()),
+                $actor->type,
+                $actor->id,
+            );
         } catch (\Throwable $e) {
             return $this->mapException($e);
         }
@@ -190,8 +199,10 @@ final class CollectionAdminSchemaController
     {
         return match (true) {
             $e instanceof DestructiveConfirmationRequiredException => Response::error($e->getMessage(), 409),
+            $e instanceof ConcurrentSchemaChangeException => Response::error($e->getMessage(), 409),
             $e instanceof CollectionValidationException => Response::validation($e->errors()),
             $e instanceof BlockedSchemaChangeException => Response::validation(['schema' => $e->getMessage()]),
+            $e instanceof PreflightFailedException => Response::validation(['index' => $e->getMessage()]),
             $e instanceof \DomainException => Response::notFound($e->getMessage()),
             default => throw $e,
         };

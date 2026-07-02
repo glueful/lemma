@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Content\Http;
 
+use Glueful\Auth\ApiKey\ApiKeyService;
 use Glueful\Auth\UserIdentity;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
@@ -20,7 +21,9 @@ use Symfony\Component\HttpFoundation\Request;
  * targets: `locale:<code>` for routes carrying `{locale}`, else the coarse `lemma`.
  *
  * Fails closed: a missing/empty permission parameter, no authenticated identity, an
- * unresolvable PermissionManager, or a denied check all return 403.
+ * unresolvable PermissionManager, or a denied check all return 403. API-key principals
+ * additionally need a key scope satisfying the permission slug (wildcards via fnmatch;
+ * empty scope list = deny) — the owner's RBAC alone never authorizes a key.
  */
 final class RequireLemmaPermission implements RouteMiddleware
 {
@@ -33,6 +36,22 @@ final class RequireLemmaPermission implements RouteMiddleware
         $permission = isset($params[0]) && is_string($params[0]) ? trim($params[0]) : '';
         if ($permission === '') {
             return $this->forbidden();
+        }
+
+        // API-key principals must carry a scope matching the required permission slug —
+        // authorizing on the key OWNER's RBAC alone would let any leaked key (however
+        // narrowly scoped) inherit the owner's full admin rights. The framework's `auth`
+        // middleware accepts jwt+api_key, so the provider is checked here. Scope-satisfying
+        // keys still fall through to the owner RBAC check below (defense in depth); an
+        // empty scope list is a deny, NOT the framework's legacy "full access".
+        if ($request->attributes->get('auth_method') === 'api_key') {
+            $scopes = array_values(array_filter(
+                (array) $request->attributes->get('api_key_scopes', []),
+                'is_string',
+            ));
+            if ($scopes === [] || !ApiKeyService::scopeSatisfies($scopes, $permission)) {
+                return $this->forbidden();
+            }
         }
 
         // Resolve the authenticated principal. Two shapes are accepted, both set by the

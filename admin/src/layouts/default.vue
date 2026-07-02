@@ -4,12 +4,14 @@ import { open, useVisibleNav } from '../navigation/sidebar'
 import { registerCoreModule } from '@/registry/coreModule'
 import { registerCollectionsModule } from '@/registry/collectionsModule'
 import { registerAnalyticsModule } from '@/registry/analyticsModule'
+import { registerWorkflowModule } from '@/registry/workflowModule'
 import { useCapabilitiesStore } from '@/stores/capabilities'
 import { useContentTypes } from '@/queries/contentTypes'
 
 registerCoreModule()
 registerCollectionsModule()
 registerAnalyticsModule()
+registerWorkflowModule()
 useCapabilitiesStore().ensureLoaded() // post-auth: this layout only renders for authenticated users
 
 const nav = useVisibleNav()

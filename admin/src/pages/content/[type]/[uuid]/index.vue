@@ -12,6 +12,7 @@ import { ApiError } from '@/api/errors'
 import { useNotify } from '@/composables/useNotify'
 import PublishPanel from './components/PublishPanel.vue'
 import SeoPanel from './components/SeoPanel.vue'
+import WorkflowPanel from './components/WorkflowPanel.vue'
 import { useCapabilitiesStore } from '@/stores/capabilities'
 import LocaleSwitcher from './components/LocaleSwitcher.vue'
 import LocaleRoutesModal from './components/LocaleRoutesModal.vue'
@@ -25,6 +26,7 @@ const uuid = computed(() => String(route.params.uuid))
 
 const caps = useCapabilitiesStore()
 const seoEnabled = computed(() => caps.isEnabled('lemma.seo'))
+const workflowEnabled = computed(() => caps.isEnabled('lemma.workflow'))
 
 const { success, warning, error: notifyError } = useNotify()
 
@@ -289,6 +291,14 @@ async function onSave() {
              Keyed by locale so the panel re-seeds its slug/publish state on a locale switch. -->
         <div class="lg:min-h-0 lg:w-96 lg:shrink-0 lg:overflow-y-auto lg:p-1">
           <PublishPanel :key="`${uuid}-${locale}`" :uuid="uuid" :locale="locale" :type="type" />
+          <WorkflowPanel
+            v-if="workflowEnabled"
+            :key="`wf-${uuid}-${locale}`"
+            class="mt-6"
+            :uuid="uuid"
+            :locale="locale"
+            :enabled="workflowEnabled"
+          />
           <SeoPanel
             v-if="seoEnabled"
             :key="`seo-${uuid}-${locale}`"

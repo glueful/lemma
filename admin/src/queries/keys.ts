@@ -21,4 +21,6 @@ export const qk = {
     ['analytics', 'series', metric, from, to] as const,
   analyticsBreakdown: (event: string, from: string, to: string) =>
     ['analytics', 'breakdown', event, from, to] as const,
+  workflowState: (uuid: string, locale: string) => ['workflow', 'state', uuid, locale] as const,
+  workflowQueue: () => ['workflow', 'queue'] as const,
 }

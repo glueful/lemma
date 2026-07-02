@@ -88,6 +88,7 @@ use App\Content\Seo\RouteResolver;
 use App\Content\Services\MigrationService;
 use App\Content\Authoring\EngineContentWriter;
 use App\Content\Authoring\EngineDraftSummaryReader;
+use App\Content\Delivery\EngineEntryTargetResolver;
 use App\Content\Context\EngineLemmaContext;
 use App\Content\Delivery\EngineContentDeliveryReader;
 use App\Content\Delivery\EngineIndexableContentReader;
@@ -99,6 +100,7 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Lemma\Contracts\Authoring\ContentWriter;
 use Glueful\Lemma\Contracts\Authoring\DraftSummaryReader;
 use Glueful\Lemma\Contracts\Authoring\PublishGate;
+use Glueful\Lemma\Contracts\Delivery\EntryTargetResolver;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Context\LemmaContext;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
@@ -272,6 +274,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             DraftSummaryReader::class => [
                 'class'    => EngineDraftSummaryReader::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            EntryTargetResolver::class => [
+                'class'    => EngineEntryTargetResolver::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

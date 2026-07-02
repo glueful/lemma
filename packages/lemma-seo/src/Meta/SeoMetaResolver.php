@@ -55,8 +55,9 @@ final class SeoMetaResolver
             $title = $this->defaults['site_name'];
         }
 
-        $ogTitle = ($override['og_title'] ?? null) ?? $title;
-        $ogDescription = ($override['og_description'] ?? null) ?? $description;
+        // overrideString() so an empty-string OG override falls back like title/description do.
+        $ogTitle = $this->overrideString($override, 'og_title') ?? $title;
+        $ogDescription = $this->overrideString($override, 'og_description') ?? $description;
 
         return [
             'title' => $title,

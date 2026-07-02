@@ -50,7 +50,9 @@ final class SitemapController
     }
 
     /**
-     * One sitemap page file (`1`-based), up to 50 000 URLs.
+     * One sitemap page file (`1`-based), up to 50 000 URLs. Out-of-range pages are 404 —
+     * without the bound, every distinct {n} would mint a no-TTL cache entry plus a
+     * deep-OFFSET enumeration, an anonymous cache-fill vector.
      */
     #[ApiOperation(summary: 'sitemap page file', tags: ['Lemma SEO'])]
     #[ApiResponse(
@@ -59,6 +61,13 @@ final class SitemapController
         contentType: 'application/xml',
         body: 'text',
         description: 'Sitemap page XML.',
+    )]
+    #[ApiResponse(
+        404,
+        envelope: false,
+        contentType: 'text/plain',
+        body: 'text',
+        description: 'Page number out of range.',
     )]
     #[ApiResponse(
         409,
@@ -71,6 +80,9 @@ final class SitemapController
     {
         if (!$this->builder->hasOrigin()) {
             return $this->conflict();
+        }
+        if ($n < 1 || $n > $this->builder->pageCount()) {
+            return new Response('Not Found.', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
         }
         return $this->xml($this->builder->pageXml($n));
     }

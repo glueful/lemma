@@ -50,6 +50,18 @@ final class SitemapEndpointTest extends LemmaTestCase
         self::assertSame(409, $resp->getStatusCode());
     }
 
+    public function testSitemapPageOutOfRangeIs404(): void
+    {
+        $this->seedBilingualPublishedEntry(); // total « PAGE_SIZE → exactly one page file
+        $controller = $this->container()->get(SitemapController::class);
+
+        self::assertSame(200, $controller->page(new Request(), 1)->getStatusCode());
+        // Unbounded {n} would mint a permanent cache entry + deep-OFFSET query per value.
+        self::assertSame(404, $controller->page(new Request(), 2)->getStatusCode());
+        self::assertSame(404, $controller->page(new Request(), 0)->getStatusCode());
+        self::assertSame(404, $controller->page(new Request(), 999999)->getStatusCode());
+    }
+
     public function testSitemapRoutesAreRegistered(): void
     {
         self::assertNotNull($this->findRoute('GET', '/sitemap.xml'), '/sitemap.xml must be registered');

@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoutes, useSaveRoute } from '@/queries/routes'
 import { usePublish } from '@/queries/publish'
-import { usePreview, buildPreviewUrl } from '@/queries/preview'
+import { usePreview, useThemePreview, buildPreviewUrl } from '@/queries/preview'
 import { useSchedules, useScheduleMutations } from '@/queries/schedules'
 import { useNotify } from '@/composables/useNotify'
 
@@ -48,6 +48,20 @@ async function onPreview() {
     const url = buildPreviewUrl(await preview.mutateAsync())
     if (url) window.open(url, '_blank', 'noopener')
     else warning('No preview URL is configured')
+  } catch (e) {
+    notifyError(e, 'Preview failed')
+  }
+}
+
+// ── Preview in theme ─────────────────────────────────────────────────────────
+// Always shown; mints on click. theme_url is SERVER-decided (null = rendered
+// delivery off) — the SPA never builds theme URLs or consults capability state.
+const themePreview = useThemePreview(props.uuid, props.locale)
+async function onThemePreview() {
+  try {
+    const { themeUrl } = await themePreview.mutateAsync()
+    if (themeUrl) window.open(themeUrl, '_blank', 'noopener')
+    else warning('Theme preview unavailable — rendered delivery is disabled')
   } catch (e) {
     notifyError(e, 'Preview failed')
   }
@@ -120,6 +134,16 @@ const localeSchedules = computed(() =>
           @click="onPreview"
         >
           Preview
+        </UButton>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-panels-top-left"
+          :loading="themePreview.isLoading.value"
+          data-testid="theme-preview"
+          @click="onThemePreview"
+        >
+          Preview in theme
         </UButton>
       </div>
 

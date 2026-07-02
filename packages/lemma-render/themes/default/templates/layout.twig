@@ -8,6 +8,9 @@
 </head>
 <body>
   <header>
+    {% if preview|default(false) %}
+      <div class="preview-banner">Preview — unpublished content</div>
+    {% endif %}
     <a href="/" class="site-name">{{ site.name }}</a>
     <nav>
       {% for item in menu('main') %}

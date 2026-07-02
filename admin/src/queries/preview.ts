@@ -25,3 +25,23 @@ export function usePreview(uuid: string, locale: string) {
     mutation: () => mintPreview(uuid, locale),
   })
 }
+
+export interface PreviewMintResult {
+  token: string
+  themeUrl: string | null
+}
+
+// Mints a preview token; theme_url is server-decided (null = rendered delivery off).
+export async function mintPreviewData(uuid: string, locale: string): Promise<PreviewMintResult> {
+  const { data, error, response } = await client.POST('/entries/{uuid}/preview/{locale}', {
+    params: { path: { uuid, locale } },
+  })
+  if (error) throw toApiError(error, response)
+  return { token: data?.data?.token ?? '', themeUrl: data?.data?.theme_url ?? null }
+}
+
+export function useThemePreview(uuid: string, locale: string) {
+  return useMutation({
+    mutation: () => mintPreviewData(uuid, locale),
+  })
+}

@@ -13,7 +13,9 @@ use App\Content\Preview\PreviewNotFoundException;
 use App\Content\Preview\PreviewReader;
 use App\Content\Preview\PreviewTokenException;
 use App\Http\DTOs\ErrorResponse;
+use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Response;
+use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Routing\Attributes\ApiResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -49,6 +51,7 @@ final class PreviewController
         private readonly PreviewMinter $minter,
         private readonly PreviewReader $reader,
         private readonly ContentLocaleService $locales,
+        private readonly ApplicationContext $context,
     ) {
     }
 
@@ -76,10 +79,16 @@ final class PreviewController
         $ttl = $this->minter->ttlSeconds();
         $exp = time() + $ttl;
 
+        // theme_url: the SERVER decides (preview spec §4) — null when lemma.render is
+        // disabled or the pack is absent (isEnabled covers both); the JSON preview URL
+        // is unaffected either way. The SPA never builds theme URLs.
+        $renderEnabled = app($this->context, CapabilityRegistry::class)->isEnabled('lemma.render');
+
         return Response::success([
             'token' => $token,
             'expires_at' => date('c', $exp),
             'expires_in' => $ttl,
+            'theme_url' => $renderEnabled ? '/_preview/' . $token : null,
         ], 'Preview token minted.');
     }
 

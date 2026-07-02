@@ -70,6 +70,7 @@ final class PreviewApiTest extends LemmaTestCase
             $this->minter(),
             $this->reader(),
             new ContentLocaleService($this->appContext(), new FakeLocaleManager()),
+            $this->appContext(),
         );
     }
 

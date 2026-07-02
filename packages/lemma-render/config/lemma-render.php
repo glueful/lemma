@@ -32,4 +32,15 @@ return [
     // Safety-net TTL per cached page (seconds); surrogate tags do the real
     // invalidation. On non-tag cache drivers this TTL is the ONLY freshness bound.
     'cache_ttl' => (int) env('RENDER_CACHE_TTL', 3600),
+
+    // Content types with rendered listing pages at /{type} (and term archives at
+    // /{type}/{field}/{term}) — comma-separated slugs. EMPTY (the default) keeps the
+    // whole listing/archive grammar dormant. Types must also be publicly deliverable.
+    'listing_types' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('RENDER_LISTING_TYPES', '')),
+    ))),
+
+    // Items per rendered listing/archive page (path-based pagination: /{type}/page/2).
+    'listing_per_page' => (int) env('RENDER_LISTING_PER_PAGE', 10),
 ];

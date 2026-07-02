@@ -19,6 +19,12 @@ use Glueful\Routing\Router;
  * single-body 404/410 keys in RenderErrorCache — bogus paths can't fill the cache or
  * re-render templates).
  */
+// Preview-through-theme (preview spec §1): the signed token IS the authorization.
+// Deliberately NO RenderPageCache middleware — the cache bypass is structural; a
+// preview response can never enter or read the shared page cache. The static first
+// segment wins over the '*'-bucket catch-all.
+$router->get('/_preview/{token}', [RenderController::class, 'preview']);
+
 $router->get('/', [RenderController::class, 'home'])
     ->middleware([RenderPageCache::class]);
 $router->get('/{path}', [RenderController::class, 'page'])

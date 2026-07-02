@@ -100,6 +100,9 @@ final class PreviewFlowTest extends LemmaTestCase
         self::assertArrayHasKey('expires_in', $data);
         $token = $data['token'];
         self::assertIsString($token);
+        // theme_url is SERVER-decided (preview spec §4): the suite runs with
+        // lemma.render enabled, so it must be present and token-bound.
+        self::assertSame('/_preview/' . $token, $data['theme_url']);
 
         // READ through the kernel with NO auth header at all — the token is the capability.
         $show = $this->handle($this->publicGet('/v1/preview/' . $token));
@@ -109,6 +112,28 @@ final class PreviewFlowTest extends LemmaTestCase
         self::assertSame($uuid, $preview['entry_uuid']);
         self::assertSame('en', $preview['locale']);
         self::assertSame('Secret draft', $preview['fields']['title']);
+    }
+
+    // ── 1b. theme_url is null when rendered delivery is off (preview spec §4) ───
+
+    public function testThemeUrlIsNullWhenRenderCapabilityDisabled(): void
+    {
+        $uuid = $this->seedDraft('No theme', 'no-theme-preview');
+        // Override boots lose extension routes (loadRoutesFrom latch) — drive the
+        // controller from the override container directly (established precedent).
+        $app = self::bootAppWithConfigOverride('lemma', ['capabilities' => ['lemma.render' => false]]);
+        $controller = $app->getContainer()
+            ->get(\App\Content\Http\Controllers\PreviewController::class);
+        $res = $controller->mint(
+            new \App\Content\Http\DTOs\MintPreviewData(),
+            \Symfony\Component\HttpFoundation\Request::create('/'),
+            $uuid,
+            'en',
+        );
+        self::assertSame(200, $res->getStatusCode());
+        $data = json_decode((string) $res->getContent(), true)['data'];
+        self::assertIsString($data['token']); // the JSON preview URL is unaffected
+        self::assertNull($data['theme_url']);
     }
 
     // ── 2. The mint gate: an UNauthenticated mint is rejected (401), not served ─

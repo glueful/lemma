@@ -164,12 +164,13 @@ published content using a filesystem theme."**
 
 **Follow-up tracks after render core (explicitly deferred, not in v2 core):**
 
-- listing/archive pages (needs the taxonomy/term-archive delivery surface
-  NEXT.md already tracks)
-- taxonomy term pages
+- ✅ listing/archive pages — **shipped 2026-07-02** (incl. term-archive pages;
+  `docs/superpowers/specs/2026-07-02-rendered-listing-archive-pages-design.md`)
+- ✅ preview-through-theme — **shipped 2026-07-02**
+  (`docs/superpowers/specs/2026-07-02-preview-through-theme-design.md`)
+- taxonomy term INDEX pages (enumerating all terms of a field)
 - DB-edited templates / Twig-sandbox admin overrides
 - page/block builder
-- preview-through-theme
 
 ## 7. Sub-project sequence
 

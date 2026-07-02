@@ -4,11 +4,25 @@ declare(strict_types=1);
 
 namespace App\Content\Delivery;
 
+use App\Content\Preview\PreviewNotFoundException;
+use App\Content\Preview\PreviewReader;
+use App\Content\Preview\PreviewTokenException;
 use App\Content\Repositories\ContentTypeRepository;
+use App\Content\Repositories\EntryRepository;
+use App\Content\Repositories\PublishedReferenceRepository;
+use App\Content\Schema\ContentTypeSchema;
+use App\Content\Seo\PathRenderer;
 use App\Content\Seo\RouteResolver;
+use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\Connection;
 use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
 use Glueful\Lemma\Contracts\Delivery\PublicRouteResolver;
+use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
+use Glueful\Support\FieldSelection\FieldSelector;
+use Psr\Log\LoggerInterface;
+use Symfony\Component\HttpFoundation\Request;
+
+use function config;
 
 /**
  * Path → published content for the render pack, wrapping the existing RouteResolver.
@@ -27,6 +41,14 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
         private readonly RouteResolver $routes,
         private readonly LocaleManagerInterface $locales,
         private readonly DeliveryItemShaper $shaper,
+        private readonly ApplicationContext $context,
+        private readonly DeliveryRepository $delivery,
+        private readonly PublishedReferenceRepository $projection,
+        private readonly ReferenceTargetResolver $terms,
+        private readonly PathRenderer $paths,
+        private readonly PreviewReader $preview,
+        private readonly EntryRepository $entries,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -38,20 +60,56 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             return $this->redirect($normalized, 301);
         }
 
-        $segments = array_map(rawurldecode(...), array_values(array_filter(
+        $segments = array_values(array_filter(
             explode('/', trim($normalized, '/')),
             static fn(string $s): bool => $s !== '',
-        )));
+        ));
+        $decoded = array_map(rawurldecode(...), $segments);
 
-        // 3 segments with an ACTIVE locale first → locale variant; 2 → default locale.
-        // "/blog/hello" is type blog in the default locale — NEVER locale "blog".
-        if (count($segments) === 3 && $this->isActiveLocale($segments[0])) {
-            [$locale, $typeSlug, $slug] = $segments;
-        } elseif (count($segments) === 2) {
-            [$typeSlug, $slug] = $segments;
-            $locale = $this->locales->default();
-        } else {
-            return $this->notFound();
+        // Locale-wins rule at EVERY length (listing spec §1): an ACTIVE-locale first
+        // segment is always the locale, never a type slug.
+        $locale = $this->locales->default();
+        $prefix = '';
+        if (count($decoded) >= 2 && $this->isActiveLocale($decoded[0])) {
+            $locale = array_shift($decoded);
+            $prefix = '/' . rawurlencode($locale);
+            array_shift($segments);
+        }
+
+        switch (count($decoded)) {
+            case 1: // /{type} → listing page 1
+                return $this->resolveListing($decoded[0], $locale, 1);
+            case 2: // /{type}/{slug} → entry (existing behavior)
+                [$typeSlug, $slug] = $decoded;
+                break;
+            case 3:
+                // `page` is RESERVED as a field segment: pagination parses first.
+                if ($decoded[1] === 'page') {
+                    return $this->pagedOrCanonical(
+                        $decoded[2],
+                        $prefix . '/' . $segments[0],
+                        fn(int $n): array => $this->resolveListing($decoded[0], $locale, $n),
+                    );
+                }
+                // /{type}/{field}/{term} → archive page 1
+                return $this->resolveArchive($decoded[0], $decoded[1], $decoded[2], $locale, 1);
+            case 5:
+                if ($decoded[3] === 'page') {
+                    return $this->pagedOrCanonical(
+                        $decoded[4],
+                        $prefix . '/' . implode('/', array_slice($segments, 0, 3)),
+                        fn(int $n): array => $this->resolveArchive(
+                            $decoded[0],
+                            $decoded[1],
+                            $decoded[2],
+                            $locale,
+                            $n,
+                        ),
+                    );
+                }
+                return $this->notFound();
+            default:
+                return $this->notFound();
         }
 
         $typeRow = $this->types->findBySlug($typeSlug);
@@ -65,7 +123,11 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             return $this->notFound();
         }
         if ($result->isGone()) {
-            return ['kind' => 'gone', 'locale' => $locale, 'type' => null, 'content' => null, 'redirect' => null];
+            return [
+                'kind' => 'gone', 'locale' => $locale, 'type' => null, 'content' => null, 'redirect' => null,
+                'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+                'preview' => false,
+            ];
         }
         if ($result->isRedirect()) {
             $descriptor = $result->redirect();
@@ -79,6 +141,8 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             'type' => $typeSlug,
             'content' => $this->shaper->shapePublic($row, $typeUuid, $typeSlug),
             'redirect' => null,
+            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false,
         ];
     }
 
@@ -120,7 +184,295 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             'type' => $typeSlug,
             'content' => $this->shaper->shapePublic($row, $typeUuid, $typeSlug),
             'redirect' => null,
+            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false,
         ];
+    }
+
+    /**
+     * Signed-token preview (preview spec §2): kind 'content' + preview: true — a
+     * content render, not a new kind. Fields come from the fail-closed PreviewReader
+     * (draft or pinned version, schema-projected); shaping is the LIST shape — no seo
+     * (a draft may be routeless; the page is noindex). Token-is-authorization:
+     * public_delivery gating deliberately does NOT apply (JSON-door parity). Every
+     * failure is not_found; the reason is logged for editor debuggability.
+     */
+    public function resolvePreview(string $token): array
+    {
+        try {
+            $read = $this->preview->read($token);
+        } catch (PreviewTokenException | PreviewNotFoundException $e) {
+            $this->logger->info('lemma-render: preview token rejected', [
+                'reason' => get_class($e),
+                'error' => $e->getMessage(),
+            ]);
+            return $this->notFound();
+        }
+
+        $entry = $this->entries->findEntry($read['entry_uuid']);
+        if ($entry === null || ($entry['status'] ?? null) === 'deleted') {
+            return $this->notFound();
+        }
+        $typeRow = $this->types->findByUuid((string) $entry['content_type_uuid']);
+        if ($typeRow === null) {
+            return $this->notFound();
+        }
+        $typeUuid = (string) $typeRow['uuid'];
+        $typeSlug = (string) $typeRow['slug'];
+        $schema = ContentTypeSchema::fromArray((array) ($typeRow['schema'] ?? []));
+
+        // Synthesize a spine-shaped row from the reader's output; references expand
+        // against the PUBLISHED spine (referenced entries appear as the public sees
+        // them). schema_version is pinned to the CURRENT type version: PreviewReader
+        // already projected the fields forward but reports the ORIGINAL version, and
+        // letting shape() see the old number would re-run the migration chain over
+        // already-projected fields — unsafe when a rename chain re-uses a name.
+        $row = [
+            'entry_uuid' => $read['entry_uuid'],
+            'locale' => $read['locale'],
+            'version' => $read['version'],
+            'version_uuid' => $read['version_uuid'],
+            'schema_version' => (int) ($typeRow['schema_version'] ?? $read['schema_version']),
+            'fields' => $read['fields'],
+            'published_at' => null,
+        ];
+        $selector = FieldSelector::fromRequest(Request::create('/'));
+        $shaped = $this->shaper->shape([$row], $schema, $selector, $read['locale'], $typeUuid, null);
+        $content = $this->shaper->item($shaped[0]);
+
+        return [
+            'kind' => 'content', 'locale' => $read['locale'], 'type' => $typeSlug,
+            'content' => $content, 'redirect' => null,
+            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => true,
+        ];
+    }
+
+    /**
+     * Shared page-number handling (listing spec §1 pins): non-numeric or < 1 →
+     * not_found; exactly 1 → 301 to the canonical bare path; otherwise resolve page n.
+     *
+     * @param callable(int): array<string,mixed> $resolve
+     * @return array<string,mixed>
+     */
+    private function pagedOrCanonical(string $rawPage, string $basePath, callable $resolve): array
+    {
+        if (!ctype_digit($rawPage)) {
+            return $this->notFound();
+        }
+        $n = (int) $rawPage;
+        if ($n === 1) {
+            return $this->redirect($basePath, 301);
+        }
+        if ($n < 1) {
+            return $this->notFound();
+        }
+        return $resolve($n);
+    }
+
+    /**
+     * /{type}[/page/n] → listing. Dormant unless the type is allowlisted in
+     * lemma_render.listing_types (a render-owned key read softly — this grammar exists
+     * only for rendered delivery; pack absent / key empty ⇒ not_found).
+     *
+     * @return array<string,mixed>
+     */
+    private function resolveListing(string $typeSlug, string $locale, int $page): array
+    {
+        if (!in_array($typeSlug, $this->listingTypes(), true)) {
+            return $this->notFound();
+        }
+        $typeRow = $this->types->findBySlug($typeSlug);
+        if ($typeRow === null || !$this->isPubliclyDeliverable($typeRow)) {
+            return $this->notFound();
+        }
+        $typeUuid = (string) $typeRow['uuid'];
+
+        $result = $this->paginate($typeUuid, $locale, $page, null);
+        if ($result === null) {
+            return $this->notFound();
+        }
+        [$listing, $rows] = $result;
+        $listing['items'] = $this->listItems($rows, $typeRow, $locale);
+
+        return [
+            'kind' => 'listing', 'locale' => $locale, 'type' => $typeSlug,
+            'content' => null, 'redirect' => null,
+            'listing' => $listing, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false,
+        ];
+    }
+
+    /**
+     * /{type}/{field}/{term}[/page/n] → term archive. Same allowlist + anonymous gates
+     * as listings; membership is the published-reference projection (the API archive
+     * endpoint's single source — the surfaces cannot diverge); the term resolves
+     * uuid-first then referenceSlugField, and ambiguity is not_found on this anonymous
+     * surface (the API 422s — deliberate, spec §2).
+     *
+     * @return array<string,mixed>
+     */
+    private function resolveArchive(
+        string $typeSlug,
+        string $field,
+        string $term,
+        string $locale,
+        int $page,
+    ): array {
+        if (!in_array($typeSlug, $this->listingTypes(), true)) {
+            return $this->notFound();
+        }
+        $typeRow = $this->types->findBySlug($typeSlug);
+        if ($typeRow === null || !$this->isPubliclyDeliverable($typeRow)) {
+            return $this->notFound();
+        }
+        $typeUuid = (string) $typeRow['uuid'];
+        $schema = ContentTypeSchema::fromArray((array) ($typeRow['schema'] ?? []));
+
+        $fieldDef = $schema->field($field);
+        if ($fieldDef === null || $fieldDef->type !== 'reference' || !$fieldDef->filterable) {
+            return $this->notFound();
+        }
+        $targetRow = $this->types->findBySlug((string) ($fieldDef->referenceType ?? ''));
+        if ($targetRow === null || !$this->isPubliclyDeliverable($targetRow)) {
+            return $this->notFound(); // fail closed — the term body is page content
+        }
+        $targetUuid = (string) $targetRow['uuid'];
+        $targetSlug = (string) $targetRow['slug'];
+
+        try {
+            $targets = $this->terms->resolve($fieldDef, $locale, [$term]);
+        } catch (InvalidFilterException) {
+            return $this->notFound(); // ambiguous slug: anonymous surface has no 422
+        }
+        $termUuid = $targets[0] ?? null;
+        if ($termUuid === null) {
+            return $this->notFound();
+        }
+        $termRow = $this->delivery->findPublishedByUuid($targetUuid, $locale, $termUuid);
+        if ($termRow === null) {
+            return $this->notFound();
+        }
+
+        $result = $this->paginate(
+            $typeUuid,
+            $locale,
+            $page,
+            $this->projection->membershipPredicate($typeUuid, $field, $termUuid),
+        );
+        if ($result === null) {
+            return $this->notFound();
+        }
+        [$listing, $rows] = $result;
+        $listing['items'] = $this->listItems($rows, $typeRow, $locale);
+
+        return [
+            'kind' => 'archive', 'locale' => $locale, 'type' => $typeSlug,
+            'content' => null, 'redirect' => null,
+            'listing' => $listing,
+            'term' => $this->shaper->shapePublic($termRow, $targetUuid, $targetSlug),
+            'term_type' => $targetSlug,
+            'field' => $field,
+            'preview' => false,
+        ];
+    }
+
+    /**
+     * Paginate the published spine; null = page beyond range. total_pages is pinned to
+     * max(1, ceil(total / per_page)) so page 1 of an EMPTY listing is valid (spec §1 —
+     * a naive ceil(0/n) = 0 would make page 1 "beyond range").
+     *
+     * @param array{sql: string, bindings: list<mixed>}|null $filter
+     * @return array{0: array{page: int, per_page: int, total: int, total_pages: int},
+     *   1: list<array<string,mixed>>}|null
+     */
+    private function paginate(string $typeUuid, string $locale, int $page, ?array $filter): ?array
+    {
+        $perPage = max(1, (int) config($this->context, 'lemma_render.listing_per_page', 10));
+        $result = $this->delivery->paginatePublished($typeUuid, $locale, $page, $perPage, $filter, null);
+        $totalPages = max(1, (int) ceil($result['total'] / $perPage));
+        if ($page > $totalPages) {
+            return null;
+        }
+        return [
+            [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => (int) $result['total'],
+                'total_pages' => $totalPages,
+            ],
+            $result['data'],
+        ];
+    }
+
+    /**
+     * LIST-shaped items + a ready per-item `href` (listing spec §2 pin): the delivery
+     * list shape (no per-item seo — shapePublic is a SHOW shape), hrefs batch-rendered
+     * from ONE entry_routes query, default locale collapsed exactly like canonicals.
+     * Routeless entries carry href: null.
+     *
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $typeRow
+     * @return list<array<string,mixed>>
+     */
+    private function listItems(array $rows, array $typeRow, string $locale): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+        $typeUuid = (string) $typeRow['uuid'];
+        $typeSlug = (string) $typeRow['slug'];
+        $schema = ContentTypeSchema::fromArray((array) ($typeRow['schema'] ?? []));
+        $selector = FieldSelector::fromRequest(Request::create('/')); // empty = full item
+
+        $shaped = $this->shaper->shape($rows, $schema, $selector, $locale, $typeUuid, null);
+
+        $uuids = array_values(array_filter(array_map(
+            static fn(array $r): string => (string) ($r['entry_uuid'] ?? ''),
+            $shaped,
+        )));
+        $slugByEntry = [];
+        if ($uuids !== []) {
+            $placeholders = implode(', ', array_fill(0, count($uuids), '?'));
+            // Constrained by content_type_uuid: the route table's real identity is
+            // (content_type_uuid, locale, slug) — entry_uuid alone can carry stale
+            // rows under another type, which would render a wrong-type href.
+            $routeRows = $this->db->table('entry_routes')
+                ->select(['entry_uuid', 'slug'])
+                ->whereRaw("entry_uuid IN ({$placeholders})", $uuids)
+                ->where('content_type_uuid', '=', $typeUuid)
+                ->where('locale', '=', $locale)
+                ->get();
+            foreach ($routeRows as $r) {
+                $slugByEntry[(string) $r['entry_uuid']] = (string) $r['slug'];
+            }
+        }
+
+        $items = [];
+        foreach ($shaped as $row) {
+            $item = $this->shaper->item($row);
+            $slug = $slugByEntry[(string) ($row['entry_uuid'] ?? '')] ?? null;
+            $item['href'] = $slug === null ? null : $this->href($typeSlug, $locale, $slug);
+            $items[] = $item;
+        }
+        return $items;
+    }
+
+    /** Default locale collapses (no /en/ prefix) — the CanonicalProjector rule. */
+    private function href(string $typeSlug, string $locale, string $slug): string
+    {
+        return $locale === $this->locales->default()
+            ? $this->paths->renderDefaultLocale($typeSlug, $slug)
+            : $this->paths->render($typeSlug, $locale, $slug);
+    }
+
+    /** @return list<string> the render-owned listing allowlist (soft config read). */
+    private function listingTypes(): array
+    {
+        return array_values(array_filter(array_map(
+            strval(...),
+            (array) config($this->context, 'lemma_render.listing_types', []),
+        )));
     }
 
     private function normalize(string $path): string
@@ -171,16 +523,20 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
         );
     }
 
-    /** @return array{kind: string, locale: null, content: null, redirect: array{location: string, status: int}} */
+    /** @return array<string,mixed> */
     private function redirect(string $location, int $status): array
     {
         return ['kind' => 'redirect', 'locale' => null, 'type' => null, 'content' => null,
-            'redirect' => ['location' => $location, 'status' => $status]];
+            'redirect' => ['location' => $location, 'status' => $status],
+            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false];
     }
 
-    /** @return array{kind: string, locale: null, content: null, redirect: null} */
+    /** @return array<string,mixed> */
     private function notFound(): array
     {
-        return ['kind' => 'not_found', 'locale' => null, 'type' => null, 'content' => null, 'redirect' => null];
+        return ['kind' => 'not_found', 'locale' => null, 'type' => null, 'content' => null, 'redirect' => null,
+            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false];
     }
 }

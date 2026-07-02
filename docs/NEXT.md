@@ -135,8 +135,16 @@ Shape" as post‑V1 and have **no** design doc yet:
    `docs/superpowers/specs/2026-07-02-lemma-render-caching-design.md`.
 2. **Taxonomies → term‑archives + facets** — ✅ **shipped** (2026‑07‑02): facet counts and
    term‑archive endpoints over the `published_entry_references` projection (spec:
-   `docs/superpowers/specs/2026-07-02-term-archives-facets-design.md`). The natural next pick is
-   the **rendered listing/archive pages** track in V2_DESIGN.md §6, which this unblocked.
+   `docs/superpowers/specs/2026-07-02-term-archives-facets-design.md`).
+   ✅ The rendered listing/archive pages track it unblocked also **shipped**
+   (2026‑07‑02): `/{type}` listings + `/{type}/{field}/{term}` archives through the
+   render catch‑all, opt‑in via `RENDER_LISTING_TYPES`. Spec:
+   `docs/superpowers/specs/2026-07-02-rendered-listing-archive-pages-design.md`.
+   ✅ **Preview‑through‑theme** also **shipped** (2026‑07‑02): `/_preview/{token}`
+   renders drafts through the active theme (uncached, no-store/noindex), with a
+   server‑decided `theme_url` on mint + an admin "Preview in theme" action, plus
+   `facets()` in Twig. Spec:
+   `docs/superpowers/specs/2026-07-02-preview-through-theme-design.md`.
 3. Everything else (importer depth — incl. now‑unblocked WordPress categories/tags, tenancy, the
    per‑feature follow‑ups) is pull‑based: pick one,
    run the proven loop — brainstorm → spec → plan → implement — starting from the linked home

@@ -84,10 +84,48 @@ final class RenderController
                 fn (): Response => $this->render('error.twig', $this->defaultLocale(), null, 410),
             ),
             'content' => $this->renderEntry($result),
+            'listing', 'archive' => $this->renderCollection($result, '/' . ltrim($path, '/')),
             default => $this->errors->themed404(
                 fn (): Response => $this->render('404.twig', $this->defaultLocale(), null, 404),
             ),
         };
+    }
+
+    /**
+     * Preview-through-theme (preview spec §2–§3): a content render with different
+     * headers and context — kind 'content' + preview flag, never a separate kind. The
+     * fixed-key RenderErrorCache is NOT consulted for failures (a preview 404 renders
+     * fresh; it must never serve or fill the shared body). Responses are no-store +
+     * noindex and carry no Cache-Tag.
+     */
+    #[\Glueful\Routing\Attributes\ApiOperation(
+        summary: 'Rendered draft preview (HTML, not an API endpoint)',
+        // Tagged Default explicitly: the OpenAPI deny-list drops the render pack's
+        // HTML routes by that tag, and the generator would otherwise path-derive an
+        // unexcludable "' Preview'" tag from the /_preview segment.
+        tags: ['Default'],
+    )]
+    public function preview(Request $request, string $token): Response
+    {
+        $result = $this->resolver->resolvePreview($token);
+
+        if ($result['kind'] !== 'content') {
+            $response = $this->render('404.twig', $this->defaultLocale(), null, 404, ['preview' => true]);
+        } else {
+            $entry = $result['content'];
+            $locale = (string) $result['locale'];
+            $typeSlug = (string) ($result['type'] ?? '');
+            $candidate = $typeSlug !== '' ? "entry/{$typeSlug}.twig" : '';
+            $template = $candidate !== '' && $this->twig()->getLoader()->exists($candidate)
+                ? $candidate
+                : 'entry.twig';
+            $response = $this->render($template, $locale, $entry, 200, ['preview' => true]);
+        }
+
+        $response->headers->remove('Cache-Tag'); // no-store pages carry no surrogate tags
+        $response->headers->set('Cache-Control', 'no-store');
+        $response->headers->set('X-Robots-Tag', 'noindex');
+        return $response;
     }
 
     /** @param array{locale: ?string, type: ?string, content: ?array} $result */
@@ -109,6 +147,84 @@ final class RenderController
     }
 
     /**
+     * Listing/archive pages (listing spec §4). Template family follows the kind
+     * (listing/{type}.twig → listing.twig; archive/{type}.twig → archive.twig); the
+     * context ships ready pagination paths so themes never build page URLs; the
+     * Cache-Tag ALWAYS carries the broad lemma:type:{type} — page contents change when
+     * one new entry publishes, so per-item tags alone cannot keep cached pages fresh.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function renderCollection(array $result, string $path): Response
+    {
+        $family = $result['kind'] === 'archive' ? 'archive' : 'listing';
+        $typeSlug = (string) $result['type'];
+        $locale = (string) $result['locale'];
+        /** @var array<string,mixed> $listing */
+        $listing = $result['listing'];
+
+        $candidate = "{$family}/{$typeSlug}.twig";
+        $template = $this->twig()->getLoader()->exists($candidate) ? $candidate : "{$family}.twig";
+
+        $page = (int) $listing['page'];
+        $totalPages = (int) $listing['total_pages'];
+        // The base path strips a trailing /page/{n}; page 2's prev is the BARE base
+        // (canonical — /page/1 301s).
+        $base = $page > 1 ? (string) preg_replace('#/page/\d+$#', '', $path) : $path;
+        $pagination = [
+            'page' => $page,
+            'per_page' => (int) $listing['per_page'],
+            'total' => (int) $listing['total'],
+            'total_pages' => $totalPages,
+            'prev_path' => $page <= 1 ? null : ($page === 2 ? $base : $base . '/page/' . ($page - 1)),
+            'next_path' => $page < $totalPages ? $base . '/page/' . ($page + 1) : null,
+        ];
+
+        $extra = [
+            'items' => $listing['items'],
+            'pagination' => $pagination,
+            'type' => $typeSlug,
+        ];
+        if ($result['kind'] === 'archive') {
+            $extra['term'] = $result['term'];
+            $extra['field'] = $result['field'];
+        }
+
+        $response = $this->render($template, $locale, null, 200, $extra);
+        $this->tagCollection($response, $result);
+        return $response;
+    }
+
+    /**
+     * Surrogate tags for a collection page: per-item entry tags + the BROAD type tag
+     * (the correctness mechanism — see renderCollection); archives add the term's entry
+     * tag and its type's tag so term edits and term-type events purge too.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function tagCollection(Response $response, array $result): void
+    {
+        $typeSlug = (string) $result['type'];
+        $tags = [];
+        foreach ((array) ($result['listing']['items'] ?? []) as $item) {
+            $uuid = is_string($item['uuid'] ?? null) ? $item['uuid'] : '';
+            if ($uuid !== '') {
+                $tags[] = 'lemma:entry:' . $uuid;
+            }
+        }
+        $termUuid = is_string($result['term']['uuid'] ?? null) ? $result['term']['uuid'] : '';
+        if ($termUuid !== '') {
+            $tags[] = 'lemma:entry:' . $termUuid;
+        }
+        $tags[] = 'lemma:type:' . $typeSlug;
+        $termType = is_string($result['term_type'] ?? null) ? $result['term_type'] : '';
+        if ($termType !== '' && $termType !== $typeSlug) {
+            $tags[] = 'lemma:type:' . $termType;
+        }
+        $this->mergeCacheTags($response, array_values(array_unique($tags)));
+    }
+
+    /**
      * Stamp the surrogate Cache-Tag header (same strings the delivery API emits and
      * InvalidateCacheTagsListener invalidates) so the page cache and the CDN can both
      * purge this page on entry/type events.
@@ -121,12 +237,24 @@ final class RenderController
         if ($uuid === '' || $typeSlug === '') {
             return;
         }
-        $response->headers->set('Cache-Tag', "lemma:entry:{$uuid}, lemma:type:{$typeSlug}");
+        $this->mergeCacheTags($response, ["lemma:entry:{$uuid}", "lemma:type:{$typeSlug}"]);
     }
 
-    /** @param array<string,mixed>|null $entry */
-    private function render(string $template, string $locale, ?array $entry, int $status): Response
-    {
+    /**
+     * @param array<string,mixed>|null $entry
+     * @param array<string,mixed> $extra additional template context (listing/archive pages)
+     */
+    private function render(
+        string $template,
+        string $locale,
+        ?array $entry,
+        int $status,
+        array $extra = [],
+    ): Response {
+        // Reset the facet-tag collector BEFORE every render (preview spec §5): the
+        // extension instance is process-shared, and reset-before-render is what stops a
+        // failed render's collected tags leaking into the next response.
+        $this->extension->resetTags();
         $this->extension->setLocale($locale);
         $context = [
             'site' => [
@@ -138,6 +266,7 @@ final class RenderController
         if ($entry !== null) {
             $context['entry'] = $entry;
         }
+        $context += $extra;
 
         try {
             $html = $this->twig()->render($template, $context);
@@ -153,7 +282,33 @@ final class RenderController
             return $this->render('error.twig', $locale, null, 500);
         }
 
-        return new Response($html, $status, ['Content-Type' => 'text/html; charset=UTF-8']);
+        $response = new Response($html, $status, ['Content-Type' => 'text/html; charset=UTF-8']);
+        // Drain on SUCCESS only: tags collected by facets() during this render join the
+        // page's Cache-Tag, so facet sidebars purge event-driven like everything else.
+        $this->mergeCacheTags($response, $this->extension->drainTags());
+        return $response;
+    }
+
+    /**
+     * Append-unique Cache-Tag merge: drained facet tags (set at render time) and the
+     * caller-side taggers (tagResponse/tagCollection) must compose, so nobody may
+     * blind-set the header.
+     *
+     * @param list<string> $tags
+     */
+    private function mergeCacheTags(Response $response, array $tags): void
+    {
+        if ($tags === []) {
+            return;
+        }
+        $existing = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) $response->headers->get('Cache-Tag', '')),
+        )));
+        $response->headers->set(
+            'Cache-Tag',
+            implode(', ', array_values(array_unique([...$existing, ...$tags]))),
+        );
     }
 
     private function homepageConfigFailure(string $configured): Response

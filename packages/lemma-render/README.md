@@ -81,6 +81,23 @@ of the type purges every listing page immediately.
 | `lemma_render.listing_types` (`RENDER_LISTING_TYPES`, comma-separated) | `''` — feature dormant |
 | `lemma_render.listing_per_page` (`RENDER_LISTING_PER_PAGE`) | `10` |
 
+## Preview in the theme
+
+`GET /_preview/{token}` renders a draft (or pinned version) through the active theme —
+the signed token from `POST /v1/admin/entries/{uuid}/preview/{locale}` is the only
+credential (its response's `theme_url` carries this path; `null` = capability off).
+Responses are `Cache-Control: no-store` + `X-Robots-Tag: noindex`, never enter the
+page cache, and carry a `preview` flag templates can read (the default theme shows a
+banner). Preview content has NO `entry.seo` object. All token failures render the
+themed 404.
+
+## Facet counts in templates
+
+`facets('post', 'category', limit = 100)` returns `[{uuid, slug, count}, …]` (count
+DESC) for filterable reference fields — `[]` on any gate failure, so templates never
+break. Pages using it are automatically tagged with both type tags, so counts purge
+event-driven like everything else.
+
 ## Config
 
 | Key (env) | Default |
@@ -137,7 +154,6 @@ the headless product is untouched.
 ## Out of scope (v1 — see V2_DESIGN §6)
 
 Taxonomy term INDEX pages (`/{type}/{field}` enumerating all terms), DB-edited
-templates, page/block builder, preview-through-theme, admin theme/homepage switching
-UI. Per-page TTL overrides, stale-while-revalidate, and user/preview cache bypass are
-deferred with them (render caching spec §8); facet counts in templates are a separate
-follow-up (listing spec §6).
+templates, page/block builder, admin theme/homepage switching UI, full-site preview
+navigation (links on a preview page lead to published pages). Per-page TTL overrides
+and stale-while-revalidate are deferred with them (render caching spec §8).

@@ -91,6 +91,43 @@ final class RenderController
         };
     }
 
+    /**
+     * Preview-through-theme (preview spec §2–§3): a content render with different
+     * headers and context — kind 'content' + preview flag, never a separate kind. The
+     * fixed-key RenderErrorCache is NOT consulted for failures (a preview 404 renders
+     * fresh; it must never serve or fill the shared body). Responses are no-store +
+     * noindex and carry no Cache-Tag.
+     */
+    #[\Glueful\Routing\Attributes\ApiOperation(
+        summary: 'Rendered draft preview (HTML, not an API endpoint)',
+        // Tagged Default explicitly: the OpenAPI deny-list drops the render pack's
+        // HTML routes by that tag, and the generator would otherwise path-derive an
+        // unexcludable "' Preview'" tag from the /_preview segment.
+        tags: ['Default'],
+    )]
+    public function preview(Request $request, string $token): Response
+    {
+        $result = $this->resolver->resolvePreview($token);
+
+        if ($result['kind'] !== 'content') {
+            $response = $this->render('404.twig', $this->defaultLocale(), null, 404, ['preview' => true]);
+        } else {
+            $entry = $result['content'];
+            $locale = (string) $result['locale'];
+            $typeSlug = (string) ($result['type'] ?? '');
+            $candidate = $typeSlug !== '' ? "entry/{$typeSlug}.twig" : '';
+            $template = $candidate !== '' && $this->twig()->getLoader()->exists($candidate)
+                ? $candidate
+                : 'entry.twig';
+            $response = $this->render($template, $locale, $entry, 200, ['preview' => true]);
+        }
+
+        $response->headers->remove('Cache-Tag'); // no-store pages carry no surrogate tags
+        $response->headers->set('Cache-Control', 'no-store');
+        $response->headers->set('X-Robots-Tag', 'noindex');
+        return $response;
+    }
+
     /** @param array{locale: ?string, type: ?string, content: ?array} $result */
     private function renderEntry(array $result): Response
     {
@@ -184,7 +221,7 @@ final class RenderController
         if ($termType !== '' && $termType !== $typeSlug) {
             $tags[] = 'lemma:type:' . $termType;
         }
-        $response->headers->set('Cache-Tag', implode(', ', array_values(array_unique($tags))));
+        $this->mergeCacheTags($response, array_values(array_unique($tags)));
     }
 
     /**
@@ -200,7 +237,7 @@ final class RenderController
         if ($uuid === '' || $typeSlug === '') {
             return;
         }
-        $response->headers->set('Cache-Tag', "lemma:entry:{$uuid}, lemma:type:{$typeSlug}");
+        $this->mergeCacheTags($response, ["lemma:entry:{$uuid}", "lemma:type:{$typeSlug}"]);
     }
 
     /**
@@ -214,6 +251,10 @@ final class RenderController
         int $status,
         array $extra = [],
     ): Response {
+        // Reset the facet-tag collector BEFORE every render (preview spec §5): the
+        // extension instance is process-shared, and reset-before-render is what stops a
+        // failed render's collected tags leaking into the next response.
+        $this->extension->resetTags();
         $this->extension->setLocale($locale);
         $context = [
             'site' => [
@@ -241,7 +282,33 @@ final class RenderController
             return $this->render('error.twig', $locale, null, 500);
         }
 
-        return new Response($html, $status, ['Content-Type' => 'text/html; charset=UTF-8']);
+        $response = new Response($html, $status, ['Content-Type' => 'text/html; charset=UTF-8']);
+        // Drain on SUCCESS only: tags collected by facets() during this render join the
+        // page's Cache-Tag, so facet sidebars purge event-driven like everything else.
+        $this->mergeCacheTags($response, $this->extension->drainTags());
+        return $response;
+    }
+
+    /**
+     * Append-unique Cache-Tag merge: drained facet tags (set at render time) and the
+     * caller-side taggers (tagResponse/tagCollection) must compose, so nobody may
+     * blind-set the header.
+     *
+     * @param list<string> $tags
+     */
+    private function mergeCacheTags(Response $response, array $tags): void
+    {
+        if ($tags === []) {
+            return;
+        }
+        $existing = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) $response->headers->get('Cache-Tag', '')),
+        )));
+        $response->headers->set(
+            'Cache-Tag',
+            implode(', ', array_values(array_unique([...$existing, ...$tags]))),
+        );
     }
 
     private function homepageConfigFailure(string $configured): Response

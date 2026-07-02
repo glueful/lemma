@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Content\Delivery;
 
+use App\Content\Preview\PreviewNotFoundException;
+use App\Content\Preview\PreviewReader;
+use App\Content\Preview\PreviewTokenException;
 use App\Content\Repositories\ContentTypeRepository;
+use App\Content\Repositories\EntryRepository;
 use App\Content\Repositories\PublishedReferenceRepository;
 use App\Content\Schema\ContentTypeSchema;
 use App\Content\Seo\PathRenderer;
@@ -15,6 +19,7 @@ use Glueful\Extensions\I18n\Contracts\LocaleManagerInterface;
 use Glueful\Lemma\Contracts\Delivery\PublicRouteResolver;
 use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
 use Glueful\Support\FieldSelection\FieldSelector;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 use function config;
@@ -41,6 +46,9 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
         private readonly PublishedReferenceRepository $projection,
         private readonly ReferenceTargetResolver $terms,
         private readonly PathRenderer $paths,
+        private readonly PreviewReader $preview,
+        private readonly EntryRepository $entries,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -118,6 +126,7 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             return [
                 'kind' => 'gone', 'locale' => $locale, 'type' => null, 'content' => null, 'redirect' => null,
                 'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+                'preview' => false,
             ];
         }
         if ($result->isRedirect()) {
@@ -133,6 +142,7 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             'content' => $this->shaper->shapePublic($row, $typeUuid, $typeSlug),
             'redirect' => null,
             'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false,
         ];
     }
 
@@ -175,6 +185,66 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             'content' => $this->shaper->shapePublic($row, $typeUuid, $typeSlug),
             'redirect' => null,
             'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false,
+        ];
+    }
+
+    /**
+     * Signed-token preview (preview spec §2): kind 'content' + preview: true — a
+     * content render, not a new kind. Fields come from the fail-closed PreviewReader
+     * (draft or pinned version, schema-projected); shaping is the LIST shape — no seo
+     * (a draft may be routeless; the page is noindex). Token-is-authorization:
+     * public_delivery gating deliberately does NOT apply (JSON-door parity). Every
+     * failure is not_found; the reason is logged for editor debuggability.
+     */
+    public function resolvePreview(string $token): array
+    {
+        try {
+            $read = $this->preview->read($token);
+        } catch (PreviewTokenException | PreviewNotFoundException $e) {
+            $this->logger->info('lemma-render: preview token rejected', [
+                'reason' => get_class($e),
+                'error' => $e->getMessage(),
+            ]);
+            return $this->notFound();
+        }
+
+        $entry = $this->entries->findEntry($read['entry_uuid']);
+        if ($entry === null || ($entry['status'] ?? null) === 'deleted') {
+            return $this->notFound();
+        }
+        $typeRow = $this->types->findByUuid((string) $entry['content_type_uuid']);
+        if ($typeRow === null) {
+            return $this->notFound();
+        }
+        $typeUuid = (string) $typeRow['uuid'];
+        $typeSlug = (string) $typeRow['slug'];
+        $schema = ContentTypeSchema::fromArray((array) ($typeRow['schema'] ?? []));
+
+        // Synthesize a spine-shaped row from the reader's output; references expand
+        // against the PUBLISHED spine (referenced entries appear as the public sees
+        // them). schema_version is pinned to the CURRENT type version: PreviewReader
+        // already projected the fields forward but reports the ORIGINAL version, and
+        // letting shape() see the old number would re-run the migration chain over
+        // already-projected fields — unsafe when a rename chain re-uses a name.
+        $row = [
+            'entry_uuid' => $read['entry_uuid'],
+            'locale' => $read['locale'],
+            'version' => $read['version'],
+            'version_uuid' => $read['version_uuid'],
+            'schema_version' => (int) ($typeRow['schema_version'] ?? $read['schema_version']),
+            'fields' => $read['fields'],
+            'published_at' => null,
+        ];
+        $selector = FieldSelector::fromRequest(Request::create('/'));
+        $shaped = $this->shaper->shape([$row], $schema, $selector, $read['locale'], $typeUuid, null);
+        $content = $this->shaper->item($shaped[0]);
+
+        return [
+            'kind' => 'content', 'locale' => $read['locale'], 'type' => $typeSlug,
+            'content' => $content, 'redirect' => null,
+            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => true,
         ];
     }
 
@@ -229,6 +299,7 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             'kind' => 'listing', 'locale' => $locale, 'type' => $typeSlug,
             'content' => null, 'redirect' => null,
             'listing' => $listing, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false,
         ];
     }
 
@@ -302,6 +373,7 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
             'term' => $this->shaper->shapePublic($termRow, $targetUuid, $targetSlug),
             'term_type' => $targetSlug,
             'field' => $field,
+            'preview' => false,
         ];
     }
 
@@ -456,13 +528,15 @@ final class EnginePublicRouteResolver implements PublicRouteResolver
     {
         return ['kind' => 'redirect', 'locale' => null, 'type' => null, 'content' => null,
             'redirect' => ['location' => $location, 'status' => $status],
-            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null];
+            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false];
     }
 
     /** @return array<string,mixed> */
     private function notFound(): array
     {
         return ['kind' => 'not_found', 'locale' => null, 'type' => null, 'content' => null, 'redirect' => null,
-            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null];
+            'listing' => null, 'term' => null, 'term_type' => null, 'field' => null,
+            'preview' => false];
     }
 }

@@ -5815,98 +5815,6 @@
                 }
             }
         },
-        "\/": {
-            "get": {
-                "operationId": "get",
-                "summary": "GET \/",
-                "tags": [
-                    "Default"
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful response"
-                    },
-                    "500": {
-                        "description": "Unexpected server error.",
-                        "content": {
-                            "application\/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean"
-                                        },
-                                        "message": {
-                                            "type": "string"
-                                        },
-                                        "error": {
-                                            "type": "object",
-                                            "properties": {
-                                                "code": {
-                                                    "type": "integer"
-                                                },
-                                                "timestamp": {
-                                                    "type": "string"
-                                                },
-                                                "request_id": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "\/theme-assets": {
-            "get": {
-                "operationId": "getThemeassets",
-                "summary": "GET \/theme-assets",
-                "tags": [
-                    "Theme Assets"
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful response"
-                    },
-                    "500": {
-                        "description": "Unexpected server error.",
-                        "content": {
-                            "application\/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean"
-                                        },
-                                        "message": {
-                                            "type": "string"
-                                        },
-                                        "error": {
-                                            "type": "object",
-                                            "properties": {
-                                                "code": {
-                                                    "type": "integer"
-                                                },
-                                                "timestamp": {
-                                                    "type": "string"
-                                                },
-                                                "request_id": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "\/sitemap.xml": {
             "get": {
                 "operationId": "getSitemapxml",
@@ -17162,122 +17070,6 @@
                     },
                     "404": {
                         "description": "Unknown menu."
-                    }
-                }
-            }
-        },
-        "\/{path}": {
-            "get": {
-                "operationId": "getByPath",
-                "summary": "GET \/{path}",
-                "tags": [
-                    "Default"
-                ],
-                "parameters": [
-                    {
-                        "name": "path",
-                        "in": "path",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "type": "string",
-                            "pattern": ".+"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful response"
-                    },
-                    "500": {
-                        "description": "Unexpected server error.",
-                        "content": {
-                            "application\/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean"
-                                        },
-                                        "message": {
-                                            "type": "string"
-                                        },
-                                        "error": {
-                                            "type": "object",
-                                            "properties": {
-                                                "code": {
-                                                    "type": "integer"
-                                                },
-                                                "timestamp": {
-                                                    "type": "string"
-                                                },
-                                                "request_id": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "\/theme-assets\/{rest}": {
-            "get": {
-                "operationId": "getThemeassetsByRest",
-                "summary": "GET \/theme-assets\/{rest}",
-                "tags": [
-                    "Theme Assets"
-                ],
-                "parameters": [
-                    {
-                        "name": "rest",
-                        "in": "path",
-                        "required": true,
-                        "description": "",
-                        "schema": {
-                            "type": "string",
-                            "pattern": ".+"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful response"
-                    },
-                    "500": {
-                        "description": "Unexpected server error.",
-                        "content": {
-                            "application\/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean"
-                                        },
-                                        "message": {
-                                            "type": "string"
-                                        },
-                                        "error": {
-                                            "type": "object",
-                                            "properties": {
-                                                "code": {
-                                                    "type": "integer"
-                                                },
-                                                "timestamp": {
-                                                    "type": "string"
-                                                },
-                                                "request_id": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -29617,6 +29409,12 @@
                                                 },
                                                 "expires_in": {
                                                     "type": "integer"
+                                                },
+                                                "theme_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             }
                                         }
@@ -33203,10 +33001,6 @@
             "description": "Operations related to Content"
         },
         {
-            "name": "Default",
-            "description": "Operations related to Default"
-        },
-        {
             "name": "Extensions",
             "description": "Operations related to Extensions"
         },
@@ -33285,10 +33079,6 @@
         {
             "name": "Search Admin",
             "description": "Operations related to Search Admin"
-        },
-        {
-            "name": "Theme Assets",
-            "description": "Operations related to Theme Assets"
         },
         {
             "name": "Users",

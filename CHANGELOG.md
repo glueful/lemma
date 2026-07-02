@@ -7,6 +7,18 @@ This project is generated from `glueful/api-skeleton`. Start recording applicati
 ## [Unreleased]
 
 ### Added
+- **Preview-through-theme**: `GET /_preview/{token}` renders drafts/pinned versions
+  through the active Twig theme (structurally uncached dedicated route; `no-store` +
+  `noindex`; fail-closed themed 404s; `preview` template flag + default-theme banner).
+  `PublicRouteResolver` gained `resolvePreview()` (kind `content` + `preview: true`
+  flag); the mint response gained a server-decided `theme_url` (`null` when rendered
+  delivery is off) and the admin editor a "Preview in theme" action.
+- **`facets()` in Twig** over the new `FacetCountsReader` contract (`{items,
+  cache_tags}` — a valid empty facet still tags the page); a render-scoped tag
+  collector merges facet tags into `Cache-Tag`, so facet sidebars purge event-driven.
+- **OpenAPI**: the render pack's HTML routes (`GET /`, `GET /{path}`, `/_preview/…`,
+  `/theme-assets/*`) are excluded from the generated spec (`Default` and
+  `Theme Assets` joined the tag deny-list).
 - **Rendered listing & archive pages** (V2 render follow-up): `/{type}` and
   `/{type}/{field}/{term}` (+ `/page/n`, + locale prefixes) through the render
   catch-all — `PublicRouteResolver` gained `listing`/`archive` kinds with

@@ -94,6 +94,7 @@ use App\Content\Authoring\EngineDraftSummaryReader;
 use App\Content\Delivery\EngineEntryTargetResolver;
 use App\Content\Context\EngineLemmaContext;
 use App\Content\Delivery\EngineContentDeliveryReader;
+use App\Content\Delivery\EngineFacetCountsReader;
 use App\Content\Delivery\EngineIndexableContentReader;
 use App\Content\Schema\FieldTypes\DefaultFieldTypeRegistry;
 use App\Content\Schema\FieldTypes\EditorialFieldTypes;
@@ -107,6 +108,7 @@ use Glueful\Lemma\Contracts\Delivery\EntryTargetResolver;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Context\LemmaContext;
 use Glueful\Lemma\Contracts\Delivery\ContentDeliveryReader;
+use Glueful\Lemma\Contracts\Delivery\FacetCountsReader;
 use Glueful\Lemma\Contracts\Delivery\ReferenceTargetResolver;
 use Glueful\Lemma\Contracts\Search\IndexableContentReader;
 use Glueful\Lemma\Contracts\Schema\FieldTypeRegistry;
@@ -292,6 +294,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             \Glueful\Lemma\Contracts\Delivery\PublicRouteResolver::class => [
                 'class'    => \App\Content\Delivery\EnginePublicRouteResolver::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            FacetCountsReader::class => [
+                'class'    => EngineFacetCountsReader::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

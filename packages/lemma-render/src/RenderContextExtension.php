@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Glueful\Lemma\Render;
 
 use Glueful\Lemma\Contracts\Delivery\EntryTargetResolver;
+use Glueful\Lemma\Contracts\Delivery\FacetCountsReader;
 use Glueful\Lemma\Contracts\Navigation\MenuReader;
 use Twig\Error\RuntimeError;
 use Twig\Extension\AbstractExtension;
@@ -21,15 +22,23 @@ use Twig\TwigFunction;
  *                     can never emit a dead link)
  *   asset(rel)      → /theme-assets/{rel}; rejects absolute URLs, .., leading /, and
  *                     backslashes with a template-facing error naming the value
+ *   facets(type, field) → facet counts (preview spec §5); the result's cache tags go
+ *                     into the render-scoped collector (reset by the controller before
+ *                     EVERY render; drained after success) so facet pages purge
+ *                     event-driven
  */
 final class RenderContextExtension extends AbstractExtension
 {
     private string $locale;
 
+    /** @var array<string,string> render-scoped surrogate tags (see resetTags/drainTags) */
+    private array $collectedTags = [];
+
     public function __construct(
         private readonly ?MenuReader $menus,
         private readonly EntryTargetResolver $targets,
         string $defaultLocale = 'en',
+        private readonly ?FacetCountsReader $facetReader = null,
     ) {
         $this->locale = $defaultLocale;
     }
@@ -46,7 +55,48 @@ final class RenderContextExtension extends AbstractExtension
             new TwigFunction('menu', $this->menu(...)),
             new TwigFunction('path', $this->path(...)),
             new TwigFunction('asset', $this->asset(...)),
+            new TwigFunction('facets', $this->facets(...)),
         ];
+    }
+
+    /**
+     * Facet counts for templates (preview spec §5): returns ITEMS to Twig; the result's
+     * cache_tags go into the render-scoped collector so the controller can merge them
+     * into the page's Cache-Tag. No reader bound (or any gate failing) → [] — a
+     * template never explodes over facets.
+     *
+     * @return list<array{uuid: string, slug: ?string, count: int}>
+     */
+    public function facets(string $type, string $field, int $limit = 100): array
+    {
+        if ($this->facetReader === null) {
+            return [];
+        }
+        $result = $this->facetReader->counts($type, $field, $this->locale, $limit);
+        $this->collectTags($result['cache_tags']);
+        return $result['items'];
+    }
+
+    /** @param list<string> $tags */
+    private function collectTags(array $tags): void
+    {
+        foreach ($tags as $tag) {
+            $this->collectedTags[$tag] = $tag;
+        }
+    }
+
+    /** Reset the render-scoped collector — the controller calls this BEFORE every render. */
+    public function resetTags(): void
+    {
+        $this->collectedTags = [];
+    }
+
+    /** @return list<string> drained (and cleared) tags collected during the render */
+    public function drainTags(): array
+    {
+        $tags = array_values($this->collectedTags);
+        $this->collectedTags = [];
+        return $tags;
     }
 
     /** @return list<array{label:string,url:string,entry:?string,children:list<mixed>}> */

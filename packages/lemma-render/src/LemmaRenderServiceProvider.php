@@ -11,6 +11,7 @@ use Glueful\Extensions\ServiceProvider;
 use Glueful\Lemma\Contracts\Capability\Capability;
 use Glueful\Lemma\Contracts\Capability\CapabilityRegistry;
 use Glueful\Lemma\Contracts\Delivery\EntryTargetResolver;
+use Glueful\Lemma\Contracts\Delivery\FacetCountsReader;
 use Glueful\Lemma\Contracts\Navigation\MenuReader;
 use Glueful\Lemma\Contracts\Navigation\MenuUpdated;
 use Glueful\Lemma\Render\Console\ClearRenderCacheCommand;
@@ -129,10 +130,15 @@ final class LemmaRenderServiceProvider extends ServiceProvider
         $context = $container->get(ApplicationContext::class);
         // MenuReader is OPTIONAL — render has no hard dependency on lemma-navigation.
         $menus = $container->has(MenuReader::class) ? $container->get(MenuReader::class) : null;
+        // FacetCountsReader is likewise soft: no binding means facets() returns [].
+        $facets = $container->has(FacetCountsReader::class)
+            ? $container->get(FacetCountsReader::class)
+            : null;
         return new RenderContextExtension(
             $menus instanceof MenuReader ? $menus : null,
             $container->get(EntryTargetResolver::class),
             (string) config($context, 'i18n.default_locale', 'en'),
+            $facets instanceof FacetCountsReader ? $facets : null,
         );
     }
 

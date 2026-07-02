@@ -14,7 +14,8 @@ use Glueful\Http\Contracts\ResponseData;
  * directly (no inner wrapper key) when minting a signed preview token.
  * `expires_at` is typed as `\DateTimeInterface` to drive `format: date-time` in the
  * generated schema; the wire value is an ISO-8601 string produced by `date('c')` but
- * the DTO is never instantiated.
+ * the DTO is never instantiated. `theme_url` is the rendered-site preview path
+ * (`/_preview/{token}`), or null when the render capability is disabled/absent.
  */
 final class PreviewMintData implements ResponseData
 {
@@ -22,6 +23,7 @@ final class PreviewMintData implements ResponseData
         public readonly string $token,
         public readonly \DateTimeInterface $expires_at,
         public readonly int $expires_in,
+        public readonly ?string $theme_url,
     ) {
     }
 }

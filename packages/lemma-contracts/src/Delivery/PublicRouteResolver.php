@@ -20,16 +20,26 @@ interface PublicRouteResolver
      *   redirect: ?array{location: string, status: int},
      *   listing: ?array{items: list<array<string,mixed>>, page: int, per_page: int,
      *     total: int, total_pages: int},
-     *   term: ?array, term_type: ?string, field: ?string}
+     *   term: ?array, term_type: ?string, field: ?string, preview: bool}
      *   `type` is the content-type slug (content/listing/archive kinds) — template
      *   hierarchies select on it. `listing` (listing + archive kinds) carries LIST-shaped
      *   items each with a ready `href` (?string; null = routeless) and
      *   total_pages = max(1, ceil(total / per_page)) — never 0. `term` (archive kind) is
      *   the SHOW-shaped term entry (seo included); `term_type` its content-type slug
-     *   (for surrogate cache tags); `field` the source reference field.
+     *   (for surrogate cache tags); `field` the source reference field. `preview` is
+     *   true only on resolvePreview successes — preview is a content render, not a kind.
      */
     public function resolvePath(string $path): array;
 
     /** Same result shape, for a known entry (homepage; previews later). */
     public function resolveEntry(string $entryUuid, ?string $locale = null): array;
+
+    /**
+     * Resolve a signed preview token to its draft/pinned-version content, rendered-side.
+     * Success is `kind: 'content'` with `preview: true` (same shape — preview is a
+     * content render with different headers/context, never a separate kind). Content
+     * carries NO `seo` key. EVERY failure (malformed, expired, missing draft/version)
+     * is `not_found`. The token is the authorization (public_delivery does not apply).
+     */
+    public function resolvePreview(string $token): array;
 }

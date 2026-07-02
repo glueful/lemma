@@ -126,8 +126,9 @@ Shape" as post‑V1 and have **no** design doc yet:
    Lemma serves real HTML pages from published content through filesystem Twig themes
    (catch‑all → `PublicRouteResolver`, pack‑embedded default theme + app override).
    **Next step: render caching (V2 sub‑project 3)** — full‑page cache keyed
-   `render:{theme}:{locale}:{path}`, tag‑invalidated via the lifecycle/`MenuUpdated`
-   seams, ETag, CDN composition.
+   `render:{theme}:{normalizedPath}`, tag‑invalidated via the lifecycle/`MenuUpdated`
+   seams, ETag, CDN composition. Spec:
+   `docs/superpowers/specs/2026-07-02-lemma-render-caching-design.md`.
 2. **Taxonomies → term‑archives + facets** — the reference primitive is now shipped, so this is no
    longer a from‑scratch module: it's the smaller, additive delivery surface (term‑archive
    endpoints + facet counts over a published‑reference projection) the references spec deferred.

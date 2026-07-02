@@ -116,7 +116,7 @@ final class BackfillRunner
                 $number = $this->versions->reserveNextVersionNumber($entry, $locale);
                 $newUuid = $this->versions->appendVersion($entry, $locale, $number, $migrated, $toVersion, $actor);
                 $this->versions->pin($entry, $locale, $newUuid, $actor);
-                $this->references->rebuildForEntry($entry, $schema, $migrated);
+                $this->references->rebuildForEntry($entry, $schema, $migrated, $locale);
             });
 
             $this->migrations->incrementDone($migrationUuid);

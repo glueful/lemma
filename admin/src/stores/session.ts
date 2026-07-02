@@ -88,6 +88,9 @@ export const useSessionStore = defineStore(
       accessToken.value = null
       refreshToken.value = null
       user.value = null
+      // Drop the previous user's capability set so the next account reloads its own (lazy import
+      // avoids a store<->store cycle). NOT called on token refresh — only on identity changes.
+      void import('@/stores/capabilities').then((m) => m.useCapabilitiesStore().reset())
     }
 
     async function login(email: string, password: string): Promise<void> {
@@ -101,6 +104,9 @@ export const useSessionStore = defineStore(
       const { access, refresh, user: u } = readAuthBody(data)
       if (access === null || u === null) throw new Error('Malformed login response.')
       setSession(access, refresh, u)
+      // New identity → force the capability set to reload for this user on the next guard check.
+      const { useCapabilitiesStore } = await import('@/stores/capabilities')
+      useCapabilitiesStore().reset()
     }
 
     // Mint a fresh access token by POSTing the stored refresh token in the body (no cookie). Refresh

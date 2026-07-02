@@ -139,15 +139,18 @@ $router->group(['prefix' => '/v1/admin', 'middleware' => ['auth']], function (Ro
     $router->post('/entries/{uuid}/rollback/{locale}', [PublicationController::class, 'rollback'])
         ->middleware('lemma_permission:content.publish');
 
-    // Instance settings — mailer config persisted to .env.
+    // Instance settings — mailer config persisted to .env. Gated on `system.config` (superuser
+    // only, per Aegis' seeded roles): these routes write MAIL_* to .env and the test action opens
+    // an SMTP connection with the stored credentials, so they carry the same infrastructure-config
+    // authority as the permission catalog — not day-to-day `content.manage`.
     $router->get('/settings/email', [EmailSettingsController::class, 'show'])
-        ->middleware('lemma_permission:content.manage');
+        ->middleware('lemma_permission:system.config');
 
     $router->put('/settings/email', [EmailSettingsController::class, 'update'])
-        ->middleware('lemma_permission:content.manage');
+        ->middleware('lemma_permission:system.config');
 
     $router->post('/settings/email/test', [EmailSettingsController::class, 'test'])
-        ->middleware('lemma_permission:content.manage');
+        ->middleware('lemma_permission:system.config');
 
     // Instance General settings — site identity, default locale, delivery defaults, feature toggles
     // (persisted as LEMMA_* keys in .env).

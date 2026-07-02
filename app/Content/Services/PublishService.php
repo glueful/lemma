@@ -43,24 +43,43 @@ final class PublishService
         if ($draft === null) {
             throw new \RuntimeException("no draft for {$entryUuid}/{$locale}");
         }
-        $schema = $this->types->schemaFor((string) $entry['content_type_uuid']);
+        $typeUuid = (string) $entry['content_type_uuid'];
+        $schema = $this->types->schemaFor($typeUuid);
+
+        // Project a draft still on an OLDER schema up to the current shape before validating, so a
+        // draft behind a lagging/failed backfill (e.g. a renamed field) doesn't silently lose the
+        // renamed data — FieldValidator only keeps keys the current schema declares. A draft already
+        // at the current version is untouched (no projection, same stored version) → behaviour
+        // unchanged for the normal path. The snapshot then records the CURRENT version, so delivery
+        // read-projection stays a no-op instead of double-projecting.
+        $fields = $draft['fields'];
+        $storeVersion = (int) $draft['schema_version'];
+        if ($this->projector !== null) {
+            $typeRow = $this->types->findByUuid($typeUuid);
+            $currentVersion = $typeRow === null ? $storeVersion : (int) $typeRow['schema_version'];
+            if ($storeVersion < $currentVersion) {
+                $fields = $this->projector->project($typeUuid, $storeVersion, $fields);
+                $storeVersion = $currentVersion;
+            }
+        }
+
         // Throws ValidationException before any write if the draft is invalid.
-        $clean = $this->validator->validate($schema, $draft['fields']);
+        $clean = $this->validator->validate($schema, $fields);
 
         $version = 0;
         $versionUuid = db($this->context)->transaction(
-            function () use ($entryUuid, $locale, $clean, $draft, $actor, $schema, &$version): string {
+            function () use ($entryUuid, $locale, $clean, $storeVersion, $actor, $schema, &$version): string {
                 $version = $this->versions->reserveNextVersionNumber($entryUuid, $locale);
                 $versionUuid = $this->versions->appendVersion(
                     $entryUuid,
                     $locale,
                     $version,
                     $clean,
-                    (int) $draft['schema_version'],
+                    $storeVersion,
                     $actor,
                 );
                 $this->versions->pin($entryUuid, $locale, $versionUuid, $actor);
-                $this->references->rebuildForEntry($entryUuid, $schema, $clean);
+                $this->references->rebuildForEntry($entryUuid, $schema, $clean, $locale);
                 return $versionUuid;
             }
         );
@@ -85,7 +104,7 @@ final class PublishService
         $entry = $this->entries->findEntry($entryUuid);
         db($this->context)->transaction(function () use ($entryUuid, $locale): void {
             $this->versions->unpin($entryUuid, $locale);
-            $this->references->clearForEntry($entryUuid);
+            $this->references->clearForEntryLocale($entryUuid, $locale);
         });
         $this->events?->emitAfterCommit(new EntryUnpublished(
             entry: $entryUuid,
@@ -129,7 +148,7 @@ final class PublishService
                         $fields,
                     );
                 }
-                $this->references->rebuildForEntry($entryUuid, $schema, $fields);
+                $this->references->rebuildForEntry($entryUuid, $schema, $fields, $locale);
             }
         });
         // Re-publishing a prior version is a publish for downstream consumers (V1_DESIGN §5).

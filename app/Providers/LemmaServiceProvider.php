@@ -23,6 +23,7 @@ use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\ApiKeyAdminController;
 use App\Http\Controllers\CacheAdminController;
 use App\Http\Controllers\CapabilityAdminController;
+use App\Http\Controllers\EmailSettingsController;
 use App\Http\Controllers\ExtensionAdminController;
 use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\HealthAdminController;
@@ -624,6 +625,11 @@ final class LemmaServiceProvider extends ServiceProvider
             ],
             GeneralSettingsController::class => [
                 'class' => GeneralSettingsController::class,
+                'shared' => true,
+                'autowire' => true,
+            ],
+            EmailSettingsController::class => [
+                'class' => EmailSettingsController::class,
                 'shared' => true,
                 'autowire' => true,
             ],

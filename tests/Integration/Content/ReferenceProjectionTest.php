@@ -67,8 +67,8 @@ final class ReferenceProjectionTest extends LemmaTestCase
             ['name' => 'author', 'type' => 'reference'],
         ]);
 
-        $this->projection()->rebuildForEntry($source, $schema, ['author' => $first]);
-        $this->projection()->rebuildForEntry($source, $schema, ['author' => $second]);
+        $this->projection()->rebuildForEntry($source, $schema, ['author' => $first], 'en');
+        $this->projection()->rebuildForEntry($source, $schema, ['author' => $second], 'en');
 
         $rows = $this->referenceRows($source);
         self::assertCount(1, $rows);
@@ -84,7 +84,7 @@ final class ReferenceProjectionTest extends LemmaTestCase
             ['name' => 'author', 'type' => 'reference'],
         ]);
 
-        $this->projection()->rebuildForEntry($source, $schema, ['author' => $target]);
+        $this->projection()->rebuildForEntry($source, $schema, ['author' => $target], 'en');
 
         self::assertSame([$source], $this->projection()->referencesTo($target));
     }
@@ -107,11 +107,11 @@ final class ReferenceProjectionTest extends LemmaTestCase
             ['name' => 'author', 'type' => 'reference'],
         ]);
         // duplicate targets in a list value dedupe to one row
-        $repo->rebuildForEntry('source000001', $schema, ['author' => ['tgt000000001', 'tgt000000001']]);
+        $repo->rebuildForEntry('source000001', $schema, ['author' => ['tgt000000001', 'tgt000000001']], 'en');
         self::assertCount(1, $this->referenceRows('source000001'));
 
         // rebuild replaces
-        $repo->rebuildForEntry('source000001', $schema, ['author' => 'tgt000000002']);
+        $repo->rebuildForEntry('source000001', $schema, ['author' => 'tgt000000002'], 'en');
         $rows = $this->referenceRows('source000001');
         self::assertCount(1, $rows);
         self::assertSame('tgt000000002', $rows[0]['target_entry_uuid']);
